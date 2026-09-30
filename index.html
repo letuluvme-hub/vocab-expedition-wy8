@@ -193,6 +193,152 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .tg.bad{background:#ff54701f;border-color:#ff547055;color:#ff9db0}
 .tg.ok{background:#3ddc8418;border-color:#3ddc8455;color:#7fe6b0}
 
+/* ================= 玩家角色形象（纯 CSS 绘制，无图片 / 无 emoji） =================
+   结构约定：
+     .pc    外壳，负责「呼吸」待机动画；宽高可变，内部全部用 % 定位，
+            所以同一套图形改个 width 就能当标题页小头像用（见 .hcard .pc）。
+     .pci   内层，承载攻击 / 受伤动画 —— 与外壳的 idle 动画互不覆盖。
+     部件    影子 / 披风 / 躯干 / 腰饰 / 手臂 / 手 / 头 / 发 / 眼 / 配饰 / 道具。
+   角色差异全部由 data-h 覆盖 5 个自定义属性 + 部件形状，不新增元素。 */
+.pc{--skin:#f0c9a4;--hair:#33262a;--c1:#6366f1;--c2:#8b5cf6;--acc:#22d3ee;
+  display:block;position:relative;width:104px;height:128px;flex:none;
+  animation:pcIdle 3.1s ease-in-out infinite}
+.pci{position:absolute;inset:0}
+.pc i{display:block;position:absolute;box-sizing:border-box}
+.pc .pc-shadow{left:15%;right:15%;bottom:-1%;height:7%;border-radius:50%;
+  background:#00000080;filter:blur(2px);animation:pcSh 3.1s ease-in-out infinite}
+.pc .pc-cape{left:8%;top:35%;width:84%;height:57%;opacity:0;
+  border-radius:46% 46% 12% 12%/32% 32% 8% 8%;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--c2) 88%,#000) 0%,color-mix(in srgb,var(--c2) 20%,transparent) 88%)}
+.pc .pc-torso{left:27%;top:44%;width:46%;height:45%;border-radius:28% 28% 13% 13%/34% 34% 10% 10%;
+  background:linear-gradient(165deg,var(--c1),var(--c2));box-shadow:inset 0 2px 0 #ffffff40,0 4px 12px #00000073}
+.pc .pc-sash{left:27%;top:52%;width:46%;height:11%;background:var(--acc);opacity:.92;
+  clip-path:polygon(0 0,100% 0,100% 58%,0 100%)}
+.pc .pc-arm{left:12%;top:50%;width:15%;height:34%;border-radius:48%;transform-origin:88% 14%;
+  background:linear-gradient(160deg,var(--c1),var(--c2));box-shadow:0 2px 7px #00000066}
+.pc .pc-hand{left:9%;top:76%;width:12%;height:11%;border-radius:50%;
+  background:linear-gradient(160deg,var(--skin),color-mix(in srgb,var(--skin) 76%,#7a4a2a))}
+.pc .pc-head{left:37%;top:13%;width:27%;height:27%;border-radius:48% 48% 42% 42%;
+  background:linear-gradient(160deg,var(--skin),color-mix(in srgb,var(--skin) 76%,#7a4a2a));
+  box-shadow:inset -2px -2px 0 #00000026}
+.pc .pc-hair{left:34%;top:6%;width:33%;height:20%;border-radius:54% 54% 26% 26%;
+  background:linear-gradient(180deg,var(--hair),color-mix(in srgb,var(--hair) 68%,#000))}
+.pc .pc-eye{top:23%;width:6.5%;height:7.5%;border-radius:50%;background:#14111f}
+.pc .pc-eyeL{left:42%}.pc .pc-eyeR{left:53%}
+.pc .pc-gear{opacity:0}
+.pc .pc-prop{opacity:0}
+
+/* ---- 动画：攻击（向左前冲 + 挥臂）/ 受伤（抖动 + 变红）/ 待机 ---- */
+.pci.atk{animation:pcAtk .34s var(--ease)}
+.pci.atk .pc-arm{animation:pcSwing .34s var(--ease)}
+.pci.hurt{animation:pcHurt .42s var(--ease)}
+@keyframes pcIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3.5px)}}
+@keyframes pcSh{0%,100%{transform:scaleX(1);opacity:.55}50%{transform:scaleX(.82);opacity:.34}}
+@keyframes pcAtk{0%{transform:translateX(0) scaleY(1)}
+  26%{transform:translateX(4px) scaleX(1.05) scaleY(.97)}
+  58%{transform:translateX(-17px) scaleX(1.02)}
+  78%{transform:translateX(-9px)}
+  100%{transform:translateX(0)}}
+@keyframes pcSwing{0%{transform:rotate(0)}
+  34%{transform:rotate(-62deg)}66%{transform:rotate(16deg)}100%{transform:rotate(0)}}
+@keyframes pcHurt{0%,100%{transform:translateX(0) rotate(0);filter:none}
+  14%{transform:translateX(10px) rotate(2.5deg);
+      filter:drop-shadow(0 0 9px #ff5470) brightness(1.25) saturate(3) hue-rotate(-38deg)}
+  38%{transform:translateX(-7px) rotate(-2deg);filter:drop-shadow(0 0 5px #ff5470aa)}
+  62%{transform:translateX(4px) rotate(1deg);filter:none}80%{transform:translateX(-2px)}}
+
+/* ---- 战斗页对峙行：敌在左、我在右 ---- */
+.vsrow{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin:4px 0 12px}
+.foe{flex:1 1 auto;min-width:0}
+.myside{flex:none;width:104px;display:flex;flex-direction:column;align-items:center;gap:5px}
+.bar.mini{height:15px;flex:none;width:100%}
+.bar.mini .t{font-size:10px}
+.myname{font-size:10.5px;font-weight:700;color:var(--mut);letter-spacing:1.2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+
+/* ---- 六个角色的外形差异（仅改颜色变量 + 配饰/道具形状） ---- */
+/* 学者：靛蓝长袍、圆眼镜、低髻、摊开的书 */
+.pc[data-h=scholar]{--hair:#2b2030;--c1:#4c6ef5;--c2:#7c5cf0;--acc:#a5d8ff}
+.pc[data-h=scholar] .pc-hair{height:25%;border-radius:54% 54% 34% 34%}
+.pc[data-h=scholar] .pc-gear{opacity:1;left:38.5%;top:19.5%;width:26%;height:14%;background:none;
+  background-image:radial-gradient(circle at 26% 50%,transparent 0 33%,#e9eeff 34% 43%,transparent 44%),
+                   radial-gradient(circle at 74% 50%,transparent 0 33%,#e9eeff 34% 43%,transparent 44%)}
+.pc[data-h=scholar] .pc-prop{opacity:1;left:0;top:70%;width:34%;height:21%;border-radius:5%;
+  border:2px solid #5b3ec0;background:linear-gradient(160deg,#ffffff,#cfd6ff);transform:rotate(-8deg)}
+/* 战士：绯红重甲、盔缨、长剑 */
+.pc[data-h=warrior]{--hair:#4a2f22;--c1:#e0344f;--c2:#8b1e2d;--acc:#ffce4d}
+.pc[data-h=warrior] .pc-gear{opacity:1;left:35%;top:5%;width:31%;height:20%;border-radius:50% 50% 18% 18%;
+  background:linear-gradient(180deg,#cbd5e1,#64748b);box-shadow:inset 0 -3px 0 #00000040}
+.pc[data-h=warrior] .pc-gear::after{content:'';position:absolute;left:44%;top:-42%;width:12%;height:56%;
+  border-radius:40%;background:linear-gradient(180deg,#ffce4d,#f97316)}
+.pc[data-h=warrior] .pc-prop{opacity:1;left:5%;top:24%;width:7%;height:48%;border-radius:36%;
+  background:linear-gradient(180deg,#f8fafc,#94a3b8);box-shadow:0 0 10px #ffffff59}
+.pc[data-h=warrior] .pc-prop::after{content:'';position:absolute;left:-70%;top:-11%;width:240%;height:7%;
+  border-radius:4px;background:#fbbf24}
+/* 探险家：松绿斗篷、宽檐帽、护目镜、匕首 */
+.pc[data-h=scout]{--hair:#5b3a1f;--c1:#10b981;--c2:#065f46;--acc:#fbbf24}
+.pc[data-h=scout] .pc-cape{opacity:1}
+.pc[data-h=scout] .pc-hair{height:14%;border-radius:46% 46% 22% 22%}
+.pc[data-h=scout] .pc-gear{opacity:1;left:26%;top:1%;width:50%;height:9%;border-radius:50%;
+  background:linear-gradient(180deg,#a16207,#fbbf24)}
+.pc[data-h=scout] .pc-gear::after{content:'';position:absolute;left:34%;top:-260%;width:32%;height:290%;
+  border-radius:50% 50% 24% 24%;background:linear-gradient(180deg,#0f766e,#134e4a)}
+.pc[data-h=scout] .pc-prop{opacity:1;left:6%;top:56%;width:6%;height:26%;border-radius:34%;
+  background:linear-gradient(180deg,#e2e8f0,#94a3b8);transform:rotate(24deg)}
+/* 幸运儿：琥珀短打、草帽、四叶草 */
+.pc[data-h=lucky]{--hair:#c2410c;--c1:#f59e0b;--c2:#b45309;--acc:#bbf7d0}
+.pc[data-h=lucky] .pc-cape{opacity:.85}
+.pc[data-h=lucky] .pc-hair{height:17%;border-radius:50% 50% 18% 18%}
+.pc[data-h=lucky] .pc-gear{opacity:1;left:28%;top:2%;width:46%;height:8%;border-radius:50%;
+  background:linear-gradient(180deg,#fde68a,#d97706)}
+.pc[data-h=lucky] .pc-prop{opacity:1;left:62%;top:52%;width:17%;height:17%;border-radius:50%;
+  background:
+    radial-gradient(circle at 34% 32%,#4ade80 0 30%,transparent 31%),
+    radial-gradient(circle at 68% 34%,#4ade80 0 30%,transparent 31%),
+    radial-gradient(circle at 36% 68%,#4ade80 0 30%,transparent 31%),
+    radial-gradient(circle at 68% 70%,#4ade80 0 30%,transparent 31%)}
+/* 治愈师：薄荷白袍、兜帽、十字权杖 */
+.pc[data-h=healer]{--hair:#7c5c3a;--c1:#5eead4;--c2:#0f766e;--acc:#ffffff}
+.pc[data-h=healer] .pc-cape{opacity:1}
+.pc[data-h=healer] .pc-hair{height:24%;border-radius:58% 58% 20% 20%}
+.pc[data-h=healer] .pc-gear{opacity:1;left:32%;top:2%;width:37%;height:22%;border-radius:50% 50% 14% 14%;
+  background:linear-gradient(180deg,#f0fdfa,#5eead4);box-shadow:inset 0 -4px 0 #0d948820}
+.pc[data-h=healer] .pc-prop{opacity:1;left:7%;top:26%;width:6%;height:50%;border-radius:36%;
+  background:linear-gradient(180deg,#fcd34d,#b45309)}
+.pc[data-h=healer] .pc-prop::after{content:'';position:absolute;left:-60%;top:8%;width:220%;height:9%;
+  border-radius:3px;background:#f8fafc;box-shadow:0 14px 0 -2px #f8fafc}
+/* 游侠：皮革轻甲、马尾、短刀 */
+.pc[data-h=ranger]{--hair:#1f2937;--c1:#84cc16;--c2:#3f6212;--acc:#fde047}
+.pc[data-h=ranger] .pc-cape{opacity:.7}
+.pc[data-h=ranger] .pc-hair{height:22%;border-radius:52% 52% 40% 40%}
+.pc[data-h=ranger] .pc-hair::after{content:'';position:absolute;left:76%;top:44%;width:26%;height:74%;
+  border-radius:40%;background:var(--hair);transform:rotate(16deg)}
+.pc[data-h=ranger] .pc-prop{opacity:1;left:2%;top:50%;width:8%;height:34%;border-radius:34%;
+  background:linear-gradient(180deg,#e5e7eb,#9ca3af);transform:rotate(-22deg)}
+.pc[data-h=ranger] .pc-prop::after{content:'';position:absolute;left:-40%;top:88%;width:180%;height:9%;
+  border-radius:4px;background:#4b5563}
+
+/* ---- 标题页角色选择 ---- */
+.heroes{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:4px}
+.hcard{position:relative;border:1px solid var(--line);border-radius:var(--r2);
+  background:linear-gradient(165deg,#ffffff12,#ffffff05);padding:9px 4px 10px;
+  cursor:pointer;color:var(--fg);font-family:inherit;text-align:center;
+  transition:.16s var(--ease);box-shadow:var(--sh1);overflow:hidden}
+.hcard .pc{width:58px;height:71px;margin:0 auto 6px;animation:none}
+.hcard .pc .pc-shadow{animation:none}
+.hcard b{display:block;font-size:12.5px;letter-spacing:.5px;margin-bottom:3px}
+.hcard .hs{display:block;font-size:9.5px;line-height:1.5;color:var(--dim);letter-spacing:.2px}
+.hcard:hover{transform:translateY(-2px);border-color:var(--line2);background:#ffffff1a;box-shadow:var(--sh2)}
+.hcard:active{transform:translateY(1px) scale(.98)}
+.hcard.sel{border-color:var(--gold);box-shadow:0 0 0 2px #ffce4d40,0 0 20px #ffce4d33;
+  background:linear-gradient(165deg,#ffce4d1f,#ffce4d05)}
+.hcard.sel::after{content:'✓';position:absolute;top:6px;right:8px;font-size:12px;
+  font-weight:900;color:var(--gold)}
+.herodesc{margin-top:10px;padding:11px 13px;border:1px solid var(--line);border-radius:var(--r2);
+  background:#ffffff0c;font-size:12.5px;line-height:1.75;color:var(--mut);text-align:center}
+.herodesc b{color:var(--fg);font-size:13px;letter-spacing:.5px}
+.herodesc i{font-style:normal;color:var(--acc2)}
+
 /* 释义卡：全页焦点 */
 .q{text-align:center;padding:20px 12px 16px;
  background:linear-gradient(165deg,#ffffff1f,#ffffff08);border-color:var(--line2);box-shadow:var(--sh3)}
@@ -356,6 +502,14 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
  .unit b{font-size:12.5px}
  .evhead .ic{font-size:38px}
  .evhead h2{font-size:16.5px}
+ /* 窄屏对峙行：敌人信息优先，角色缩到 76px 免得把名字挤没 */
+ .myside{width:76px}
+ .myside .pc{width:76px;height:94px}
+ .myname{font-size:9.5px;letter-spacing:.5px}
+ .vsrow{gap:6px}
+ .hcard .pc{width:48px;height:59px}
+ .hcard b{font-size:11.5px}
+ .hcard .hs{font-size:9px}
 }
 @media (max-width:330px){
  .stats{grid-template-columns:repeat(2,1fr);gap:10px}
@@ -379,6 +533,9 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   <div class="sub">外研版（新标准）· 八年级上册<br>选字母、拼英文、砍怪物 —— 全程不用打字</div>
   <div class="lbl">选择本册范围</div>
   <div class="units" id="units"></div>
+  <div class="lbl">选择你的远征者</div>
+  <div class="heroes" id="heroes"></div>
+  <div class="herodesc" id="heroDesc"></div>
   <div class="row"><button class="btn" id="startRun">开始远征</button></div>
   <div class="row">
     <button class="btn g" id="toRelics">遗物图鉴</button>
@@ -428,11 +585,25 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
       <div class="bar en"><i id="fEn"></i><div class="t" id="fEnT"></div></div>
     </div>
   </div>
-  <div class="foe">
-    <div class="avatar" id="fAv">👾</div>
-    <div class="finfo">
-      <div class="fname" id="fName">词灵</div>
-      <div class="tagsm" id="fTags"></div>
+  <div class="vsrow">
+    <div class="foe">
+      <div class="avatar" id="fAv">👾</div>
+      <div class="finfo">
+        <div class="fname" id="fName">词灵</div>
+        <div class="tagsm" id="fTags"></div>
+      </div>
+    </div>
+    <div class="myside">
+      <div class="pc" id="fPc" data-h="scholar">
+        <div class="pci" id="fPcI">
+          <i class="pc-shadow"></i><i class="pc-cape"></i><i class="pc-torso"></i>
+          <i class="pc-sash"></i><i class="pc-arm"></i><i class="pc-hand"></i>
+          <i class="pc-prop"></i><i class="pc-head"></i><i class="pc-hair"></i>
+          <i class="pc-gear"></i><i class="pc-eye pc-eyeL"></i><i class="pc-eye pc-eyeR"></i>
+        </div>
+      </div>
+      <div class="bar mini hp"><i id="fMyMini"></i><div class="t" id="fMyMiniT"></div></div>
+      <div class="myname" id="fMyName">远征者</div>
     </div>
   </div>
   <div class="q card">
@@ -727,6 +898,23 @@ function loop(){
 const centerOf = el => { if(!el) return {x:innerWidth/2,y:innerHeight/2};
   const r=el.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2} };
 
+/* ================= 角色动画 =================
+   只做「加 class → 到点移除」，动画本体全在 CSS keyframes 里（不用 JS 逐帧）。
+   .pci 上同时可能挂着 idle/atk/hurt：atk 与 hurt 优先（同优先级下后写的赢，
+   而 hurt 定义在 atk 之后），idle 挂在外壳 .pc 上，永不冲突。 */
+let heroAnimT=0;
+function animHero(kind){
+  const fig=$('fPcI');
+  if(!fig) return;
+  clearTimeout(heroAnimT);
+  fig.classList.remove('atk','hurt');
+  void fig.offsetWidth;            // 强制重排，让连续两次攻击能重新触发动画
+  if(kind) fig.classList.add(kind);
+  heroAnimT=setTimeout(()=>fig.classList.remove('atk','hurt'), kind==='hurt'?440:360);
+}
+// 角色形象辅助：中心点（粒子/飘字用）
+const heroPoint=()=> centerOf($('fPc'));
+
 /* ================= 词库 ================= */
 const UNITS=[{n:1,t:'Unit 1 水与资源'},{n:2,t:'Unit 2 数字生活'},{n:0,t:'自定义词库'}];
 const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
@@ -770,6 +958,31 @@ const ITEMS=[
 const relicById = id => RELICS.filter(r=>r.id===id)[0];
 const itemById=id=>ITEMS.filter(x=>x.id===id)[0];
 
+/* ================= 玩家角色 =================
+   纯 CSS 形象（无图片/无 emoji），data-h 决定外形。
+   mod 字段全部是「加法」：hp/hint/noise/shield/gold 为增量，
+   combo 为连击加成倍率，regen 为每场战斗开场回血。
+   —— 数值差异是 roguelite 的深度来源：每个角色都有明确的代价。 */
+const HEROES=[
+ {id:'scholar', n:'学者',   tag:'读万卷书', d:'出手前多想一步：每场战斗多 1 次提示，但生命上限 -10。',
+  mod:{hp:-10, hint:+1}},
+ {id:'warrior', n:'战士',   tag:'一人成军', d:'用身体硬吃伤害：生命上限 +15，但每场战斗少 1 次提示。',
+  mod:{hp:+15, hint:-1}},
+ {id:'scout',   n:'探险家', tag:'不走弯路', d:'摸清地形再下手：干扰字母 -1（字母盘更好选），开局护盾 +10。',
+  mod:{noise:-1, shield:+10}},
+ {id:'lucky',   n:'幸运儿', tag:'随性而为', d:'钱袋鼓鼓：开局多 15 金币，但连击加成 -10%（连击更钝）。',
+  mod:{gold:+15, combo:0.9}},
+ {id:'healer',  n:'治愈师', tag:'边打边治', d:'每场战斗开场自动回复 6 点生命，但生命上限 -5。',
+  mod:{hp:-5, regen:6}},
+ {id:'ranger',  n:'游侠',   tag:'一击脱离', d:'每答对一个字母回复 1 点生命，但生命上限 -8。',
+  mod:{hp:-8, leech:1}}
+];
+const heroById=id=>HEROES.filter(h=>h.id===id)[0] || HEROES[0];
+/* 兼容老存档：DB.hero 缺失时回退到第一位，绝不让 undefined 渗进数值计算 */
+const HERO_DEFAULT=HEROES[0].id;
+const curHeroId=()=> heroById(DB.hero||HERO_DEFAULT).id;
+const curHero  =()=> heroById(curHeroId());
+
 /* ================= 敌人 ================= */
 const ENEMIES=[
  {ic:'👾', n:'词灵',     base:3,  tint:'#8b5cf6'},
@@ -792,7 +1005,11 @@ let selIdx=0;        // 字母光标
 function newRun(){
   const pool=allWords(curUnit);
   if(!pool.length){ alert('这个单元还没有词，去「导入词表」添加吧'); return false }
-  G={ hp:70, maxhp:70, shield:0, gold:0, floor:1, maxFloor:1, relics:[], skipFree:false,
+  const H=curHero(), M=H.mod||{};
+  const maxhp=70+(M.hp||0);                 // 角色差异：生命上限
+  G={ hp:maxhp, maxhp:maxhp, shield:M.shield||0, gold:M.gold||0, floor:1, maxFloor:1,
+      relics:[], skipFree:false, heroId:H.id, hm:M.hint||0, hnoise:M.noise||0,
+      hcombo:M.combo||1, hregen:M.regen||0, hleech:M.leech||0,
       pool:pool.slice(), kills:0, att:0, attOk:0, deckHint:0, history:[], avail:null, node:null,
       done:new Set(),       // 本局已答对的词：不再出现
       wrong:[],             // 答错过的词：下一场优先复习
@@ -819,6 +1036,9 @@ function applyRelicInit(){
 }
 const hasR = id => has(G.relics,id);
 const goldGain = n => G.gold += hasR('greed') ? Math.round(n*1.5) : n;
+// 每层连击的加成率：遗物「连击徽章」翻倍，角色幸运儿再乘 0.9（连击更钝）
+// —— 单一来源，避免「伤害按新规则算、面板文案按老规则显示」的漂移
+const comboRate = () => (hasR('combo')?0.2:0.1) * (G.hcombo||1);
 
 /* ================= 地图生成 ================= */
 // 杀戮尖塔式：每层 2-4 个节点，节点间连线，只能走向下一层相邻的节点
@@ -1014,7 +1234,7 @@ function startFight(n){
   B={ word:qword, letters:lt.letters, used:lt.used, bad:new Array(lt.letters.length).fill(false),
       node:n, foe:e, boss:boss, elite:elite,
       myHp:G.hp, enHp:hpMax, enMax:hpMax, shield:G.shield,
-      input:[], sel:0, hints:3+(hasR('hint')?2:0)+(G.shopHints||0)+(G.nextHint||0), hintUsed:(G.nextHint?1:0),
+      input:[], sel:0, hints:3+(G.hm||0)+(hasR('hint')?2:0)+(G.shopHints||0)+(G.nextHint||0), hintUsed:(G.nextHint?1:0),
       combo:0, maxCombo:0, dmgBonus:0, firstWrong:true,
       lethUsed:hasR('lucky')?1:0, ghostUsed:false, wordsDone:0, over:false, mistaken:[],
       rageLeft:0, freezeWord:false, chainNext:false, goldMult:1, usedThisFight:{} };
@@ -1022,6 +1242,8 @@ function startFight(n){
   G.nextHint=0;
   if(boss){ B.hints+=2; B.enMax+=40; B.enHp=B.enMax }
   G.shopHints=0;   // 商店买的提示本场用完后清零
+  if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
+    if(h>0) setTimeout(()=>toast('💚 开场治疗：回复 '+h+' 点生命'),260) }
   show('s-fight'); renderFight();
 }
 // 按难度抽词：budget 越高，可选池越大但平均词长越长；池太小时放宽，避免深层反复出同样几个词
@@ -1059,7 +1281,8 @@ function drawLetters(qword){
   Object.keys(cnt).forEach(ch=>{ for(let i=0;i<cnt[ch];i++) uniq.push(ch) });
   // 干扰字母：基础 3 个（答对一个要付出选择成本），随层数递增，精英额外 +3
   // 上限 10 —— 再多字母盘就挤到不好点了，尤其在 320px 窄屏
-  const noise=clamp(3+Math.floor(G.floor/2)+(B&&B.elite?3:0),3,10);
+  // 探险家的 hnoise=-1：干扰字母少一个，排雷更轻松
+  const noise=clamp(3+Math.floor(G.floor/2)+(B&&B.elite?3:0)+(G.hnoise||0),2,10);
   const ALPHA='abcdefghijklmnopqrstuvwxyz'.split('');
   for(let i=0;i<noise;i++){
     let ch=pick(ALPHA), guard=0;
@@ -1098,6 +1321,12 @@ function renderFight(){
   const myPct=clamp((B.myHp+B.shield)/G.maxhp*100,0,100);
   $('fMy').style.width=myPct+'%';
   $('fMyT').textContent=B.myHp+'/'+G.maxhp+(B.shield?' +'+B.shield+'盾':'');
+  // 角色形象：数据属性 + 名字 + 右侧小血条
+  const H=heroById(G.heroId||HERO_DEFAULT), pc=$('fPc');
+  if(pc) pc.dataset.h=H.id;
+  const nm=$('fMyName'); if(nm) nm.textContent=H.n;
+  $('fMyMini').style.width=myPct+'%';
+  $('fMyMiniT').textContent=B.myHp+'/'+G.maxhp;
   $('fAv').textContent=B.foe.ic;
   $('fName').textContent=B.foe.n+(B.boss?'（首领）':B.elite?'（精英）':'');
   $('fZh').textContent=B.word.z;
@@ -1147,7 +1376,7 @@ function renderFight(){
   $('tHint').disabled=B.hints<=0;
   $('tSkip').textContent=hasR('ghost')&&!B.ghostUsed?'影分身':'跳过';
   $('tFlee').disabled=G.gold<10;
-  $('fCombo').textContent=B.combo>0?('连击 '+B.combo+'  ✦ 伤害 ×'+(1+B.combo*(hasR('combo')?.2:.1)).toFixed(1)):'';
+  $('fCombo').textContent=B.combo>0?('连击 '+B.combo+'  ✦ 伤害 ×'+(1+B.combo*comboRate()).toFixed(1)):'';
   renderItems();
 }
 // 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键
@@ -1277,6 +1506,11 @@ function pressKey(){
       B.myHp=Math.min(G.maxhp,B.myHp+1);
       floatTxt(innerWidth/2,innerHeight*0.5,'+1','#ff6b8a');
     }
+    // 游侠特性：每个正确字母回 1 点血（不消耗道具背包，与吸血獠牙独立共存）
+    if((G.hleech|0)>0 && B.myHp<G.maxhp){
+      B.myHp=Math.min(G.maxhp,B.myHp+G.hleech);
+      const hp2=centerOf($('fMyMini')); floatTxt(hp2.x,hp2.y-4,'+'+G.hleech,'#3ddc84');
+    }
     // 连锁闪电：额外连击
     if(B.chainNext){ B.chainNext=false; B.combo+=3; B.dmgBonus+=8; toast('⚡ 连锁触发！连击 +3') }
     if(hasR('focus') && B.combo>0 && B.combo%6===0) B.dmgBonus+=5;  // 专注：连击越长额外增伤
@@ -1284,7 +1518,8 @@ function pressKey(){
     // 光标自动移到下一个可用字母，否则按空格会「哑火」（标题页承诺了空格可确认）
     autoAdvanceSel();
     if(B.input.length>=tgt.length){
-      const bonus=Math.round((12+G.floor*1.5)*(1+B.combo*(hasR('combo')?.2:.1)));
+      animHero('atk');                                // ← 角色追加：整词拼出时的全力一击
+      const bonus=Math.round((12+G.floor*1.5)*(1+B.combo*comboRate()));
       markMastered(B.word.w);
       onWordRight(B.word.w);      // 本局不再出现该词
       B.wordsDone=(B.wordsDone||0)+1;
@@ -1329,7 +1564,7 @@ function pressKey(){
 }
 function hitDmg(){
   const base=7+Math.floor(G.floor*0.7);
-  const mult=1+B.combo*(hasR('combo')?.2:.1);
+  const mult=1+B.combo*comboRate();
   let d=Math.round(base*mult*(1+B.dmgBonus/100));
   if(B.rageLeft>0) d=Math.round(d*2.5);        // 怒火护符
   if(B.freezeWord) d=Math.round(d*0.5);       // 寒冰护符
@@ -1337,10 +1572,14 @@ function hitDmg(){
 }
 function dealDamage(d){
   B.enHp-=d;
+  animHero('atk');                                   // ← 角色追加：每个正确字母都挥一下
   const av=$('fAv'); av.classList.remove('hurt'); void av.offsetWidth; av.classList.add('hurt');
   const c=centerOf(av);
   burst(c.x,c.y,B.foe.tint,20,5);
   floatTxt(c.x,c.y,'-'+d,B.foe.tint);
+  // 角色出手的火花：从角色位置飞向敌人，形成「攻击」的视觉因果
+  const hp=heroPoint();
+  if(hp.x>0&&hp.x<innerWidth){ burst((hp.x+c.x)/2,(hp.y+c.y)/2,'#ffffff',6,4.5) }
   sfx.hit();
   if(B.enHp<=0 && B.enHp>-40) flash('#ff547033');
   if(B.enHp<=0) winFight();
@@ -1356,6 +1595,7 @@ function hurtPlayer(d,wrongCh,rightCh){
     }
     if(dmg>0){
       B.myHp-=dmg;
+      animHero('hurt');                               // ← 角色追加：受伤反应（抖动+变红）
       const c=centerOf($('fAv'));
       floatTxt(innerWidth/2,innerHeight*0.42,'-'+dmg,'#ff5470');
       flash('#ff54702e');
@@ -1671,7 +1911,47 @@ $('oHome').onclick=()=>{ G=null; B=null; renderTitle(); show('s-title') };
 $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ G=null; renderTitle(); show('s-title') } };
 
 /* ================= 标题页 ================= */
+// 角色形象 HTML：全部部件用 <i>，靠 data-h 上色/变形（标题页与战斗页共用同一套图形）
+function pcHTML(id){
+  return '<div class="pc" data-h="'+id+'"><div class="pci">'+
+    '<i class="pc-shadow"></i><i class="pc-cape"></i><i class="pc-torso"></i>'+
+    '<i class="pc-sash"></i><i class="pc-arm"></i><i class="pc-hand"></i>'+
+    '<i class="pc-prop"></i><i class="pc-head"></i><i class="pc-hair"></i>'+
+    '<i class="pc-gear"></i><i class="pc-eye pc-eyeL"></i><i class="pc-eye pc-eyeR"></i>'+
+  '</div></div>';
+}
+// 卡片上的数值速览：把 mod 翻成「生命 -10 / 提示 +1」这种一眼能懂的短标签
+function heroStatLines(H){
+  const M=H.mod||{}, out=[];
+  if(M.hp)      out.push('生命 '+(M.hp>0?'+':'')+M.hp);
+  if(M.hint)    out.push('提示 '+(M.hint>0?'+':'')+M.hint);
+  if(M.noise)   out.push('干扰字母 '+(M.noise>0?'+':'')+M.noise);
+  if(M.shield)  out.push('护盾 +'+M.shield);
+  if(M.gold)    out.push('金币 +'+M.gold);
+  if(M.regen)   out.push('开场回血 +'+M.regen);
+  if(M.leech)   out.push('答对回血 +'+M.leech);
+  if(M.combo)   out.push('连击加成 '+(M.combo*100-100).toFixed(0)+'%');
+  return out;
+}
+function renderHeroes(){
+  const box=$('heroes'); if(!box) return;
+  const sel=curHeroId();
+  box.innerHTML='';
+  HEROES.forEach(H=>{
+    const b=document.createElement('button');
+    b.className='hcard'+(H.id===sel?' sel':'');
+    b.type='button';
+    b.setAttribute('aria-pressed', H.id===sel?'true':'false');
+    b.innerHTML=pcHTML(H.id)+'<b>'+H.n+'</b><span class="hs">'+heroStatLines(H).join('<br>')+'</span>';
+    b.onclick=()=>{ DB.hero=H.id; saveDB(); renderHeroes() };
+    box.appendChild(b);
+  });
+  const cur=curHero();
+  const d=$('heroDesc');
+  if(d) d.innerHTML='<b>'+cur.n+'</b> · <i>'+cur.tag+'</i><br>'+cur.d;
+}
 function renderTitle(){
+  renderHeroes();
   const box=$('units'); box.innerHTML='';
   UNITS.forEach(u=>{
     const ws=allWords(u.n);
@@ -1723,7 +2003,8 @@ $('clearCustom').onclick=()=>{
 };
 $('toReset').onclick=()=>{
   if(!confirm('清空所有存档（远征次数、已掌握词、自定义词库）？')) return;
-  DB={runs:0,wins:0,mastered:[],best:0,custom:[]}; saveDB(); renderTitle();
+  const keepHero=DB.hero;   // 清档不该让人重选角色
+  DB={runs:0,wins:0,mastered:[],best:0,custom:[],hero:keepHero}; saveDB(); renderTitle();
 };
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ renderTitle(); show('s-title') });
 
