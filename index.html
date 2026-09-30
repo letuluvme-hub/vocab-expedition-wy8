@@ -1,0 +1,1734 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>词汇远征 · 外研版八上</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+:root{
+ --bg:#0a0a14;--card:#ffffff0e;--line:#ffffff20;--line2:#ffffff33;
+ --fg:#f0f2ff;--mut:#9aa1c4;--dim:#8b93b8;
+ --gold:#ffce4d;--acc:#8b5cf6;--acc2:#22d3ee;
+ --warn:#ffb020;--bad:#ff5470;--ok:#3ddc84;
+ /* 圆角 / 阴影 / 节奏 */
+ --r1:10px;--r2:14px;--r3:18px;--r4:24px;
+ --sh1:0 2px 8px #0006;--sh2:0 8px 24px #0007;--sh3:0 14px 40px #0009;
+ --ease:cubic-bezier(.2,.9,.3,1);
+}
+html,body{margin:0;padding:0;min-height:100%;overflow-x:hidden}
+body{
+ background:radial-gradient(1100px 620px at 50% -12%,#2a1b5e 0%,transparent 62%),
+            radial-gradient(800px 500px at 100% 8%,#073a4a 0%,transparent 58%),
+            radial-gradient(700px 600px at -10% 70%,#3b1247 0%,transparent 60%),var(--bg);
+ background-attachment:fixed;
+ color:var(--fg);
+ font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+ -webkit-font-smoothing:antialiased;
+ display:flex;justify-content:center;padding:12px 12px calc(30px + env(safe-area-inset-bottom));position:relative}
+#app{width:100%;max-width:660px;position:relative;z-index:2}
+/* 微妙背景装饰：淡出的点阵网格（纯 CSS，无图片） */
+#app::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+ background-image:radial-gradient(#ffffff1f 1px,transparent 1px);
+ background-size:24px 24px;opacity:.6;
+ -webkit-mask-image:radial-gradient(130% 95% at 50% 0%,#000 0%,transparent 76%);
+ mask-image:radial-gradient(130% 95% at 50% 0%,#000 0%,transparent 76%)}
+canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+.screen{display:none}
+.screen.on{display:block;animation:fade .3s var(--ease)}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{position:relative;background:linear-gradient(160deg,#ffffff14,#ffffff08);
+ border:1px solid var(--line);border-radius:var(--r3);padding:18px;
+ backdrop-filter:blur(12px);box-shadow:var(--sh2)}
+h1{font-size:30px;margin:8px 0 6px;letter-spacing:2px;line-height:1.2}
+h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc));
+ -webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);font-size:13.5px;line-height:1.8;margin:6px 0 20px}
+.btn{position:relative;display:block;width:100%;border:1px solid #ffffff1f;border-radius:var(--r2);padding:15px 16px;
+ background:linear-gradient(100deg,var(--acc),#5b8cff);color:#fff;font-size:16.5px;font-weight:800;
+ cursor:pointer;font-family:inherit;letter-spacing:1.5px;box-shadow:0 8px 22px #8b5cf64d,inset 0 1px 0 #ffffff33;
+ transition:transform .12s var(--ease),box-shadow .18s,filter .18s;overflow:hidden}
+.btn::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+ background:linear-gradient(180deg,#ffffff1f,transparent 55%)}
+.btn:hover{filter:brightness(1.08);box-shadow:0 10px 26px #8b5cf666,inset 0 1px 0 #ffffff40}
+.btn:active{transform:translateY(2px) scale(.99);box-shadow:0 3px 10px #8b5cf640}
+.btn.g{background:#ffffff0f;border:1px solid var(--line2);box-shadow:none;font-size:14px;padding:13px;font-weight:700;
+ letter-spacing:1px;color:var(--fg)}
+.btn.g:hover{background:#ffffff1a;border-color:#ffffff44;filter:none}
+.btn.gold{background:linear-gradient(100deg,#f59e0b,#f97316);box-shadow:0 8px 22px #f59e0b4d,inset 0 1px 0 #ffffff33}
+.btn:disabled{opacity:.34;cursor:not-allowed;filter:none;transform:none}
+.row{display:flex;gap:10px;margin-top:10px}
+.lbl{font-size:11.5px;color:var(--dim);letter-spacing:2.5px;margin:18px 0 8px;font-weight:800}
+.note{font-size:12.5px;color:var(--dim);line-height:1.75;margin-top:8px}
+.back{background:#ffffff0f;border:1px solid var(--line);color:var(--fg);border-radius:var(--r1);
+ min-width:44px;height:44px;padding:0 12px;
+ font-size:19px;cursor:pointer;flex:none;font-family:inherit;line-height:1;transition:.16s var(--ease)}
+.back:hover{background:#ffffff1c;border-color:var(--line2)}
+.back:active{transform:scale(.92)}
+.hdrtitle{font-size:17px;font-weight:800;flex:1;letter-spacing:.5px}
+.hdr{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.crumbs{font-size:11px;color:var(--dim);letter-spacing:.6px;line-height:1.6}
+
+/* ---- HUD ---- */
+.hud{position:sticky;top:0;z-index:20;background:rgba(10,10,20,.9);backdrop-filter:blur(16px) saturate(1.3);
+ border-bottom:1px solid var(--line);margin:-12px -12px 14px;padding:10px 12px;
+ box-shadow:0 8px 24px #0006}
+.hudrow{display:flex;align-items:center;gap:8px}
+.bar{height:18px;background:#ffffff14;border-radius:99px;overflow:hidden;position:relative;flex:1;
+ border:1px solid var(--line);box-shadow:inset 0 1px 3px #0006}
+.bar>i{display:block;height:100%;transition:width .35s var(--ease);border-radius:99px;
+ box-shadow:inset 0 1px 0 #ffffff33}
+.bar.hp>i{background:linear-gradient(90deg,#2ecc71,#3ddc84)}
+.bar.en>i{background:linear-gradient(90deg,#e0344f,#ff6b8a)}
+.bar .t{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ font-size:11px;font-weight:800;text-shadow:0 1px 3px #000,0 0 8px #0009;letter-spacing:.5px;
+ font-variant-numeric:tabular-nums}
+/* 小标签：让「我 / 敌」在手机上也能一眼分开 */
+.hlab{flex:none;width:34px;font-size:11px;font-weight:800;letter-spacing:.5px;text-align:center;
+ padding:3px 0;border-radius:8px;background:#ffffff0f;border:1px solid var(--line);color:var(--mut)}
+.hlab.l-me{color:#7fe6b0;border-color:#3ddc8433;background:#3ddc8412}
+.hlab.l-en{color:#ff9db0;border-color:#ff547033;background:#ff547012}
+.chip{background:#ffffff0f;border:1px solid var(--line);border-radius:var(--r1);padding:6px 11px;font-size:11px;
+ text-align:center;min-width:48px;flex:none;line-height:1.25}
+.chip i{display:block;font-style:normal;font-size:10px;color:var(--dim);letter-spacing:1px}
+.chip b{font-size:14px;font-variant-numeric:tabular-nums}
+.chip.gold{border-color:#ffce4d33;background:#ffce4d0f}
+.chip.gold b{color:var(--gold)}
+
+/* ---- map ---- */
+/* --nd / --ndb 由 JS 按容器宽度与层数实时写入，--ndb 为 BOSS 直径
+   节点尺寸必须等于 JS 假设的直径（圆→同尺寸圆角方块），否则会与连线错位/重叠。
+   emoji 图标改为纯 CSS 几何图形：::before 画符号，::after 出中文标签。 */
+.map{position:relative;height:452px;margin:8px 0 0;--nd:52px;--ndb:64px}
+.map svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+.node{position:absolute;width:var(--nd);height:var(--nd);
+ margin:calc(var(--nd) / -2) 0 0 calc(var(--nd) / -2);
+ border-radius:26%;border:2px solid var(--line2);
+ background:linear-gradient(160deg,#ffffff1a,#ffffff06);backdrop-filter:blur(6px);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+ font-size:0;line-height:1;cursor:default;transition:border-color .18s,box-shadow .18s,background .18s;
+ z-index:2;box-shadow:var(--sh1)}
+/* 纯 CSS 符号 */
+.node::before{content:'';display:block;width:38%;height:38%;border-radius:4px;
+ background:var(--nc,var(--mut));flex:none;
+ box-shadow:0 0 10px color-mix(in srgb,var(--nc,#fff) 55%,transparent)}
+/* 中文标签：字号随节点直径缩放，但有下限保证可读 */
+.node::after{content:attr(data-l);font-size:clamp(9px,calc(var(--nd) * .2),12px);font-weight:800;letter-spacing:.5px;
+ color:var(--nc,var(--mut));white-space:nowrap;text-shadow:0 1px 3px #000c}
+
+.node[title="遭遇词灵"]{--nc:#ff6b8a}
+.node[title="遭遇词灵"]::before{clip-path:polygon(38% 0,50% 8%,62% 0,62% 62%,50% 100%,38% 62%);
+ border-radius:2px;width:44%;height:44%}
+.node[title="遭遇词灵"]::after{content:"战斗"}
+
+.node[title="精英战"]{--nc:#c084fc}
+.node[title="精英战"]::before{border-radius:50%;
+ background:radial-gradient(circle at 34% 38%,#1a1330 0 15%,transparent 16%),
+            radial-gradient(circle at 66% 38%,#1a1330 0 15%,transparent 16%),
+            linear-gradient(180deg,var(--nc),#7c3aed)}
+.node[title="精英战"]::after{content:"精英"}
+
+.node[title="未知事件"]{--nc:#22d3ee}
+.node[title="未知事件"]::before{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);border-radius:2px;
+ background:linear-gradient(160deg,#67e8f9,var(--nc))}
+.node[title="未知事件"]::after{content:"事件"}
+
+.node[title="营火"]{--nc:#ffb020}
+.node[title="营火"]::before{clip-path:polygon(50% 0,72% 34%,100% 72%,78% 100%,22% 100%,0 72%,28% 34%);
+ border-radius:3px;background:linear-gradient(180deg,#fde68a,#f97316)}
+.node[title="营火"]::after{content:"营火"}
+
+.node[title="商店"]{--nc:#3ddc84}
+.node[title="商店"]::before{border-radius:50% 50% 22% 22%;
+ background:radial-gradient(circle at 50% 34%,#0f2a1c 0 12%,transparent 13%),linear-gradient(180deg,#6ee7b7,#16a34a)}
+.node[title="商店"]::after{content:"商店"}
+
+.node[title="词汇之王"]{--nc:#ffce4d}
+.node[title="词汇之王"]::before{clip-path:polygon(0 100%,0 22%,25% 62%,50% 8%,75% 62%,100% 22%,100% 100%);
+ background:linear-gradient(180deg,#fff3c4,#f59e0b)}
+.node[title="词汇之王"]::after{content:"首领"}
+
+.node.pick{border-color:var(--nc,var(--acc2));cursor:pointer;
+ background:#22d3ee1f;
+ background:linear-gradient(160deg,color-mix(in srgb,var(--nc,#22d3ee) 26%,transparent),#ffffff08);
+ box-shadow:0 0 0 4px #22d3ee33,0 0 22px #22d3ee55,var(--sh2);
+ box-shadow:0 0 0 4px color-mix(in srgb,var(--nc,#22d3ee) 20%,transparent),
+            0 0 22px color-mix(in srgb,var(--nc,#22d3ee) 45%,transparent),var(--sh2);
+ animation:bob 1.7s ease-in-out infinite}
+.node.pick::after{color:#fff}
+.node.pick:active{box-shadow:0 0 0 7px color-mix(in srgb,var(--nc,#22d3ee) 34%,transparent),var(--sh2)}
+.node.done{opacity:.32;border-style:dashed;box-shadow:none}
+.node.done::before,.node.done::after{opacity:.6}
+.node.cur{border-color:var(--gold);box-shadow:0 0 0 4px #ffce4d33,0 0 20px #ffce4d44}
+.node.boss{width:var(--ndb);height:var(--ndb);
+ margin:calc(var(--ndb) / -2) 0 0 calc(var(--ndb) / -2);border-width:2px}
+.node.boss::before{width:32%;height:32%}
+.node.boss::after{font-size:12px}
+.node.lock{opacity:.16;box-shadow:none}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
+/* 地图页脚信息条 */
+.floor{font-size:12.5px;color:var(--mut);letter-spacing:1px;white-space:nowrap}
+.floor b{color:var(--gold);font-size:16px;font-variant-numeric:tabular-nums}
+.relics{display:flex;gap:6px;flex-wrap:wrap}
+.relic{width:32px;height:32px;border-radius:9px;background:#ffffff12;border:1px solid var(--line2);
+ display:flex;align-items:center;justify-content:center;font-size:15px;cursor:help;
+ transition:.16s var(--ease);box-shadow:var(--sh1)}
+.relic:hover{background:#ffffff1f;transform:translateY(-2px);border-color:var(--line2)}
+.relic:active{transform:scale(.92)}
+
+/* ---- combat ---- */
+/* 视觉层级：敌人（小）→ 释义（最大、最亮）→ 字母槽 → 字母盘 */
+.foe{display:flex;align-items:center;gap:12px;margin:4px 0 12px}
+.avatar{width:64px;height:64px;flex:none;border-radius:var(--r2);display:flex;align-items:center;justify-content:center;
+ font-size:34px;border:2px solid var(--line2);background:linear-gradient(150deg,#ffffff14,#00000040);
+ animation:idle 2.6s ease-in-out infinite;box-shadow:var(--sh2)}
+.avatar.hurt{animation:hurt .38s}
+@keyframes idle{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-7px) rotate(1.5deg)}}
+@keyframes hurt{0%,100%{transform:translateX(0)}20%{transform:translateX(-11px) scale(.93)}45%{transform:translateX(9px) scale(1.05)}70%{transform:translateX(-5px)}}
+.finfo{flex:1;min-width:0}
+.fname{font-size:14px;font-weight:800;letter-spacing:1px;margin-bottom:6px;color:#ffb3c0}
+.tagsm{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.tg{font-size:10.5px;padding:3px 9px;border-radius:99px;background:#ffffff10;border:1px solid var(--line);color:var(--mut);letter-spacing:.5px}
+.tg.bad{background:#ff54701f;border-color:#ff547055;color:#ff9db0}
+.tg.ok{background:#3ddc8418;border-color:#3ddc8455;color:#7fe6b0}
+
+/* 释义卡：全页焦点 */
+.q{text-align:center;padding:20px 12px 16px;
+ background:linear-gradient(165deg,#ffffff1f,#ffffff08);border-color:var(--line2);box-shadow:var(--sh3)}
+.q .zh{font-size:clamp(28px,8.5vw,40px);font-weight:900;letter-spacing:1.5px;line-height:1.28;
+ margin-bottom:8px;word-break:break-word;
+ background:linear-gradient(180deg,#ffffff,#cfd6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.q .cat{font-size:11.5px;color:var(--dim);letter-spacing:.8px;margin-bottom:16px}
+.slots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px;min-height:46px}
+.slot{width:30px;height:44px;border-radius:9px;border-bottom:3px solid var(--line);
+ display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;text-transform:lowercase;
+ background:#ffffff0a;transition:.14s;color:transparent;box-shadow:inset 0 1px 0 #ffffff0f}
+.slot.f{border-bottom-color:var(--acc2);background:#22d3ee26;color:#fff;animation:popin .2s;
+ box-shadow:0 0 14px #22d3ee4d,inset 0 1px 0 #ffffff26}
+.slot.w{border-bottom-color:var(--bad);color:#ff9db0;background:#ff54701f}
+.slot.fx{border-bottom-color:transparent;width:12px;background:transparent;box-shadow:none}
+.slot.hint{color:var(--warn);border-bottom-color:var(--warn);background:#ffb0201f}
+@keyframes popin{0%{transform:scale(.5) translateY(9px)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
+
+/* 字母盘：JS 会写 maxWidth = cols*66，grid 容器一旦有 maxWidth 就会脱离父宽度的居中，
+   必须显式 margin-inline:auto，否则整盘字母贴着左边（实测 768px 时偏左 198px）。 */
+.bank{display:grid;gap:8px;justify-content:center;margin:6px auto 4px}
+.key{aspect-ratio:1;min-height:46px;border-radius:var(--r2);border:1px solid var(--line2);
+ background:linear-gradient(160deg,#ffffff1f,#ffffff08);color:var(--fg);font-size:21px;font-weight:800;
+ text-transform:lowercase;cursor:pointer;display:flex;align-items:center;justify-content:center;
+ transition:transform .1s var(--ease),box-shadow .16s,background .16s,border-color .16s;
+ font-family:inherit;box-shadow:0 3px 0 #0006,var(--sh1)}
+.key:hover{border-color:#ffffff4d;background:linear-gradient(160deg,#ffffff2b,#ffffff10)}
+.key:active{transform:translateY(3px);box-shadow:0 0 0 #0006,var(--sh1)}
+.key.sel{border-color:var(--acc2);box-shadow:0 0 0 3px #22d3ee3d,0 0 20px #22d3ee55,var(--sh1);
+ background:#22d3ee24;transform:translateY(-2px)}
+.key.sel:active{transform:translateY(1px)}
+.key.out{opacity:.16;cursor:not-allowed;background:#00000030}
+.key.gone{opacity:.13;background:#ff547026;border-color:#ff547044;cursor:not-allowed;box-shadow:none}
+.key.bad{background:#ff54701f;border-color:#ff547055;opacity:.45}
+.key.bad:hover{opacity:.65}
+.key.flash{animation:kbad .32s}
+@keyframes kbad{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px);background:#ff547055}75%{transform:translateX(8px)}}
+.key.good{animation:kgood .3s}
+@keyframes kgood{0%{transform:scale(1)}45%{transform:scale(1.2);background:#3ddc8466}100%{transform:scale(1)}}
+.combo{text-align:center;font-size:13.5px;font-weight:800;letter-spacing:2px;min-height:20px;color:var(--gold)}
+.combo.hot{animation:cpop .35s}
+@keyframes cpop{0%{transform:scale(1)}45%{transform:scale(1.4);filter:drop-shadow(0 0 9px #ffce4d)}100%{transform:scale(1)}}
+.tools{display:flex;gap:8px;margin-top:10px}
+/* ---- 主动道具栏 ---- */
+.items{display:flex;gap:7px;margin:9px 0 2px;justify-content:center;flex-wrap:wrap;min-height:44px}
+.item{
+ flex:1 1 0;min-width:86px;max-width:130px;position:relative;
+ background:linear-gradient(165deg,#ffffff1a,#ffffff06);
+ border:1px solid var(--line2);border-radius:13px;padding:9px 5px 8px;
+ color:var(--fg);cursor:pointer;font-family:inherit;text-align:center;transition:.14s
+}
+.item:active{transform:scale(.94)}
+.item .ic{font-size:21px;line-height:1.15;display:block}
+.item .nm{font-size:10.5px;font-weight:700;margin-top:2px;letter-spacing:.3px}
+.item .ct{position:absolute;top:4px;right:6px;font-size:10px;font-weight:800;color:var(--gold);
+ font-variant-numeric:tabular-nums;background:#0006;border-radius:6px;padding:1px 5px}
+.item .kb{position:absolute;top:4px;left:6px;font-size:9px;color:var(--dim)}
+.item:hover:not(.off){border-color:var(--acc2);box-shadow:0 0 0 2px #22d3ee28;transform:translateY(-2px)}
+.item.off{opacity:.28;cursor:not-allowed}
+.item.fire{border-color:var(--gold);box-shadow:0 0 0 2px #ffce4d3a,0 0 16px #ffce4d33}
+.item.fire::after{content:'';position:absolute;inset:-1px;border-radius:13px;
+ border:1px solid var(--gold);animation:ringpulse 1.1s ease-in-out infinite;pointer-events:none}
+@keyframes ringpulse{0%,100%{opacity:.3}50%{opacity:1}}
+.items .none{font-size:11px;color:var(--dim);text-align:center;padding:12px 0;letter-spacing:1px}
+.tool{flex:1;background:#ffffff10;border:1px solid var(--line);border-radius:var(--r2);padding:10px 6px;
+ color:var(--fg);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;
+ transition:.16s var(--ease);min-width:0}
+.tool:hover:not(:disabled){background:#ffffff1a;border-color:var(--line2);transform:translateY(-1px)}
+.tool:active:not(:disabled){transform:translateY(1px) scale(.98)}
+.tool:disabled{opacity:.3;cursor:not-allowed}
+.tool small{display:block;font-size:9.5px;color:var(--dim);font-weight:400;letter-spacing:.5px;margin-top:2px}
+
+/* ---- cards / rewards ---- */
+/* 注意：地图可选节点的 class 是 "node pick"，与奖励卡片的 .pick 同名。
+   奖励卡一律由 JS 追加到 .picks 容器内，故用 .picks > .pick 限定作用域，
+   避免 position/width 泄漏到地图节点上。 */
+.picks{display:grid;gap:12px;margin-top:14px}
+/* 可点击感：抬升 + 高光 + 左侧强调条 */
+.picks > .pick{position:relative;display:block;width:100%;
+ border:1px solid var(--line2);border-radius:var(--r2);padding:16px 16px 16px 20px;
+ cursor:pointer;transition:transform .14s var(--ease),box-shadow .18s,border-color .18s,background .18s;
+ background:linear-gradient(150deg,#ffffff14,#ffffff06);text-align:left;color:var(--fg);font-family:inherit;
+ box-shadow:var(--sh1);overflow:hidden}
+.picks > .pick::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+ background:linear-gradient(180deg,var(--acc2),var(--acc));opacity:.85}
+.picks > .pick:hover{transform:translateY(-2px);border-color:#ffffff4d;
+ background:linear-gradient(150deg,#ffffff1f,#ffffff0a);box-shadow:var(--sh2)}
+.picks > .pick:active{transform:translateY(1px) scale(.985);box-shadow:var(--sh1)}
+.picks > .pick b{display:block;font-size:15.5px;margin-bottom:6px;letter-spacing:.3px}
+.picks > .pick span{font-size:12.5px;color:var(--mut);line-height:1.65;display:block}
+.picks > .pick.gold{border-color:#ffce4d55;background:linear-gradient(150deg,#ffce4d1a,#ffce4d05)}
+.picks > .pick.gold::before{background:linear-gradient(180deg,#fde68a,var(--gold))}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.gcell{background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);padding:14px 6px;text-align:center}
+.gcell b{display:block;font-size:22px;font-variant-numeric:tabular-nums;margin-bottom:3px}
+.gcell i{font-style:normal;font-size:10.5px;color:var(--dim)}
+.rl{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:12px}
+.rlc{border:1px solid var(--line2);border-radius:var(--r2);padding:14px 8px;text-align:center;cursor:pointer;
+ background:linear-gradient(160deg,#ffffff12,#ffffff05);transition:.16s var(--ease);color:var(--fg);font-family:inherit;
+ box-shadow:var(--sh1)}
+.rlc:hover{transform:translateY(-2px);border-color:#ffffff4d;box-shadow:var(--sh2)}
+.rlc:active{transform:translateY(1px) scale(.98)}
+.rlc.sel{border-color:var(--gold);box-shadow:0 0 0 3px #ffce4d33,0 0 18px #ffce4d2e;background:#ffce4d18}
+.rlc .ic{font-size:26px;margin-bottom:7px;line-height:1.2}
+.rlc b{display:block;font-size:12.5px;margin-bottom:4px}
+.rlc span{font-size:10.5px;color:var(--dim);line-height:1.55;display:block}
+.warnbox{border:1px solid #ffb02055;background:#ffb02014;border-radius:var(--r2);padding:14px;margin-top:12px;
+ font-size:12.5px;color:#ffd48a;line-height:1.7}
+.flashfx{position:fixed;inset:0;pointer-events:none;z-index:55;opacity:0}
+.flashfx.go{animation:fl .36s}
+@keyframes fl{0%{opacity:0}12%{opacity:.85}100%{opacity:0}}
+.float{position:fixed;z-index:70;pointer-events:none;font-weight:900;font-size:24px;
+ text-shadow:0 2px 7px #000,0 0 12px #0009;animation:fl2 1s ease-out forwards}
+@keyframes fl2{0%{opacity:0;transform:translate(-50%,0) scale(.5)}
+ 18%{opacity:1;transform:translate(-50%,-16px) scale(1.16)}100%{opacity:0;transform:translate(-50%,-62px) scale(.95)}}
+textarea{width:100%;height:124px;background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);
+ padding:12px;color:var(--fg);font-family:ui-monospace,Consolas,monospace;font-size:13px;outline:none;resize:vertical;user-select:text}
+textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
+/* 单元选择卡片 */
+.units{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.unit{position:relative;background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);padding:14px 12px;
+ cursor:pointer;color:var(--fg);font-family:inherit;text-align:left;transition:.16s var(--ease);box-shadow:var(--sh1)}
+.unit:hover{transform:translateY(-2px);border-color:var(--line2);background:#ffffff14;box-shadow:var(--sh2)}
+.unit:active{transform:translateY(1px) scale(.98)}
+.unit.sel{border-color:var(--acc);background:#8b5cf626;box-shadow:0 0 0 2px #8b5cf64d,0 0 20px #8b5cf633}
+.unit.sel::after{content:'✓';position:absolute;top:9px;right:11px;font-size:13px;font-weight:900;color:var(--acc2)}
+.unit b{display:block;font-size:13.5px;margin-bottom:3px;letter-spacing:.3px;padding-right:16px}
+.unit span{font-size:11px;color:var(--dim);line-height:1.5}
+.unit em{font-style:normal;color:var(--gold);font-size:10.5px;display:block;margin-top:5px}
+
+/* 标题页统计条 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stats>div b{font-size:19px;font-variant-numeric:tabular-nums;display:block}
+.stats>div i{font-style:normal;font-size:10.5px;color:var(--dim);margin-top:3px;display:block}
+/* 事件页标题区 */
+.evhead{text-align:center;padding:4px 0 14px}
+.evhead .ic{font-size:44px;line-height:1.1;margin-bottom:10px}
+.evhead h2{font-size:18px;font-weight:800;margin:0 0 8px;letter-spacing:.5px}
+.evhead p{font-size:13.5px;color:var(--mut);line-height:1.8;margin:0}
+
+/* ---- 窄屏适配：320px 起不溢出 ---- */
+@media (max-width:360px){
+ body{padding:10px 10px calc(24px + env(safe-area-inset-bottom))}
+ .hud{margin:-10px -10px 12px;padding:9px 10px}
+ .card{padding:15px;border-radius:var(--r2)}
+ h1{font-size:26px}
+ .btn{padding:14px 12px;font-size:15.5px}
+ .key{font-size:19px;min-height:42px;border-radius:var(--r1)}
+ .q{padding:16px 10px 14px}
+ .q .zh{letter-spacing:.5px}
+ .slot{width:26px;height:39px;font-size:18px;border-radius:7px}
+ .slots{gap:5px}
+ .node::after{letter-spacing:0}
+ .picks > .pick{padding:14px 12px 14px 17px}
+ .picks > .pick b{font-size:14.5px}
+ .stats>div b{font-size:17px}
+ .stats>div i{font-size:9.5px}
+ .tool{font-size:11.5px;padding:9px 4px}
+ .tool small{font-size:9px;letter-spacing:0}
+ .gcell b{font-size:19px}
+ .unit b{font-size:12.5px}
+ .evhead .ic{font-size:38px}
+ .evhead h2{font-size:16.5px}
+}
+@media (max-width:330px){
+ .stats{grid-template-columns:repeat(2,1fr);gap:10px}
+ .tools{gap:6px}
+}
+/* 大屏：键盘玩更舒服 */
+@media (hover:hover) and (pointer:fine){
+ .key:hover{transform:translateY(-1px)}
+}
+@media (prefers-reduced-motion:reduce){
+ *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div id="app">
+
+<div class="screen on" id="s-title">
+  <h1>词汇<em>远征</em></h1>
+  <div class="sub">外研版（新标准）· 八年级上册<br>选字母、拼英文、砍怪物 —— 全程不用打字</div>
+  <div class="lbl">选择本册范围</div>
+  <div class="units" id="units"></div>
+  <div class="row"><button class="btn" id="startRun">开始远征</button></div>
+  <div class="row">
+    <button class="btn g" id="toRelics">遗物图鉴</button>
+    <button class="btn g" id="toImport">导入词表</button>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="stats">
+      <div><b id="sRun">0</b><i>远征次数</i></div>
+      <div><b id="sWin" style="color:var(--gold)">0</b><i>通关次数</i></div>
+      <div><b id="sMaster" style="color:var(--ok)">0</b><i>已掌握</i></div>
+      <div><b id="sFloor" style="color:var(--acc2)">0</b><i>最深层</i></div>
+    </div>
+    <button class="btn g" id="toReset" style="margin-top:14px">清空全部存档</button>
+  </div>
+  <div class="note" style="margin-top:11px">💡 <b style="color:var(--acc2)">← → ↑ ↓</b> 移动光标 ·
+ <b style="color:var(--acc2)">空格</b>确认 · <b style="color:var(--acc2)">退格</b>撤销 · 或直接鼠标点。进度自动存本机。</div>
+</div>
+
+<div class="screen" id="s-map">
+  <div class="hud">
+    <div class="hudrow">
+      <span class="hlab l-me">我</span>
+      <div class="bar hp"><i id="mHp"></i><div class="t" id="mHpT"></div></div>
+      <div class="chip gold"><i>金币</i><b class="gold" id="mGold">0</b></div>
+    </div>
+    <div class="hudrow" style="margin-top:9px">
+      <div class="floor">第 <b id="mFloor">1</b> 层</div>
+      <div class="relics" id="mRelics" style="flex:1;justify-content:flex-end"></div>
+    </div>
+  </div>
+  <div class="mapbar">
+    <span class="crumbs">选择下一个节点</span>
+    <span class="crumbs" id="mTip"></span>
+  </div>
+  <div class="map" id="map"></div>
+  <button class="btn g" id="mQuit" style="margin-top:8px">放弃远征</button>
+</div>
+
+<div class="screen" id="s-fight">
+  <div class="hud">
+    <div class="hudrow">
+      <span class="hlab l-me">我</span>
+      <div class="bar hp"><i id="fMy"></i><div class="t" id="fMyT"></div></div>
+    </div>
+    <div class="hudrow" style="margin-top:8px">
+      <span class="hlab l-en">敌</span>
+      <div class="bar en"><i id="fEn"></i><div class="t" id="fEnT"></div></div>
+    </div>
+  </div>
+  <div class="foe">
+    <div class="avatar" id="fAv">👾</div>
+    <div class="finfo">
+      <div class="fname" id="fName">词灵</div>
+      <div class="tagsm" id="fTags"></div>
+    </div>
+  </div>
+  <div class="q card">
+    <div class="zh" id="fZh">词典</div>
+    <div class="cat" id="fCat">Unit 1</div>
+    <div class="slots" id="fSlots"></div>
+    <div class="combo" id="fCombo"></div>
+  </div>
+  <div class="items" id="fItems"></div>
+  <div class="bank" id="fBank"></div>
+  <div class="tools">
+    <button class="tool" id="tHint">提示<small id="tHintN">3 次</small></button>
+    <button class="tool" id="tSkip">跳过<small>不掉血</small></button>
+    <button class="tool" id="tFlee">逃跑<small>损失金币</small></button>
+  </div>
+</div>
+
+<div class="screen" id="s-pick">
+  <div class="card">
+    <div class="hdrtitle" id="pTitle">选择奖励</div>
+    <div class="crumbs" id="pSub"></div>
+    <div class="picks" id="pPicks"></div>
+    <button class="btn g" id="pSkip" style="margin-top:11px">跳过</button>
+  </div>
+</div>
+
+<div class="screen" id="s-event">
+  <div class="card">
+    <div class="evhead">
+      <div class="ic" id="eIcon">🏮</div>
+      <h2 id="eTitle"></h2>
+      <p id="eText"></p>
+    </div>
+    <div class="picks" id="ePicks"></div>
+  </div>
+</div>
+
+<div class="screen" id="s-rest">
+  <div class="card">
+    <div class="hdrtitle" id="rTitle">营火</div>
+    <div class="crumbs" id="rSub">只能选择一项</div>
+    <div class="picks" id="rPicks"></div>
+  </div>
+</div>
+
+<div class="screen" id="s-over">
+  <div class="card" style="text-align:center">
+    <div style="font-size:56px;margin:8px 0" id="oIcon">💀</div>
+    <div style="font-size:22px;font-weight:900;margin-bottom:6px" id="oTitle">远征结束</div>
+    <div style="font-size:13px;color:var(--mut);line-height:1.7;margin-bottom:14px" id="oText"></div>
+    <div class="grid3">
+      <div class="gcell"><b id="oFloor">0</b><i>到达层数</i></div>
+      <div class="gcell"><b id="oKill">0</b><i>击杀词灵</i></div>
+      <div class="gcell"><b id="oAcc">0%</b><i>拼写正确率</i></div>
+    </div>
+    <div class="card" style="background:#ffffff08;margin-bottom:13px;text-align:left">
+      <div class="lbl" style="margin-top:0">本次收获</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="oRelics"></div>
+    </div>
+    <button class="btn" id="oAgain">再来一次</button>
+    <button class="btn g" id="oHome" style="margin-top:9px">回到标题</button>
+  </div>
+</div>
+
+<div class="screen" id="s-relics">
+  <div class="hdr">
+    <button class="back" data-back>‹</button>
+    <div class="hdrtitle">遗物图鉴</div>
+  </div>
+  <div class="rl" id="rlBox"></div>
+  <div class="note">战斗中点击已获得的遗物可查看效果。遗物在一次远征内持续生效。</div>
+</div>
+
+<div class="screen" id="s-import">
+  <div class="hdr">
+    <button class="back" data-back>‹</button>
+    <div class="hdrtitle">导入词表</div>
+  </div>
+  <div class="card">
+    <div class="note" style="margin-top:0">每行一个：<b style="color:var(--ok)">英文 中文</b>。逗号或空格分隔都行。导入后作为「自定义词库」出现在标题页，可与教材词混合远征。</div>
+    <textarea id="ta" placeholder="dictionary 词典&#10;look up,查阅"></textarea>
+    <div class="row">
+      <button class="btn" id="doImport">导入</button>
+      <button class="btn g" id="clearCustom">清空自定义</button>
+    </div>
+    <div class="note" id="impMsg"></div>
+  </div>
+</div>
+
+</div>
+<script>
+// ============================================================
+//  外研版（新标准）八年级上册 词库
+//  d: 难度 1易 2中 3难(短语/长词)
+// ============================================================
+const WORDS=[
+// ---------- Unit 1：水与资源 ----------
+{d:1,u:1,w:"litre",z:"升",th:"water"},
+{d:1,u:1,w:"factory",z:"工厂",th:"water"},
+{d:1,u:1,w:"billion",z:"十亿",th:"number"},
+{d:1,u:1,w:"salty",z:"含盐的；咸的",th:"water"},
+{d:1,u:1,w:"rest",z:"剩余部分；休息时间",th:"number"},
+{d:1,u:1,w:"rare",z:"稀少的；珍贵的",th:"water"},
+{d:3,u:1,w:"presentation",z:"展示会；介绍会",th:"study"},
+{d:1,u:1,w:"boring",z:"没趣的",th:"mind"},
+{d:2,u:1,w:"chemical",z:"化学品",th:"water"},
+{d:2,u:1,w:"wastewater",z:"废水",th:"water"},
+{d:2,u:1,w:"treatment",z:"（净化或防治）处理；加工",th:"water"},
+{d:2,u:1,w:"include",z:"包括；把……列为一部分",th:"study"},
+{d:2,u:1,w:"research",z:"研究；探讨；调查",th:"study"},
+{d:1,u:1,w:"agree",z:"同意；赞成",th:"mind"},
+{d:2,u:1,w:"beyond",z:"除……之外；超出",th:"study"},
+{d:2,u:1,w:"energy-saving",z:"节能的",th:"water"},
+{d:2,u:1,w:"dishwasher",z:"洗碗碟机",th:"water"},
+{d:2,u:1,w:"indirect",z:"间接的",th:"study"},
+{d:1,u:1,w:"kilo",z:"千克；公斤",th:"number"},
+{d:1,u:1,w:"hamburger",z:"汉堡包",th:"food"},
+{d:2,u:1,w:"cotton",z:"棉织物；棉布",th:"water"},
+{d:2,u:1,w:"touching",z:"令人同情的；感人的",th:"mind"},
+{d:1,u:1,w:"desert",z:"沙漠",th:"water"},
+{d:1,u:1,w:"soap",z:"肥皂",th:"water"},
+{d:1,u:1,w:"corner",z:"角",th:"water"},
+{d:1,u:1,w:"pot",z:"罐；瓶；壶；锅",th:"water"},
+{d:2,u:1,w:"set off",z:"出发；动身；启程",th:"travel"},
+{d:1,u:1,w:"hole",z:"洞；坑",th:"water"},
+{d:1,u:1,w:"step",z:"迈步；踩",th:"travel"},
+{d:1,u:1,w:"mud",z:"泥；淤泥",th:"water"},
+{d:2,u:1,w:"bathe",z:"用水清洗",th:"water"},
+{d:1,u:1,w:"shine",z:"照耀",th:"water"},
+{d:1,u:1,w:"forward",z:"向前",th:"travel"},
+{d:2,u:1,w:"pour",z:"使（液体）连续流出；倒出",th:"water"},
+{d:1,u:1,w:"shut",z:"关闭；合上",th:"water"},
+{d:1,u:1,w:"drop",z:"滴；水珠",th:"water"},
+{d:2,u:1,w:"fully",z:"完全地；充分地",th:"study"},
+{d:1,u:1,w:"precious",z:"宝贵的；珍贵的",th:"water"},
+{d:1,u:1,w:"shoulder",z:"肩膀；背；扛",th:"body"},
+{d:2,u:1,w:"snake",z:"蛇；曲折前行；蜿蜒伸展",th:"animal"},
+{d:1,u:1,w:"thirsty",z:"口渴的",th:"water"},
+{d:2,u:1,w:"nor",z:"也不",th:"study"},
+{d:2,u:1,w:"limited",z:"有限的",th:"number"},
+{d:2,u:1,w:"spread",z:"传播",th:"water"},
+{d:2,u:1,w:"awareness",z:"意识",th:"mind"},
+
+// ---------- Unit 2：数字生活 ----------
+{d:1,u:2,w:"digital",z:"数码的；数字式的",th:"tech"},
+{d:1,u:2,w:"support",z:"技术支持；支持；帮助",th:"tech"},
+{d:1,u:2,w:"laptop",z:"便携式电脑",th:"tech"},
+{d:1,u:2,w:"keyboard",z:"（计算机或打字机的）键盘",th:"tech"},
+{d:2,u:2,w:"bluetooth",z:"蓝牙",th:"tech"},
+{d:1,u:2,w:"smartphone",z:"智能手机",th:"tech"},
+{d:2,u:2,w:"headset",z:"头戴式受话器；耳机",th:"tech"},
+{d:1,u:2,w:"large",z:"大的；大规模的；大量的",th:"study"},
+{d:2,u:2,w:"clear",z:"听得清的；清楚的；清除",th:"mind"},
+{d:1,u:2,w:"private",z:"私人的；个人的",th:"mind"},
+{d:1,u:2,w:"touch",z:"触摸；触觉；碰",th:"body"},
+{d:2,u:2,w:"touch screen",z:"（计算机）触摸屏",th:"tech"},
+{d:1,u:2,w:"advantage",z:"优点；优势",th:"study"},
+{d:1,u:2,w:"chip",z:"芯片",th:"tech"},
+{d:1,u:2,w:"lightning",z:"闪电；闪电般的；飞快的",th:"weather"},
+{d:1,u:2,w:"purple",z:"紫色的",th:"color"},
+{d:1,u:2,w:"AI",z:"人工智能",th:"tech"},
+{d:3,u:2,w:"keep an eye on",z:"照看；留神；留意",th:"mind"},
+{d:1,u:2,w:"health",z:"健康；身体状况",th:"body"},
+{d:2,u:2,w:"complaint",z:"投诉；抱怨",th:"mind"},
+{d:1,u:2,w:"press",z:"按，压（使启动）",th:"tech"},
+{d:2,u:2,w:"inconvenience",z:"不便；麻烦；困难",th:"mind"},
+{d:1,u:2,w:"repeat",z:"重复；重做；重说",th:"study"},
+{d:1,u:2,w:"couple",z:"几个；两三个",th:"number"},
+{d:2,u:2,w:"freeze",z:"（屏幕）冻结",th:"tech"},
+{d:1,u:2,w:"software",z:"软件",th:"tech"},
+{d:1,u:2,w:"app",z:"应用程序；应用软件",th:"tech"},
+{d:1,u:2,w:"network",z:"（互联）网络",th:"tech"},
+{d:2,u:2,w:"disabled",z:"有残疾的",th:"body"},
+{d:1,u:2,w:"type",z:"类型；种类",th:"tech"},
+{d:1,u:2,w:"blind",z:"瞎的；失明的",th:"body"},
+{d:2,u:2,w:"detect",z:"发现；查明；侦察出",th:"tech"},
+{d:1,u:2,w:"object",z:"物体；东西",th:"tech"},
+{d:3,u:2,w:"as soon as",z:"一……就……",th:"study"},
+{d:2,u:2,w:"warn",z:"提醒注意；使警惕",th:"mind"},
+{d:2,u:2,w:"direction",z:"方向；用法说明",th:"study"},
+{d:2,u:2,w:"inform",z:"知会；通知",th:"study"},
+{d:1,u:2,w:"report",z:"调查报告；报告",th:"study"},
+{d:2,u:2,w:"population",z:"人口；人口数量",th:"number"},
+{d:2,u:2,w:"rural",z:"乡村的；农村的",th:"water"},
+{d:2,u:2,w:"connection",z:"连接",th:"tech"},
+{d:2,u:2,w:"firefighting",z:"灭火；消防",th:"water"},
+{d:1,u:2,w:"send",z:"发送",th:"tech"},
+{d:1,u:2,w:"unit",z:"装置；机件；单元",th:"tech"},
+{d:1,u:2,w:"opinion",z:"意见；看法",th:"mind"},
+{d:3,u:2,w:"in my opinion",z:"依我看",th:"mind"},
+{d:2,u:2,w:"aware",z:"意识到；明白",th:"mind"},
+{d:3,u:2,w:"be aware of",z:"知道；意识到；明白",th:"mind"},
+{d:2,u:2,w:"disadvantage",z:"不利因素",th:"study"},
+{d:1,u:2,w:"hide",z:"藏；隐蔽",th:"mind"},
+{d:1,u:2,w:"hidden",z:"隐藏的",th:"mind"},
+{d:1,u:2,w:"virus",z:"病毒",th:"tech"},
+{d:2,u:2,w:"conclusion",z:"结束；结尾；结论",th:"study"},
+{d:3,u:2,w:"in conclusion",z:"最后",th:"study"},
+];
+
+/* ================= 工具 ================= */
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
+const rnd = n => Math.floor(Math.random()*n);
+const pick = a => a[rnd(a.length)];
+const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=rnd(i+1); const t=a[i];a[i]=a[j];a[j]=t;} return a; };
+const norm = s => String(s).toLowerCase().replace(/[^a-z]/g,'');
+const has = (a,v) => a.indexOf(v)>=0;
+const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0,0); };
+
+const LS='wy8a_rogue_v1';
+const loadDB = () => { try{ return JSON.parse(localStorage.getItem(LS))||null }catch(e){ return null } };
+let DB = loadDB() || {runs:0,wins:0,mastered:[],best:0,custom:[]};
+DB.mastered=DB.mastered||[]; DB.custom=DB.custom||[];
+const saveDB = () => { try{ localStorage.setItem(LS, JSON.stringify(DB)) }catch(e){} };
+
+/* ================= 音效 ================= */
+let AC=null;
+const audio=()=>{ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}} return AC };
+function tone(f,dur,type,vol,slide){
+  const a=audio(); if(!a) return;
+  const o=a.createOscillator(), g=a.createGain();
+  o.type=type||'sine'; o.frequency.setValueAtTime(f,a.currentTime);
+  if(slide) o.frequency.exponentialRampToValueAtTime(slide, a.currentTime+dur);
+  g.gain.setValueAtTime(vol||.16,a.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime+dur);
+}
+const sfx={
+  hit(){ tone(180,.09,'square',.11,120) },
+  good(){ tone(660,.08,'sine',.14); setTimeout(()=>tone(990,.11,'sine',.13),70) },
+  bad(){ tone(220,.16,'square',.13,90) },
+  key(){ tone(880,.03,'sine',.06) },
+  coin(){ tone(1050,.07,'triangle',.13); setTimeout(()=>tone(1400,.1,'triangle',.11),60) },
+  win(){ [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tone(f,.22,'sine',.15),i*95)) },
+  lose(){ [392,330,262,196].forEach((f,i)=>setTimeout(()=>tone(f,.28,'triangle',.15),i*130)) },
+  relic(){ [659,880,1175].forEach((f,i)=>setTimeout(()=>tone(f,.3,'sine',.13),i*85)) }
+};
+
+/* ================= 粒子/飘字 ================= */
+const cv=$('fx'), ctx=cv.getContext('2d');
+let parts=[], raf=0;
+function sizeCanvas(){ cv.width=innerWidth*devicePixelRatio; cv.height=innerHeight*devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0) }
+addEventListener('resize',sizeCanvas); sizeCanvas();
+
+function burst(x,y,color,n,speed){
+  for(let i=0;i<(n||12);i++){
+    const a=Math.random()*Math.PI*2, s=(speed||3)*(.4+Math.random());
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.6,life:1,decay:.02+Math.random()*.03,
+      r:1.6+Math.random()*2.6,c:color||'#22d3ee'});
+  }
+  loop();
+}
+function ring(x,y,color){
+  parts.push({ring:1,x,y,vx:0,vy:0,life:1,decay:.045,r:6,c:color||'#ffce4d'});
+  loop();
+}
+function floatTxt(x,y,txt,color){
+  const d=document.createElement('div');
+  d.className='float'; d.textContent=txt; d.style.color=color;
+  d.style.left=x+'px'; d.style.top=y+'px';
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(),1000);
+}
+function flash(color){
+  const f=document.createElement('div');
+  f.className='flashfx'; f.style.background=color;
+  document.body.appendChild(f);
+  requestAnimationFrame(()=>f.classList.add('go'));
+  setTimeout(()=>f.remove(),400);
+}
+function loop(){
+  if(raf) return;
+  raf=requestAnimationFrame(function step(){
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    for(let i=parts.length-1;i>=0;i--){
+      const p=parts[i];
+      p.life-=p.decay;
+      if(p.life<=0){ parts.splice(i,1); continue }
+      p.x+=p.vx; p.y+=p.vy; p.vy+=p.ring?0:.14; p.vx*=.985;
+      ctx.globalAlpha=Math.max(0,p.life);
+      ctx.fillStyle=p.c;
+      if(p.ring){ ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(1+(1-p.life)*7),0,6.3);
+        ctx.strokeStyle=p.c; ctx.lineWidth=2.4*p.life; ctx.stroke() }
+      else { ctx.beginPath(); ctx.arc(p.x,p.y,p.r*p.life,0,6.3); ctx.fill() }
+    }
+    ctx.globalAlpha=1;
+    raf = parts.length ? requestAnimationFrame(step) : 0;
+  });
+}
+const centerOf = el => { if(!el) return {x:innerWidth/2,y:innerHeight/2};
+  const r=el.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2} };
+
+/* ================= 词库 ================= */
+const UNITS=[{n:1,t:'Unit 1 水与资源'},{n:2,t:'Unit 2 数字生活'},{n:0,t:'自定义词库'}];
+const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
+
+/* ================= 遗物 ================= */
+const RELICS=[
+ {id:'hint',   ic:'🔮', n:'提示水晶', d:'每场战斗多 2 次提示'},
+ {id:'shield', ic:'🛡️', n:'护盾符文', d:'开局获得 15 点护盾（先于生命被消耗）'},
+ {id:'combo',  ic:'⚔️', n:'连击徽章', d:'连击加成翻倍（更容易打出高伤害）'},
+ {id:'purse',  ic:'💰', n:'聚宝盆',   d:'每场战斗胜利额外获得 25 金币'},
+ {id:'thorn',  ic:'🌵', n:'荆棘护符', d:'答错时反弹 5 点伤害给敌人'},
+ {id:'battery',ic:'🔋', n:'永动电池', d:'每通过一层回复 8 点生命'},
+ {id:'lucky',  ic:'🍀', n:'幸运草',   d:'每场战斗首次答错不掉血'},
+ {id:'scholar',ic:'📘', n:'学者之书', d:'战斗胜利额外获得 1 张「先知卡」'},
+ {id:'forge',  ic:'⚒️', n:'锻造台',   d:'营火休息改为回复 20 生命（原为 12）'},
+ {id:'ghost',  ic:'👻', n:'影分身',   d:'每场战斗可免费跳过一次，不计失败'},
+ {id:'greed',  ic:'💎', n:'贪婪之眼', d:'所有金币收益 +50%'},
+ {id:'focus',  ic:'🧠', n:'专注头环', d:'连击中断不清零，改为保留一半'}
+];
+/* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
+   设计原则：每个道具都有明确代价，不能无脑全带。
+   吸血类回复少、爆发类消耗连击、防御类牺牲伤害。 */
+const ITEMS=[
+ {id:'leech', ic:'🩸', n:'吸血獠牙', d:'答对时回复 1 点生命（每场限用 6 次）',
+  tip:'连打不断就能回血，续命神器', max:6, price:60},
+ {id:'rage',  ic:'🔥', n:'怒火护符', d:'立即 3 秒内伤害 ×2.5，结束后清空当前连击',
+  tip:'爆发清场用，但会断连击', max:3, price:65},
+ {id:'freeze',ic:'❄️', n:'寒冰护符', d:'冻结敌人 1 词：期间不扣生命，但伤害减半',
+  tip:'救急用，代价是输出', max:3, price:50},
+ {id:'chain', ic:'⚡', n:'连锁闪电', d:'下一个正确字母连击 +3（不需真的答对）',
+  tip:'瞬间堆连击打高伤害', max:4, price:55},
+ {id:'reveal',ic:'👁️', n:'透视之眼', d:'揭示当前词的前 2 个字母（不消耗提示次数）',
+  tip:'省下提示次数给后面难的词', max:3, price:45},
+ {id:'purge', ic:'🧹', n:'扫除术', d:'清除所有已标记的错误字母，让它们重新可选',
+  tip:'手滑标错后的救星', max:3, price:40},
+ {id:'greed', ic:'💰', n:'贪婪钱币', d:'本场战斗金币收益 ×3',
+  tip:'只想攒钱就带它', max:9, price:35},
+ {id:'stone', ic:'🪨', n:'磐石之躯', d:'获得 20 点护盾，本场结束时护盾保留',
+  tip:'防一次大失误', max:2, price:70}
+];
+const relicById = id => RELICS.filter(r=>r.id===id)[0];
+const itemById=id=>ITEMS.filter(x=>x.id===id)[0];
+
+/* ================= 敌人 ================= */
+const ENEMIES=[
+ {ic:'👾', n:'词灵',     base:3,  tint:'#8b5cf6'},
+ {ic:'🕷️', n:'语素蛛',   base:4,  tint:'#ef4444'},
+ {ic:'🗿',  n:'石化词素', base:5,  tint:'#78716c'},
+ {ic:'🐙',  n:'歧义章鱼', base:5,  tint:'#a855f7'},
+ {ic:'👻',  n:'拼写幽灵', base:4,  tint:'#64748b'},
+ {ic:'🦂',  n:'单复数蝎', base:5,  tint:'#f59e0b'},
+ {ic:'🧊',  n:'冰封词灵', base:6,  tint:'#06b6d4'},
+ {ic:'🌪️', n:'词形旋风', base:6,  tint:'#8b5cf6'}
+];
+const BOSS={ic:'👑',n:'词汇之王',tint:'#ffce4d'};
+
+/* ================= 状态 ================= */
+let G=null;          // 当前远征
+let B=null;          // 当前战斗
+let curUnit=1;
+let selIdx=0;        // 字母光标
+
+function newRun(){
+  const pool=allWords(curUnit);
+  if(!pool.length){ alert('这个单元还没有词，去「导入词表」添加吧'); return false }
+  G={ hp:70, maxhp:70, shield:0, gold:0, floor:1, maxFloor:1, relics:[], skipFree:false,
+      pool:pool.slice(), kills:0, att:0, attOk:0, deckHint:0, history:[], avail:null, node:null,
+      done:new Set(),       // 本局已答对的词：不再出现
+      wrong:[],             // 答错过的词：下一场优先复习
+      bag:{} };             // 道具背包 {itemId: 剩余次数}
+  G.bag={ leech:2 };       // 新手送 2 个吸血獠牙，先让她体验到「连打能回血」
+  applyRelicInit();
+  DB.runs++; saveDB();
+  buildMap();
+  show('s-map'); renderMap();
+  return true;
+}
+// 答对 → 本局退休；答错 → 进复习队列
+function onWordRight(w){
+  G.done.add(w);
+  const i=G.wrong.indexOf(w); if(i>=0) G.wrong.splice(i,1);
+}
+function onWordWrong(w){
+  if(G.wrong.indexOf(w)<0) G.wrong.push(w);
+  G.done.delete(w);      // 曾经答对过，但这次错了 → 重新进入候选
+}
+function applyRelicInit(){
+  if(has(G.relics,'shield') && !G.shieldGiven){ G.shield+=15; G.shieldGiven=true }
+  if(has(G.relics,'battery')) G.hp=Math.min(G.maxhp,G.hp+8);
+}
+const hasR = id => has(G.relics,id);
+const goldGain = n => G.gold += hasR('greed') ? Math.round(n*1.5) : n;
+
+/* ================= 地图生成 ================= */
+// 杀戮尖塔式：每层 2-4 个节点，节点间连线，只能走向下一层相邻的节点
+const NODES={
+  battle:{ic:'⚔️',t:'遭遇词灵',d:'普通战斗'},
+  elite: {ic:'☠️',t:'精英战',   d:'强敌，但奖励丰厚'},
+  event: {ic:'❓',t:'未知事件', d:'可能是好事，也可能是坏事'},
+  rest:  {ic:'🔥',t:'营火',     d:'回血或获得遗物'},
+  shop:  {ic:'🛒',t:'商店',     d:'用金币换血量、提示或遗物'},
+  boss:  {ic:'👑',t:'词汇之王', d:'最终首领'}
+};
+function buildMap(){
+  const rows=[]; const ROWS=9;
+  for(let r=0;r<ROWS;r++){
+    const isBoss = r===ROWS-1;
+    let cnt;
+    if(isBoss) cnt=1;
+    else if(r===0) cnt=3;
+    else cnt=2+rnd(2);           // 2~3
+    const row=[];
+    for(let c=0;c<cnt;c++){
+      let type;
+      if(isBoss) type='boss';
+      else if(r===0) type=rnd(2)?'battle':''+(pick(['event','rest','shop']));
+      else {
+        const roll=Math.random();
+        type = roll<0.50?'battle' : roll<0.66?'event' : roll<0.80?'rest' : roll<0.92?'shop':'elite';
+      }
+      // 横向均分整行：cnt=3 → 0.1667/0.5/0.8333；cnt=2 → 0.25/0.75；cnt=1 → 0.5
+      // （旧式 0.5/cnt + c*0.5/cnt 只铺满左半边，窄屏必然重叠）
+      row.push({type, x:(c+0.5)/cnt, row:r, done:false, links:[]});
+    }
+    rows.push(row);
+  }
+  // 连线：按 x 距离做邻接判定，避免 0.5/rnd(1.2) 触发 Infinity 而连成蜘蛛网
+  //   dx <= 0.34 → 直连（视觉上基本竖直）
+  //   dx <= 0.60 → 用确定性哈希按概率连（不随 renderMap 重绘而变化）
+  //   其余不连；最后统一保底：每个下一层节点至少有一条入边
+  const DX_DIRECT=0.34, DX_NEAR=0.60, P_NEAR=0.45;
+  const hash2=(a,b)=>{ let h=(a*73856093)^(b*19349663);
+    h=Math.imul(h^(h>>>13),1274126177); return ((h^(h>>>16))>>>0)/4294967296 };
+  const key=n=> n.row*131+Math.round(n.x*1000);
+  for(let r=0;r<ROWS-1;r++){
+    const cur=rows[r], nxt=rows[r+1];
+    cur.forEach(n=>{
+      nxt.forEach(m=>{
+        const dx=Math.abs(n.x-m.x);
+        if(dx<=DX_DIRECT) n.links.push(m);
+        else if(dx<=DX_NEAR && hash2(key(n),key(m))<P_NEAR) n.links.push(m);
+      });
+      if(!n.links.length){                       // 兜底出边：连最近的
+        let best=nxt[0];
+        nxt.forEach(m=>{ if(Math.abs(m.x-n.x)<Math.abs(best.x-n.x)) best=m });
+        n.links.push(best);
+      }
+    });
+    nxt.forEach(m=>{                            // 兜底入边：杜绝不可达的死路
+      if(cur.some(n=>n.links.indexOf(m)>=0)) return;
+      let best=cur[0];
+      cur.forEach(n=>{ if(Math.abs(n.x-m.x)<Math.abs(best.x-m.x)) best=n });
+      best.links.push(m);
+    });
+  }
+  G.rows=rows; G.cur=null; G.floor=1; G.maxFloor=1;
+  G.avail=rows[0].slice();
+  G.pending=null;
+}
+/* 地图几何：全部按容器实际像素计算，保证任意层数/宽度下节点都不重叠 */
+const MAP_V_GAP=12;        // 相邻层之间的垂直净间隙（要求 ≥8）
+const MAP_D_BASE=56, MAP_D_BOSS=70, MAP_D_MIN=34;
+function mapMetrics(){
+  const box=$('map');
+  const W=box.clientWidth||640;               // 容器实际像素宽
+  const ROWS=G.rows.length;
+  const isBoss=r=> G.rows[r] && G.rows[r][0] && G.rows[r][0].type==='boss';
+  // 横向：同层最多 3 个节点，x=0.1667/0.5/0.8333，相邻中心距 = W/3
+  // 直径上限 = W/3 - 4，保证窄屏（320px 及以下）横向也不重叠
+  const d=clamp(Math.floor(W/3-4), MAP_D_MIN, MAP_D_BASE);
+  const dia=r=> isBoss(r)? MAP_D_BOSS : d;
+  // 垂直：每段间距 = 上下两节点半径之和 + 净间隙（BOSS 更大，间距自动加大）
+  const steps=[];
+  for(let r=0;r<ROWS-1;r++) steps.push((dia(r)+dia(r+1))/2 + MAP_V_GAP);
+  const padTop=dia(0)/2 + 16, padBot=dia(ROWS-1)/2 + 20;
+  let H=padTop+padBot+steps.reduce((a,b)=>a+b,0);
+  // 旧版固定高度 452px：不足时把余量摊进层间距（取两者较大值）
+  if(H<452){ const k=(452-padTop-padBot)/steps.reduce((a,b)=>a+b,0);
+    for(let i=0;i<steps.length;i++) steps[i]*=k; H=452 }
+  const yOf=[]; let y=padTop;
+  for(let r=0;r<ROWS;r++){ yOf.push(y); if(r<ROWS-1) y+=steps[r] }
+  H=Math.ceil(y+padBot);
+  return {W,ROWS,H,d,yOf,padBot};
+}
+function renderMap(){
+  const box=$('map'); box.innerHTML='';
+  const M=mapMetrics(), W=M.W, H=M.H, yOf=M.yOf;
+  box.style.height=H+'px';
+  box.style.setProperty('--nd', M.d+'px');
+  box.style.setProperty('--ndb', MAP_D_BOSS+'px');
+  // SVG 用与容器一致的像素 viewBox（1:1 映射，stroke-width 不再被横向拉伸变形）
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">';
+  G.rows.forEach((row,r)=>{
+    if(r===0) return;
+    G.rows[r-1].forEach(n=>{
+      n.links.forEach(m=>{
+        const x1=n.x*W, y1=yOf[r-1], x2=m.x*W, y2=yOf[r];
+        const act = G.avail.indexOf(n)>=0 || (G.node===n);
+        svg+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" vector-effect="non-scaling-stroke" stroke="'+
+          (act?'#22d3ee':'#ffffff22')+'" stroke-width="'+(act?2.2:1.4)+
+          '" stroke-linecap="round" stroke-dasharray="'+(act?'':'4 5')+'" opacity="'+(act?.65:.34)+'"/>';
+      });
+    });
+  });
+  svg+='</svg>';
+  box.insertAdjacentHTML('beforeend',svg);
+  // 节点
+  G.rows.forEach((row,r)=>{
+    row.forEach(n=>{
+      const el=document.createElement('div');
+      const isAvail=G.avail.indexOf(n)>=0;
+      el.className='node '+(n.done?'done ':'')+(n.type==='boss'?'boss ':'')+
+        (isAvail?'pick':(G.node?'lock':''));
+      el.style.left=(n.x*100)+'%';
+      el.style.top=yOf[r]+'px';
+      el.textContent=NODES[n.type].ic;
+      el.title=NODES[n.type].t;
+      if(isAvail) el.onclick=()=>enterNode(n);
+      box.appendChild(el);
+    });
+  });
+  $('mFloor').textContent=G.floor;
+  $('mGold').textContent=G.gold;
+  const hpPct=clamp((G.hp+G.shield)/G.maxhp*100,0,100);
+  $('mHp').style.width=hpPct+'%';
+  $('mHpT').textContent=G.hp+'/'+G.maxhp+(G.shield?' +'+G.shield+'盾':'');
+  const rb=$('mRelics'); rb.innerHTML='';
+  G.relics.forEach(id=>{
+    const r=relicById(id); if(!r) return;
+    const d=document.createElement('div');
+    d.className='relic'; d.textContent=r.ic; d.title=r.n+'：'+r.d;
+    d.onclick=()=>{ toast(r.n+'：'+r.d) };
+    rb.appendChild(d);
+  });
+  $('mTip').textContent = G.avail.length ? '有 '+G.avail.length+' 个可选' : '';
+}
+// 旋转/缩放窗口后重算地图尺寸（节点直径依赖容器宽度）
+let mapRz=0;
+addEventListener('resize',()=>{
+  if(!G || !$('s-map').classList.contains('on')) return;
+  clearTimeout(mapRz);
+  mapRz=setTimeout(renderMap,120);
+});
+let toastT=0;
+function toast(msg){
+  clearTimeout(toastT);
+  let t=document.getElementById('toastEl');
+  if(!t){ t=document.createElement('div');
+    t.id='toastEl';
+    t.style.cssText='position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:99;'+
+      'background:rgba(20,20,35,.96);border:1px solid #ffffff2e;padding:10px 16px;border-radius:11px;'+
+      'font-size:12.5px;max-width:88vw;box-shadow:0 8px 26px #0009;transition:opacity .25s';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg; t.style.opacity='1';
+  toastT=setTimeout(()=>{t.style.opacity='0'},2400);
+}
+
+/* ================= 节点 ================= */
+function enterNode(n){
+  G.node=n; G.avail=[];
+  if(n.type==='battle'||n.type==='elite'||n.type==='boss') startFight(n);
+  else if(n.type==='rest') showRest();
+  else if(n.type==='shop') showShop();
+  else showEvent();
+}
+
+/* ================= 战斗 ================= */
+function startFight(n){
+  const elite = n.type==='elite', boss = n.type==='boss';
+  const e = boss ? BOSS : pick(ENEMIES);
+  const lv = boss ? 9 : (elite ? 5+Math.floor(G.floor/2) : 1+Math.floor(G.floor/2));
+  // 血量 = 每词伤害 × 目标词数
+  // 每词伤害 ≈ 词长(~6) × base × 连击均值(1.4) + 整词奖励(~14)
+  // 30 次实测：第1层100血≈1.3词 → 约77/词，据此反推
+  const avgLen = 6;
+  const base = 7+Math.floor(G.floor*0.7);
+  const perWord = boss ? 130 : Math.round(avgLen*base*1.45 + 12 + G.floor*1.5);
+  const targetWords = boss?5 : (elite?4 : 4);
+  const hpMax = Math.round(perWord*targetWords);
+  // 从词库按难度出题：越深越难
+  const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
+  const qword = drawWord(budget);
+  const lt = drawLetters(qword);
+  B={ word:qword, letters:lt.letters, used:lt.used, bad:new Array(lt.letters.length).fill(false),
+      node:n, foe:e, boss:boss, elite:elite,
+      myHp:G.hp, enHp:hpMax, enMax:hpMax, shield:G.shield,
+      input:[], sel:0, hints:3+(hasR('hint')?2:0)+(G.shopHints||0)+(G.nextHint||0), hintUsed:(G.nextHint?1:0),
+      combo:0, maxCombo:0, dmgBonus:0, firstWrong:true,
+      lethUsed:hasR('lucky')?1:0, ghostUsed:false, wordsDone:0, over:false, mistaken:[],
+      rageLeft:0, freezeWord:false, chainNext:false, goldMult:1, usedThisFight:{} };
+  if(G.nextHint) toast('🔮 水壶生效：本场已揭示首字母');
+  G.nextHint=0;
+  if(boss){ B.hints+=2; B.enMax+=40; B.enHp=B.enMax }
+  G.shopHints=0;   // 商店买的提示本场用完后清零
+  show('s-fight'); renderFight();
+}
+// 按难度抽词：budget 越高，可选池越大但平均词长越长；池太小时放宽，避免深层反复出同样几个词
+function drawWord(budget){
+  // 本局已答对的词不再出现；全答完则重置让整册循环巩固
+  let pool=G.pool.filter(w=>!G.done.has(w.w));
+  if(pool.length<3) pool=G.pool.slice();
+  // 答错过的词优先复习（最多占一半，避免整场都是生词）
+  const due=G.wrong.map(w=>pool.filter(x=>x.w===w)[0]).filter(Boolean);
+  const fresh=pool.filter(w=>due.indexOf(w)<0);
+  if(due.length && fresh.length){
+    const fromDue=Math.min(due.length, 1+Math.floor(due.length/2));
+    const fromFresh=Math.min(fresh.length, 1+Math.floor(fresh.length/2));
+    pool=shuffle(due).slice(0,fromDue).concat(shuffle(fresh).slice(0,fromFresh));
+  } else {
+    pool=shuffle(pool);
+  }
+  const exact=pool.filter(w=>w.d===budget);
+  const harder=pool.filter(w=>w.d>budget);
+  const softer=pool.filter(w=>w.d<budget);
+  // 优先取恰好该难度的词；不够则用更难的补，再不够才放宽到更简单的
+  let src=exact;
+  if(src.length<3) src=src.concat(harder);
+  if(src.length<3) src=src.concat(softer);
+  if(!src.length) src=pool;
+  // 避免立刻重复上一个词
+  for(let i=0;i<10;i++){ const c=pick(src); if(!B||!B.word||c.w!==B.word.w) return c }
+  return pick(src);
+}
+// 生成字母盘（答案字母 + 干扰字母）
+function drawLetters(qword){
+  const letters=norm(qword.w).split('');
+  const cnt={}; letters.forEach(ch=>cnt[ch]=(cnt[ch]||0)+1);
+  const uniq=[];
+  Object.keys(cnt).forEach(ch=>{ for(let i=0;i<cnt[ch];i++) uniq.push(ch) });
+  // 干扰字母：基础 3 个（答对一个要付出选择成本），随层数递增，精英额外 +3
+  // 上限 10 —— 再多字母盘就挤到不好点了，尤其在 320px 窄屏
+  const noise=clamp(3+Math.floor(G.floor/2)+(B&&B.elite?3:0),3,10);
+  const ALPHA='abcdefghijklmnopqrstuvwxyz'.split('');
+  for(let i=0;i<noise;i++){
+    let ch=pick(ALPHA), guard=0;
+    // 干扰字母必须不在答案里，否则会削弱「排除法」的乐趣
+    while(uniq.indexOf(ch)>=0 && guard++<20) ch=pick(ALPHA);
+    if(uniq.indexOf(ch)<0) uniq.push(ch);
+  }
+  return { letters:shuffle(uniq), used:new Array(uniq.length).fill(false) };
+}
+// 敌人还活着时换下一个词
+function nextWord(){
+  const budget=B.boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(B.elite?1:0));
+  const nw=drawWord(budget);
+  const nl=drawLetters(nw);
+  B.word=nw; B.letters=nl.letters; B.used=nl.used;
+  B.bad=new Array(nl.letters.length).fill(false);
+  B.freezeWord=false;   // 寒冰护符只保护一个词
+  B.input=[]; B.sel=0; B.hintUsed=0;
+  if(hasR('scholar') && B.wordsDone===1) B.hintUsed=1;   // 学者之书：揭示首字母
+  renderFight();
+}
+// 字母盘列数：唯一来源，渲染与键盘导航共用，避免两处算法漂移
+function bankCols(n){ return n<=6?3 : n<=9?4 : n<=12?4 : n<=16?5 : 6 }
+// 光标跳到下一个可用（未填未标错）字母；找不到就停
+function autoAdvanceSel(){
+  const n=B.letters.length;
+  for(let k=1;k<=n;k++){
+    const j=(B.sel+k)%n;
+    if(!B.used[j]&&!B.bad[j]){ B.sel=j; return }
+  }
+}
+function renderFight(){
+  const enPct=clamp(B.enHp/B.enMax*100,0,100);
+  $('fEn').style.width=enPct+'%';
+  $('fEnT').textContent=B.boss?('词汇之王 '+Math.max(0,B.enHp)+'/'+B.enMax):(Math.max(0,B.enHp)+'/'+B.enMax);
+  const myPct=clamp((B.myHp+B.shield)/G.maxhp*100,0,100);
+  $('fMy').style.width=myPct+'%';
+  $('fMyT').textContent=B.myHp+'/'+G.maxhp+(B.shield?' +'+B.shield+'盾':'');
+  $('fAv').textContent=B.foe.ic;
+  $('fName').textContent=B.foe.n+(B.boss?'（首领）':B.elite?'（精英）':'');
+  $('fZh').textContent=B.word.z;
+  $('fCat').textContent='Unit '+B.word.u+' · '+B.word.w.length+' 字符'+(B.word.d>=3?' · 困难':'');
+  // tags
+  const tg=$('fTags'); tg.innerHTML='';
+  const add=(txt,cls)=>{ const s=document.createElement('span'); s.className='tg '+(cls||''); s.textContent=txt; tg.appendChild(s) };
+  if(B.combo>0) add('连击 '+B.combo, 'ok');
+  if(B.dmgBonus>0) add('增伤 +'+B.dmgBonus+'%','ok');
+  if(B.hintUsed>0) add('已用提示 '+B.hintUsed,'bad');
+  if(B.boss) add('首领','bad');
+  // slots
+  const sl=$('fSlots'); sl.innerHTML='';
+  const tgt=norm(B.word.w);
+  const showN=Math.min(B.hintUsed,tgt.length);
+  for(let i=0;i<tgt.length;i++){
+    const d=document.createElement('div');
+    let cls='slot';
+    if(i<B.input.length) cls += B.input[i]===tgt[i]?' f':' w';
+    else if(i<showN) cls+=' hint';
+    d.className=cls;
+    d.textContent = (i<B.input.length)? B.input[i] : (i<showN? tgt[i] : '');
+    sl.appendChild(d);
+  }
+  // 词组里的空格显示为间隔
+  // bank
+  const bank=$('fBank');
+  // 列数随字母数增加，但限制最多 6 列，窄屏才不会挤
+  const n=B.letters.length;
+  const cols = bankCols(n);
+  bank.style.gridTemplateColumns='repeat('+cols+',minmax(0,1fr))';
+  bank.style.maxWidth=(cols*66)+'px';
+  bank.innerHTML='';
+  B.letters.forEach((ch,i)=>{
+    const b=document.createElement('button');
+    let cls='key';
+    if(B.used[i]) cls+=' gone';
+    else if(B.bad[i]) cls+=' bad';
+    else if(i===B.sel) cls+=' sel';
+    b.className=cls; b.textContent=ch;
+    b.disabled=B.used[i];
+    b.title=B.used[i]?'已填入':B.bad[i]?'已试过，不是这个字母':'';
+    b.onclick=()=>{ B.sel=i; pressKey() };
+    bank.appendChild(b);
+  });
+  $('tHintN').textContent=B.hints+' 次';
+  $('tHint').disabled=B.hints<=0;
+  $('tSkip').textContent=hasR('ghost')&&!B.ghostUsed?'影分身':'跳过';
+  $('tFlee').disabled=G.gold<10;
+  $('fCombo').textContent=B.combo>0?('连击 '+B.combo+'  ✦ 伤害 ×'+(1+B.combo*(hasR('combo')?.2:.1)).toFixed(1)):'';
+  renderItems();
+}
+// 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键
+function renderItems(){
+  const box=$('fItems'); if(!box) return;
+  box.innerHTML=''; box._kids=[];
+  const held=Object.keys(G.bag||{}).filter(id=>(G.bag[id]|0)>0);
+  if(!held.length){
+    box.innerHTML='<div class="none">🎒 背包是空的 —— 商店和精英战会掉落道具</div>';
+    return;
+  }
+  held.forEach((id,idx)=>{
+    const it=itemById(id); if(!it) return;
+    const left=G.bag[id]|0;
+    const usedInFight=(B.usedThisFight[id]|0);
+    const capped=usedInFight>=it.max;
+    const b=document.createElement('button');
+    b.className='item'+(left<=0||capped?' off':'')+(B.rageLeft>0&&id==='rage'?' fire':'');
+    b.title=it.d+'\n'+it.tip+(capped?'\n（本场已用满 '+it.max+' 次）':'');
+    b.innerHTML='<span class="kb">'+(idx+1)+'</span><span class="ct">×'+left+'</span>'+
+      '<span class="ic">'+it.ic+'</span><span class="nm">'+it.n+'</span>';
+    if(!capped) b.onclick=()=>useItem(id);
+    box.appendChild(b);
+  });
+}
+// 使用道具
+function useItem(id){
+  if(!B||B.over||!G) return;
+  const it=itemById(id); if(!it) return;
+  if((G.bag[id]|0)<=0){ toast('🎒 没有'+it.n+'了'); return }
+  if((B.usedThisFight[id]|0)>=it.max){ toast('本场已用满 '+it.n+'（上限 '+it.max+' 次）'); return }
+  const tgt=norm(B.word.w);
+  let msg='';
+  switch(id){
+    case 'leech':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.myHp=Math.min(G.maxhp,B.myHp+1);
+      msg='🩸 獠牙吸取了 1 点生命';
+      break;
+    case 'rage':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.rageLeft=3; B.combo=0;
+      msg='🔥 怒火点燃！接下来伤害 ×2.5（连击已清空）';
+      break;
+    case 'freeze':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.freezeWord=true;
+      msg='❄️ 敌人被冻住：这个词不扣血，但伤害减半';
+      break;
+    case 'chain':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.chainNext=true;
+      msg='⚡ 闪电蓄势：下一个正确字母额外 +3 连击';
+      break;
+    case 'reveal':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.hintUsed=Math.max(B.hintUsed,2);
+      msg='👁️ 透视：已揭示前 2 个字母（不消耗提示）';
+      break;
+    case 'purge':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      let freed=0; B.bad.forEach((b,j)=>{ if(b){B.bad[j]=false;freed++} });
+      autoAdvanceSel();
+      msg='🧹 扫除 '+freed+' 个误标字母，重新可选';
+      break;
+    case 'greed':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.goldMult=3;
+      msg='💰 本场金币 ×3';
+      break;
+    case 'stone':
+      B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
+      B.shield+=20;
+      msg='🪨 获得 20 点护盾';
+      break;
+  }
+  if(msg){ toast(msg); sfx.coin();
+    const av=centerOf($('fItems'));
+    burst(av.x,av.y,it.tint||'#ffce4d',16,3.5) }
+  renderFight();
+}
+function pressKey(){
+  if(!B || B.over) return;
+  const i=B.sel;
+  if(i<0||i>=B.letters.length||B.used[i]) { sfx.bad(); return }
+  const ch=B.letters[i];
+  const tgt=norm(B.word.w);
+  const pos=B.input.length;
+  const keyEl=($('fBank').children||[])[i];
+
+  // 恢复：若当前位置所需的正确字母被误标为 bad，则自动解封
+  // （否则手滑标错一个字母会让整个词永远拼不完）
+  const needCh=tgt[pos];
+  if(needCh && !B.letters.some((c,j)=>c===needCh && !B.used[j] && !B.bad[j])){
+    let freed=false;
+    for(let j=0;j<B.letters.length;j++){
+      if(!B.used[j] && B.bad[j] && B.letters[j]===needCh){ B.bad[j]=false; freed=true }
+    }
+    if(freed){ toast('已解开「'+needCh.toUpperCase()+'」，再试一次'); renderFight(); return }
+  }
+
+  // 已标记为错：再点只抖动，不再扣血（惩罚已付过）
+  if(B.bad[i]){
+    sfx.bad();
+    if(keyEl){ keyEl.classList.add('flash'); setTimeout(()=>keyEl.classList.remove('flash'),340) }
+    toast('「'+ch.toUpperCase()+'」不在「'+B.word.w+'」里，换一个字母');
+    return;
+  }
+
+  if(tgt[pos]===ch){
+    // ✅ 正确
+    B.used[i]=true; B.input.push(ch);
+    G.att++; G.attOk++;
+    sfx.good();
+    if(keyEl){ keyEl.classList.add('good'); const c=centerOf(keyEl);
+      burst(c.x,c.y,'#3ddc84',14,4); floatTxt(c.x,c.y-14,'+'+hitDmg(),'#3ddc84') }
+    B.combo++;
+    B.maxCombo=Math.max(B.maxCombo,B.combo);
+    if(B.combo>1){ const cb=$('fCombo'); cb.classList.remove('hot'); void cb.offsetWidth; cb.classList.add('hot');
+      if(B.combo%5===0){ toast('🔥 '+B.combo+' 连击！伤害 +'+(5*Math.ceil(B.combo/5))+'%');
+        B.dmgBonus+=5*Math.ceil(B.combo/5) } }
+    dealDamage(hitDmg());
+    if(B.rageLeft>0){ B.rageLeft--; if(B.rageLeft===0) toast('🔥 怒火熄灭了') }
+    // 吸血獠牙：答对就回血
+    if((G.bag.leech|0)>0 && (B.usedThisFight.leech|0)<6 && B.myHp<G.maxhp){
+      B.usedThisFight.leech=(B.usedThisFight.leech|0)+1; G.bag.leech--;
+      B.myHp=Math.min(G.maxhp,B.myHp+1);
+      floatTxt(innerWidth/2,innerHeight*0.5,'+1','#ff6b8a');
+    }
+    // 连锁闪电：额外连击
+    if(B.chainNext){ B.chainNext=false; B.combo+=3; B.dmgBonus+=8; toast('⚡ 连锁触发！连击 +3') }
+    if(hasR('focus') && B.combo>0 && B.combo%6===0) B.dmgBonus+=5;  // 专注：连击越长额外增伤
+    if(B.word.d>=3 && B.combo>0 && rnd(6)===0) toast('💡 记住这个词！');
+    // 光标自动移到下一个可用字母，否则按空格会「哑火」（标题页承诺了空格可确认）
+    autoAdvanceSel();
+    if(B.input.length>=tgt.length){
+      const bonus=Math.round((12+G.floor*1.5)*(1+B.combo*(hasR('combo')?.2:.1)));
+      markMastered(B.word.w);
+      onWordRight(B.word.w);      // 本局不再出现该词
+      B.wordsDone=(B.wordsDone||0)+1;
+      const c2=centerOf($('fAv'));
+      burst(c2.x,c2.y,'#ffce4d',30,6);
+      ring(c2.x,c2.y,'#ffce4d');
+      floatTxt(c2.x,c2.y-26,'整词 +'+bonus,'#ffce4d');
+      flash('#ffce4d22');
+      sfx.relic();
+      if(hasR('battery') && B.wordsDone%3===0){ B.myHp=Math.min(G.maxhp,B.myHp+3); toast('🔋 永动电池：回复 3 生命') }
+      B.enHp-=bonus;
+      if(B.enHp<=0){ renderFight(); winFight(); return }
+      B.combo=0;          // 换词时连击结算：防止伤害跨词无限叠加
+      nextWord();
+      return;
+    }
+    renderFight();
+    if(B.enHp<=0) return winFight();
+  }else{
+    // ❌ 错误：区分「单词里根本没这个字母」和「字母对、只是顺序不对」
+    // 后者不是知识错误，只是还没拼到位，不该扣血、也不该把这个字母作废
+    const inWord = tgt.indexOf(ch) >= 0;
+    sfx.bad();
+    if(keyEl){ keyEl.classList.add('flash'); const c=centerOf(keyEl);
+      burst(c.x,c.y,inWord?'#ffb020':'#ff5470',16,4.5) }
+    if(inWord){
+      // 字母在单词里，只是位置不对：轻微惩罚，不扣血、不标记
+      G.att++;
+      B.combo=Math.max(0,B.combo-1);
+      toast('「'+ch.toUpperCase()+'」在这个单词里，但位置不对');
+    }else{
+      // 这个字母压根不在单词里：真正不认识，扣血并标记
+      B.bad[i]=true;
+      G.att++;
+      if(B.freezeWord){ toast('❄️ 冰冻中：这次不扣血'); }
+      else hurtPlayer(B.boss?16:12, ch, tgt[pos]);
+      // 专注头环：连击中断时保留一半，而不是清零
+      B.combo = hasR('focus') ? Math.floor(B.combo/2) : 0;
+    }
+    renderFight();
+  }
+}
+function hitDmg(){
+  const base=7+Math.floor(G.floor*0.7);
+  const mult=1+B.combo*(hasR('combo')?.2:.1);
+  let d=Math.round(base*mult*(1+B.dmgBonus/100));
+  if(B.rageLeft>0) d=Math.round(d*2.5);        // 怒火护符
+  if(B.freezeWord) d=Math.round(d*0.5);       // 寒冰护符
+  return clamp(d, Math.max(1,Math.round(base*0.5)), 140);
+}
+function dealDamage(d){
+  B.enHp-=d;
+  const av=$('fAv'); av.classList.remove('hurt'); void av.offsetWidth; av.classList.add('hurt');
+  const c=centerOf(av);
+  burst(c.x,c.y,B.foe.tint,20,5);
+  floatTxt(c.x,c.y,'-'+d,B.foe.tint);
+  sfx.hit();
+  if(B.enHp<=0 && B.enHp>-40) flash('#ff547033');
+  if(B.enHp<=0) winFight();
+}
+function hurtPlayer(d,wrongCh,rightCh){
+  let dmg=d;
+  if(B.lethUsed>0){ B.lethUsed--; dmg=0; toast('🍀 幸运草：免于本次惩罚') }
+  else if(B.firstWrong && B.boss){ B.firstWrong=false; dmg=Math.round(dmg/2); toast('🛡️ 首领首击减半') }
+  if(dmg>0){
+    if(B.shield>0){
+      const a=Math.min(B.shield,dmg); B.shield-=a; dmg-=a;
+      floatTxt(innerWidth/2,innerHeight*0.35,'护盾 -'+a,'#22d3ee');
+    }
+    if(dmg>0){
+      B.myHp-=dmg;
+      const c=centerOf($('fAv'));
+      floatTxt(innerWidth/2,innerHeight*0.42,'-'+dmg,'#ff5470');
+      flash('#ff54702e');
+      sfx.bad();
+    }
+  }
+  // 荆棘护符：她答错时反弹 5 血给敌人（只结算一次，且不影响胜负判定）
+  if(hasR('thorn') && dmg>0){ B.enHp-=5;
+    const tc=centerOf($('fAv'));
+    floatTxt(tc.x,tc.y,'荆棘 -5','#3ddc84');
+    if(B.enHp<=0) winFight(); }
+  // 错词记录：进本局复习队列，下一场优先出现
+  if(!B.mistaken) B.mistaken=[];
+  if(B.mistaken.indexOf(B.word.w)<0){ B.mistaken.push(B.word.w);
+    onWordWrong(B.word.w);
+    if(DB.mastered.indexOf(B.word.w)>=0) DB.mastered.splice(DB.mastered.indexOf(B.word.w),1);
+    saveDB() }
+  toast('❌ 「'+wrongCh+'」不对，这里应该是「'+(rightCh||'?')+'」');
+  if(B.myHp<=0) loseFight();
+}
+function winFight(){
+  if(B.over) return;
+  B.over=true; B.won=true;
+  sfx.win();
+  burst(innerWidth/2,innerHeight*0.4,B.foe.tint,44,7);
+  ring(innerWidth/2,innerHeight*0.4,'#ffce4d');
+  // 标记掌握
+  if(!B.elite || B.combo>0) markMastered(B.word.w);
+  G.kills++;
+  let g=25+(B.boss?120:B.elite?60:0)+Math.floor(G.floor*4);
+  if(B.boss) g+=50;
+  if(hasR('purse')) g+=25;
+  // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
+  goldGain(Math.round(g*(B.goldMult||1)));   // 贪婪钱币 ×3
+  // 结算
+  setTimeout(()=>{
+    const acc=clamp(Math.round(G.attOk/Math.max(1,G.att)*100),0,100);
+    show('s-pick');
+    $('pTitle').textContent=B.boss?'🎉 击败词汇之王！':B.elite?'☠️ 精英击破！':'⚔️ 战斗胜利！';
+    $('pSub').textContent='击杀 '+B.foe.ic+' '+B.foe.n+' · 正确率 '+acc+'% · 最高连击 '+B.maxCombo+' · 获得 '+g+' 金币';
+    const picks=$('pPicks'); picks.innerHTML='';
+    const opts=[];
+    if(!B.boss){
+      const heal=Math.round(12+B.enMax*0.12);
+      // 回血要作用在 B.myHp 上，否则会被 finishNode 的结转覆盖
+      opts.push({ic:'💚',t:'恢复生命',d:'回复 '+heal+' 点生命',fn:()=>{ B.myHp=Math.min(G.maxhp,B.myHp+heal); finishNode() }});
+    }
+    if(hasR('scholar') && rnd(3)===0){
+      opts.push({ic:'🃏',t:'先知卡',d:'下一场战斗开始时，自动揭示一个字母',fn:()=>{ G.nextHint=true; finishNode() }});
+    }
+    const availRel = RELICS.filter(r=>!has(G.relics,r.id));
+    if(availRel.length){
+      const three=shuffle(availRel).slice(0,3);
+      three.forEach(r=>opts.push({ic:r.ic,t:r.n+' '+r.ic,d:r.d,fn:()=>{ G.relics.push(r.id); sfx.relic();
+        toast('获得遗物：'+r.n); applyRelicInit(); finishNode() }}));
+    }
+    // 战斗胜利掉落道具（精英/BOSS 必掉，普通战斗 35% 概率）
+    if((B.elite||B.boss||Math.random()<0.35)){
+      const drop=shuffle(ITEMS.filter(it=>(G.bag[it.id]|0)<it.max))[0];
+      if(drop){
+        const n=B.boss?3:(B.elite?2:1);
+        opts.push({ic:drop.ic,t:'获得道具 '+drop.n+' ×'+n,d:drop.d+'｜'+drop.tip,
+          fn:()=>{ G.bag[drop.id]=(G.bag[drop.id]|0)+n; sfx.coin();
+            toast('🎒 获得 '+drop.n+' ×'+n); finishNode() }});
+      }
+    }
+    if(!opts.length) opts.push({ic:'✅',t:'继续前进',d:'没有更多奖励了',fn:finishNode});
+    opts.forEach(o=>{
+      const b=document.createElement('button');
+      b.className='pick';
+      b.innerHTML='<b>'+o.t+'</b><span>'+o.d+'</span>';
+      b.onclick=o.fn;
+      picks.appendChild(b);
+    });
+    $('pSkip').style.display=opts.length>1?'':'none';
+    $('pSkip').onclick=()=>{ if(opts.length) opts[0].fn(); else finishNode() };
+  },900);
+}
+function markMastered(w){
+  if(DB.mastered.indexOf(w)<0){ DB.mastered.push(w); saveDB() }
+}
+function loseFight(){
+  if(B.over) return;
+  B.over=true; sfx.lose();
+  flash('#ff547055');
+  setTimeout(()=>endRun(false),800);
+}
+function finishNode(){
+  const n=B.node; if(n) n.done=true;
+  G.hp=clamp(B.myHp,1,G.maxhp);      // 把战斗中的生命结转回远征状态
+  G.shield=B.shield;                 // 护盾同理，跨战斗保留
+  // 只有「真打赢」才算通关 BOSS；逃跑/跳过/影分身不算
+  if(B.boss && B.won){ G.hp=Math.min(G.maxhp,G.hp+30); toast('🏆 通关！回复 30 生命'); DB.wins++; DB.best=Math.max(DB.best,9); saveDB();
+    setTimeout(()=>endRun(true),700); return }
+  if(B.boss){ toast('👑 词汇之王逃脱了……远征失败'); setTimeout(()=>endRun(false),700); return }
+  advance();
+}
+function advance(){
+  if(G.advancing){ return }   // 幂等：防止双击选项导致层数跳 2 层
+  G.advancing=true;
+  G.floor++;
+  G.maxFloor=Math.max(G.maxFloor,G.floor);
+  if(hasR('battery')) G.hp=Math.min(G.maxhp,G.hp+8);
+  G.hp=clamp(G.hp,1,G.maxhp);
+  G.avail=(G.node&&G.node.links.length)?G.node.links.slice():[];
+  G.cur=G.node;
+  if(!G.avail.length){ endRun(false); return }
+  show('s-map'); renderMap();
+}
+  $('tHint').onclick=()=>{
+  if(!B||B.over||B.hints<=0) return;
+  B.hints--; B.hintUsed++;
+  const tgt=norm(B.word.w);
+  // 提示同时解开被误标的字母，避免死局
+  let freed=0;
+  const pos=B.input.length;
+  for(let j=0;j<B.letters.length;j++){
+    if(!B.used[j]&&B.bad[j]&&B.letters[j]===tgt[pos]){ B.bad[j]=false; freed++ }
+  }
+  sfx.coin();
+  renderFight();
+  $('fCat').textContent='提示：已揭示前 '+Math.min(B.hintUsed,tgt.length)+' / '+tgt.length+' 个字母'+
+    (freed?('（顺便解开了 '+freed+' 个误标字母）'):'');
+};
+$('tSkip').onclick=()=>{
+  if(!B||B.over) return;
+  if(hasR('ghost')&&!B.ghostUsed){ B.ghostUsed=true; toast('👻 影分身：免费撤退，不计失败'); finishNode(); return }
+  if(hasR('ghost')) { toast('本场影分身已用完'); return }
+  // 普通跳过：损失本场生命（注意要扣 B.myHp，否则会被 finishNode 的结转覆盖掉）
+  const loss=Math.round(B.myHp*0.4);
+  B.myHp=Math.max(1,B.myHp-loss);
+  B.over=true;
+  toast('跳过：损失 '+loss+' 点生命');
+  finishNode();
+};
+$('tFlee').onclick=()=>{
+  if(!B||B.over||G.gold<10) return;
+  G.gold-=10; B.over=true;
+  toast('逃跑成功，损失 10 金币');
+  finishNode();
+};
+document.addEventListener('keydown',e=>{
+  if($('s-fight').classList.contains('on') && B && !B.over){
+    // 列数必须与渲染一致，否则 ↑↓ 会跳错行
+    const cols = bankCols(B.letters.length);
+    if(e.key==='ArrowRight'){ moveSel(1); e.preventDefault() }
+    else if(e.key==='ArrowLeft'){ moveSel(-1); e.preventDefault() }
+    else if(e.key==='ArrowDown'){ moveSel(cols); e.preventDefault() }
+    else if(e.key==='ArrowUp'){ moveSel(-cols); e.preventDefault() }
+    else if(e.key===' '||e.key==='Enter'){ pressKey(); e.preventDefault() }
+    else if(e.key==='1'||e.key==='2'||e.key==='3'){
+      // 数字键快速使用第 N 个道具
+      const held=Object.keys(G.bag||{}).filter(id=>(G.bag[id]|0)>0);
+      const id=held[parseInt(e.key,10)-1];
+      if(id) useItem(id);
+      e.preventDefault();
+    }
+    else if(e.key==='Backspace'){
+      if(B.input.length){
+        const ch=B.input.pop();
+        // 释放最后填入的那个字母实例，并清除其「已试过」标记
+        for(let i=B.letters.length-1;i>=0;i--){
+          if(B.used[i]&&B.letters[i]===ch){ B.used[i]=false; B.bad[i]=false; break }
+        }
+        G.attOk=Math.max(0,G.attOk-1);
+        B.combo=Math.max(0,B.combo-1);
+        renderFight();
+      }
+      e.preventDefault();
+    }
+  }
+});
+function moveSel(d){
+  let n=B.letters.length;
+  for(let i=0;i<n;i++){ B.sel=(B.sel+d+n*2)%n; if(!B.used[B.sel]&&!B.bad[B.sel]) break }
+  sfx.key(); renderFight();
+}
+
+/* ================= 事件 ================= */
+const EVENTS=[
+ {ic:'🎁',t:'神秘的背包',x:'你捡到一个鼓鼓的背包，主人却不见了。',o:[
+   {ic:'💎',t:'打开看看',d:'随机获得一个遗物',fn:()=>{ const av=RELICS.filter(r=>!has(G.relics,r.id));
+      if(av.length){ const r=pick(av); G.relics.push(r.id); applyRelicInit(); sfx.relic(); return '你找到了 '+r.ic+' '+r.n+'！' }
+      G.gold=goldGain(40); return '包里只有 40 金币，但聊胜于无。' }},
+   {ic:'🚶',t:'不关我事',d:'离开，什么也不发生',fn:()=>'你背起包继续赶路。'}
+ ]},
+ {ic:'⛲',t:'神秘泉水',x:'一股清泉从石缝涌出，水面泛着微微的光。',o:[
+   {ic:'💚',t:'喝一口',d:'回复 25 点生命',fn:()=>{ G.hp=Math.min(G.maxhp,G.hp+25); return '伤口愈合了。' }},
+   {ic:'🔮',t:'灌满水壶',d:'获得 2 次免费提示（下一场战斗）',fn:()=>{ G.nextHint=(G.nextHint||0)+2; return '水壶泛着微光，下场战斗会帮你。' }},
+   {ic:'🥾',t:'装进瓶子带走',d:'回复 10 点生命',fn:()=>{ G.hp=Math.min(G.maxhp,G.hp+10); return '你还是带了点水。' }}
+ ]},
+ {ic:'⚔️',t:'老兵的剑',x:'一位老兵递给你一把剑：「会用吗？」',o:[
+   {ic:'🔥',t:'学以致用',d:'获得「连击徽章」，连击加成翻倍',fn:()=>{ G.relics.push('combo'); sfx.relic(); return '你的连击从此更锋利。' }},
+   {ic:'💰',t:'卖掉换钱',d:'获得 60 金币',fn:()=>{ G.gold=goldGain(60); return '你换到了 60 金币。' }}
+ ]},
+ {ic:'📚',t:'遗忘之书',x:'一本书在你面前打开，书页上全是单词，却一个都读不懂。',o:[
+   {ic:'🧠',t:'认真研读',d:'当前战斗下次的拼写正确率提升：回复 20 生命并获得遗物',fn:()=>{ G.hp=Math.min(G.maxhp,G.hp+20);
+      const av=RELICS.filter(r=>!has(G.relics,r.id)); if(av.length){ const r=pick(av); G.relics.push(r.id); sfx.relic(); applyRelicInit(); return '你读懂了 '+r.n+' 的含义。' }
+      return '你读懂了更多，知识就是力量。' }},
+   {ic:'😴',t:'合上书休息',d:'回复 15 点生命',fn:()=>{ G.hp=Math.min(G.maxhp,G.hp+15); return '小憩片刻。' }}
+ ]},
+ {ic:'🎲',t:'命运的赌局',x:'一个蒙面人推来一枚硬币：「猜正反，赢了钱翻倍，输了归我。」',o:[
+   {ic:'🪙',t:'押上 40 金币',d:'一半概率翻倍，一半概率全失',fn:()=>{ G.gold=goldGain(40);
+      if(Math.random()<.5){ const w=G.gold; G.gold=w*2; return '硬币停在正面！你获得了 '+G.gold+' 金币。' }
+      G.gold=0; return '反面。你的金币全没了。' }},
+   {ic:'✋',t:'不赌了',d:'安全离开',fn:()=>'你明智地走开了。'}
+ ]},
+ {ic:'👺',t:'迷路的词灵',x:'一个小词灵缩在墙角，看起来迷路了。',o:[
+   {ic:'🍬',t:'给它一颗糖',d:'花费 20 金币，获得 12 点生命',fn:()=>{ if(G.gold<20) return '你金币不够。';
+      G.gold-=20; G.hp=Math.min(G.maxhp,G.hp+12); return '它带你找到了一条捷径，你感觉好多了。' }},
+   {ic:'📖',t:'教它拼写',d:'获得 30 金币的「学费」',fn:()=>{ const g=goldGain(30); return '它学会了，血量 +5。'.replace('血量 +5','')+' 你获得了 '+g+' 金币。' }}
+ ]}
+];
+function showEvent(){
+  const e=pick(EVENTS);
+  $('eIcon').textContent=e.ic; $('eTitle').textContent=e.t; $('eText').textContent=e.x;
+  const box=$('ePicks'); box.innerHTML=''; box._kids=[]; box._used=false;
+  e.o.forEach(o=>{
+    const b=document.createElement('button');
+    b.className='pick';
+    b.innerHTML='<b>'+o.ic+' '+o.t+'</b><span>'+o.d+'</span>';
+    b.onclick=()=>{
+      if(box._used)return; box._used=true;   // 双击保护：只生效一次
+      const msg=o.fn(); toast(msg||'');
+      if(G.hp<=0){ endRun(false); return }
+      setTimeout(()=>{ const n=G.node; if(n)n.done=true; advance() },1100);
+    };
+    box.appendChild(b);
+  });
+  show('s-event');
+}
+function showRest(){
+  $('rTitle').textContent='营火 🔥';
+  $('rSub').textContent='只能选择一项';
+  const rbox=$('rPicks'); rbox.innerHTML=''; rbox._kids=[]; rbox._used=false;
+  const healAmt=hasR('forge')?20:12;
+  const av=RELICS.filter(r=>!has(G.relics,r.id));
+  const opts=[
+    {ic:'💚',t:'休息',d:'回复 '+healAmt+' 点生命',fn:()=>{ G.hp=Math.min(G.maxhp,G.hp+healAmt); return '你睡了个好觉。' }},
+    {ic:'🧭',t:'研究地图',d:'回复 6 点生命并获得 40 金币',fn:()=>{ G.hp=Math.min(G.maxhp,G.hp+6); G.gold=goldGain(40); return '你规划了路线，还捡到了钱。' }}
+  ];
+  if(av.length){
+    const r=pick(av);
+    opts.push({ic:r.ic,t:'冥想 · '+r.n,d:r.d,fn:()=>{ G.relics.push(r.id); sfx.relic(); applyRelicInit(); return '你获得了 '+r.n+'！' }});
+  }
+  opts.forEach(o=>{
+    const b=document.createElement('button');
+    b.className='pick';
+    b.innerHTML='<b>'+o.ic+' '+o.t+'</b><span>'+o.d+'</span>';
+    b.onclick=()=>{ if(rbox._used)return; rbox._used=true; toast(o.fn()||''); setTimeout(()=>{ const nd=G.node; if(nd)nd.done=true; advance() },900) };
+    $('rPicks').appendChild(b);
+  });
+  show('s-rest');
+}
+function showShop(){
+  $('rTitle').textContent='商店 🛒';
+  $('rSub').textContent='用金币强化自己';
+  $('rPicks').innerHTML='';
+  const opts=[
+    {ic:'💚',t:'疗伤药剂 · 45 金币',d:'回复 35 点生命',fn:()=>{ if(G.gold<45) return '金币不够。';
+      G.gold-=45; G.hp=Math.min(G.maxhp,G.hp+35); return '伤口愈合了。' }},
+    {ic:'🔮',t:'提示卷轴 · 40 金币',d:'下一场战斗 +3 次提示',fn:()=>{ if(G.gold<40) return '金币不够。';
+      G.gold-=40; G.shopHints=(G.shopHints||0)+3; return '卷轴收入行囊。' }},
+    {ic:'💪',t:'磨砺石 · 70 金币',d:'生命上限 +10 并回满',fn:()=>{ if(G.gold<70) return '金币不够。';
+      G.gold-=70; G.maxhp+=10; G.hp=G.maxhp; return '你更强了。' }}
+  ];
+  const av=RELICS.filter(r=>!has(G.relics,r.id));
+  if(av.length){ const r=pick(av);
+    opts.push({ic:r.ic,t:'遗物 · '+r.n+' · 80 金币',d:r.d,fn:()=>{ if(G.gold<80) return '金币不够。';
+      G.gold-=80; G.relics.push(r.id); sfx.relic(); applyRelicInit(); return '你买下了 '+r.n+'！' }}) }
+  // 卖道具：只卖玩家还没拿满的
+  const shopItems=shuffle(ITEMS.filter(it=>(G.bag[it.id]|0)<it.max)).slice(0,3);
+  shopItems.forEach(it=>{
+    opts.push({ic:it.ic,t:it.n+' ×3 · '+it.price+' 金币',d:it.d+'｜'+it.tip,
+      fn:()=>{ if(G.gold<it.price) return '金币不够。';
+        G.gold-=it.price; G.bag[it.id]=(G.bag[it.id]|0)+3;
+        sfx.coin(); return '获得 '+it.n+' ×3！' }})
+  });
+  opts.push({ic:'🚪',t:'离开商店',d:'什么都不买',leave:true,fn:()=>'你空手离开了。'});
+  const sbox=$('rPicks'); sbox._used=false;
+  opts.forEach(o=>{
+    const b=document.createElement('button');
+    b.className='pick';
+    b.innerHTML='<b>'+o.ic+' '+o.t+'</b><span>'+o.d+'</span>';
+    b.onclick=()=>{
+      if(sbox._used)return; sbox._used=true;   // 双击保护
+      const m=o.fn(); if(m) toast(m);
+      if(o.leave){ const n=G.node; if(n)n.done=true; advance() }
+    };
+    sbox.appendChild(b);
+  });
+  show('s-rest');
+}
+function endRun(win){
+  DB.best=Math.max(DB.best,G.maxFloor); saveDB();
+  const acc=clamp(Math.round(G.attOk/Math.max(1,G.att)*100),0,100);
+  $('oIcon').textContent=win?'🏆':'💀';
+  $('oTitle').textContent=win?'远征成功！':'远征结束';
+  $('oText').textContent=win?'你击败了词汇之王，整册词汇向你敞开了大门。'
+    :'你倒在了第 '+G.floor+' 层。那些还没记住的词，还在等着你。';
+  $('oFloor').textContent=G.maxFloor;
+  $('oKill').textContent=G.kills;
+  $('oAcc').textContent=acc+'%';
+  const rb=$('oRelics'); rb.innerHTML='';
+  if(!G.relics.length) rb.innerHTML='<span style="font-size:12px;color:var(--dim)">这次没有获得遗物</span>';
+  G.relics.forEach(id=>{ const r=relicById(id); if(!r)return;
+    const d=document.createElement('div'); d.className='relic'; d.textContent=r.ic; d.title=r.n; rb.appendChild(d) });
+  show('s-over');
+  renderTitle();
+}
+$('oAgain').onclick=()=>{ if(newRun()){} };
+$('oHome').onclick=()=>{ G=null; B=null; renderTitle(); show('s-title') };
+$('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ G=null; renderTitle(); show('s-title') } };
+
+/* ================= 标题页 ================= */
+function renderTitle(){
+  const box=$('units'); box.innerHTML='';
+  UNITS.forEach(u=>{
+    const ws=allWords(u.n);
+    const b=document.createElement('button');
+    b.className='unit'+(curUnit===u.n?' sel':'');
+    const m=DB.mastered.filter(w=>ws.some(x=>x.w===w)).length;
+    b.innerHTML='<b>'+u.t+'</b><span>'+ws.length+' 词'+(ws.length?'':'（空）')+'</span>'+
+      (ws.length?'<em>'+(m?('已掌握 '+m+'/'+ws.length):'未开始')+'</em>':'');
+    b.onclick=()=>{ curUnit=u.n; renderTitle() };
+    box.appendChild(b);
+  });
+  $('sRun').textContent=DB.runs;
+  $('sWin').textContent=DB.wins;
+  $('sMaster').textContent=DB.mastered.length;
+  $('sFloor').textContent=DB.best;
+}
+$('startRun').onclick=()=>{ if(newRun()){} };
+$('toRelics').onclick=()=>{
+  const box=$('rlBox'); box.innerHTML='';
+  RELICS.forEach(r=>{
+    const d=document.createElement('div');
+    d.className='rlc'+(G&&has(G.relics,r.id)?' sel':'');
+    d.innerHTML='<div class="ic">'+r.ic+'</div><b>'+r.n+'</b><span>'+r.d+'</span>';
+    box.appendChild(d);
+  });
+  show('s-relics');
+};
+$('toImport').onclick=()=>{
+  $('ta').value=DB.custom.map(x=>x.w+' '+x.z).join('\n');
+  $('impMsg').textContent=''; show('s-import');
+};
+$('doImport').onclick=()=>{
+  const lines=$('ta').value.split('\n'); const out=[]; let bad=0;
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i].trim(); if(!l) continue;
+    const m=l.match(/^([A-Za-z][A-Za-z'’-]*(?:[ ][A-Za-z'’-]+)*)\s*[,，]\s*(.+)$/)
+          || l.match(/^([A-Za-z][A-Za-z'’-]*(?:[ ][A-Za-z'’-]+)*)\s+([\s\S]+)$/);
+    if(!m){ bad++; continue }
+    out.push({w:m[1].trim(), z:m[2].trim()});
+  }
+  if(!out.length){ $('impMsg').innerHTML="<span style='color:var(--bad)'>没解析出词，格式：英文 中文</span>"; return }
+  DB.custom=out; saveDB();
+  $('impMsg').innerHTML="<span style='color:var(--ok)'>导入 "+out.length+" 个词"+(bad?("，"+bad+" 行被跳过"):"")+"</span>";
+  renderTitle();
+};
+$('clearCustom').onclick=()=>{
+  if(!confirm('清空自定义词库？')) return;
+  DB.custom=[]; saveDB(); $('ta').value=''; $('impMsg').innerHTML="<span style='color:var(--mut)'>已清空</span>"; renderTitle();
+};
+$('toReset').onclick=()=>{
+  if(!confirm('清空所有存档（远征次数、已掌握词、自定义词库）？')) return;
+  DB={runs:0,wins:0,mastered:[],best:0,custom:[]}; saveDB(); renderTitle();
+};
+document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ renderTitle(); show('s-title') });
+
+renderTitle();
+
+</script>
+</body>
+</html>
