@@ -31,6 +31,10 @@
        敌方血条；现在按钮由 src/ui/components/audio-settings.js 画进这个容器，
        离开主页就整块隐藏。 -->
   <div id="audioSettings"></div>
+  <!-- 音频兼容提示条：只在**真的观察到**放不出声时才出现（被拒绝 / 一直挂起 /
+       朗读报错 / 压根没这套 API）。微信 UA 不是出现理由，微信里一切正常就不出现。
+       同样留在主页文档流里、跟在声音设置区下面 —— 绝不浮动、绝不压住战斗页。 -->
+  <div id="audioCompatibility"></div>
   <div class="card" style="margin-top:16px">
     <div class="stats">
       <div><b id="sRun">0</b><i>远征次数</i></div>

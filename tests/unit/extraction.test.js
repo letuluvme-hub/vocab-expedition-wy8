@@ -38,7 +38,7 @@ test('relic catalog differs from legacy only in the ghost description', async ()
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css'];
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
@@ -70,6 +70,11 @@ const PAUSE_ONLY_NEW = [
   LEARNING_SCREEN,
   /<div class="row" id="continueRow" hidden><button class="btn" id="continueRun">继续远征<\/button><\/div>\n/,
   /<button class="tool" id="tPause">暂停<small>保存进度<\/small><\/button>\n/,
+  // 音频兼容提示条容器：纯新增（归档里没有对应物），挂在主页声音设置区之后。
+  // 连同它上面的说明注释一起整块挖掉 —— 注释也是这次新增的，留在骨架里就会
+  // 让「与归档逐字相同」这条断言恒假。挖掉后其余部分仍要求逐字相同：
+  // 提示条不许借机改动既有控件。
+  /  <!-- 音频兼容提示条：[\s\S]*?<div id="audioCompatibility"><\/div>\n/,
 ];
 // 包裹了既有控件的改动 → 还原成归档里的原始写法（放弃远征按钮被包进了一行 .row）。
 const PAUSE_BACK_TO_LEGACY = [
@@ -117,6 +122,11 @@ test('page skeleton preserves approved character parts and all existing controls
   // 声音设置：容器必须在标题页内（不能是 body 上的浮动层），旧的 .volrow 必须已经不存在。
   const titleScreen = html.slice(html.indexOf('id="s-title"'), html.indexOf('<div class="screen" id="s-map"'));
   assert.match(titleScreen, /<div id="audioSettings"><\/div>/, '声音设置容器必须落在主页 #s-title 内');
+  // 兼容提示条：容器同样必须在主页内、且在声音设置区之后（提示条是设置的补充说明）。
+  // 这条必须真的命中 —— 否则上面 PAUSE_ONLY_NEW 里那条剥离会变成静默的空操作，
+  // 「骨架一致」就成了永远为真的假通过。
+  assert.match(titleScreen, /<div id="audioSettings"><\/div>\s*<!--[\s\S]*?-->\s*<div id="audioCompatibility"><\/div>/,
+    '兼容提示条容器必须紧跟在主页声音设置区之后');
   assert.doesNotMatch(html, /class="volrow"|id="volBtn"|id="volVal"|id="voiceBtn"/, '旧的浮动音量/语音控件必须从 HTML 里移除');
   // 暂停入口必须真的在页面上（否则上面的对齐会因为「都不存在」而假通过）
   assert.match(html, /id="mPause">暂停并保存/);

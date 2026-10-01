@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音频兼容提示条 · 独立夹具</title>
+<link rel="stylesheet" href="/src/styles/audio-compatibility.css">
+<style>
+  body { margin:0; background:#12151d; color:#e8ecf4; font-family: system-ui, sans-serif; padding:16px; }
+  #state { font-size:12px; opacity:.7; margin-bottom:10px; }
+  .board { min-height:120px; border:1px dashed rgba(255,255,255,.2); border-radius:10px; padding:12px; }
+</style>
+</head>
+<body>
+<!-- 独立夹具：只挂 audio-compatibility 一个模块 + 一个可控的假 capability。
+     它**不是**游戏页面，真实接线（runtime.js）由整合者做；这里只证明
+     「模块在真浏览器里真的能画、真的能点、点击后真的隐藏」。 -->
+<div id="state">state: <span id="stateText">-</span></div>
+<div id="audioCompatibility"></div>
+<div class="board" id="board">游戏内容区（提示条不许遮挡它）</div>
+
+<script type="module">
+import { createAudioCompatibility } from '/src/ui/components/audio-compatibility.js';
+import { STATUS, CHANNEL } from '/src/services/audio-capability.js';
+
+/* 假 capability：只提供 UI 需要读的三个方法，行为由 ?state= 查询参数决定。 */
+let dismissed = false;
+const stateText = document.getElementById('stateText');
+const params = new URLSearchParams(location.search);
+const wantState = params.get('state') || STATUS.BLOCKED;
+const wantWechat = params.get('wechat') === '1';
+const wantChannel = params.get('channel') || CHANNEL.SFX;
+
+const capability = {
+  snapshot() {
+    return { state: wantState, channel: wantChannel, reason: 'resume-timeout', wechat: wantWechat, claim: '接口已就绪，实际播放仍需设备验证' };
+  },
+  isDismissed() { return dismissed; },
+  dismiss() { dismissed = true; },
+};
+
+const ui = createAudioCompatibility({
+  capability,
+  onRetry() { window.__retried = (window.__retried || 0) + 1; },
+}).mount();
+
+stateText.textContent = wantState + '/' + wantChannel + (wantWechat ? '/wechat' : '');
+window.__ui = ui;   // 测试探针只读，不进生产 bundle（本文件不进 src/）
+</script>
+</body>
+</html>

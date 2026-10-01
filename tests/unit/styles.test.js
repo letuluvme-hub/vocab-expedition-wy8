@@ -16,6 +16,7 @@ const ADDED = [
   ['./learning-complete.css', /^#s-learning-complete\b/, '词汇完成页'],
   ['./audio-settings.css', /^#audioSettings\b/, '主页声音设置区'],
   ['./equipment-panel.css', /^\.equip\b/, '战斗页装备面板'],
+  ['./audio-compatibility.css', /^#audioCompatibility\b/, '音频兼容提示条'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{
@@ -36,8 +37,12 @@ test('split styles retain every original rule and exact cascade order',async()=>
   // 不许偷偷改既有选择器（那会借「新增样式」之名改动线上外观）。
   // 先剥注释与 @import，否则注释行会被当成选择器。
   for(const [file,prefix,label] of ADDED){
+    // @media 只是一层**条件容器**，不是选择器：把它的前导语句摘掉，
+    // 让里面的规则照样被逐条核对（否则 @media 整块会被当成一个选择器而漏检，
+    // 或者逼着这条断言放宽成「什么都行」）。条件本身由白名单前缀把关。
     const added=readFileSync(new URL(`../../src/styles/${file}`,import.meta.url),'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g,'').replace(/@import[^;]+;/g,'');
+      .replace(/\/\*[\s\S]*?\*\//g,'').replace(/@import[^;]+;/g,'')
+      .replace(/@media[^{]*\{/g,'');
     const selectors=[...added.matchAll(/(^|\})\s*([^{}]*?)\s*\{/g)].map(m=>m[2].trim()).filter(Boolean);
     assert.ok(selectors.length>0,label+' 样式表不能是空的：'+file);
     for(const sel of selectors) for(const one of sel.split(',')) {

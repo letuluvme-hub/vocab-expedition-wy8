@@ -1,0 +1,64 @@
+/* 音频兼容提示条（唯一新增样式表，只作用于 #audioCompatibility-root）
+ *
+ * 定位原则：这是一条**通知**，不是弹窗。
+ *  - 不遮挡任何操作区域：贴在文档流顶部/底部，不 fixed、不 absolute。
+ *  - 不抢玩家注意力：不用红色告警色，用中性卡片色 + 一行小字。
+ *  - 小屏优先：字号偏大、按钮够大（矮手指），遵守安全区。
+ *  - 遵守 prefers-reduced-motion（全局已有，这里不再加动画）。
+ */
+#audioCompatibility-root {
+  display: block;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(24, 28, 38, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e8ecf4;
+  font-size: 14px;
+  line-height: 1.5;
+}
+#audioCompatibility-root[hidden] { display: none; }
+
+#audioCompatibility-root .acomp-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+#audioCompatibility-root .acomp-body {
+  opacity: 0.86;
+}
+
+#audioCompatibility-root .acomp-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#audioCompatibility-root .acomp-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.10);
+  color: inherit;
+  font: inherit;
+  /* 矮手指友好：不低于 40px 高 */
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#audioCompatibility-root .acomp-btn:active { background: rgba(255, 255, 255, 0.2); }
+#audioCompatibility-root .acomp-btn:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
+
+/* 窄屏：提示条不横向溢出，按钮各占一行更好点 */
+@media (max-width: 420px) {
+  #audioCompatibility-root { font-size: 13px; }
+  #audioCompatibility-root .acomp-btn { flex: 1 1 auto; }
+  #audioCompatibility-root .acomp-acts { padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #audioCompatibility-root * { transition: none !important; animation: none !important; }
+}
