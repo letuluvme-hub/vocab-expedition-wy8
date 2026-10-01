@@ -10,6 +10,7 @@
 // 词条身份只做 trim + lowerCase（与 domain/word-selection 同口径）：空格、连字符、
 // 撇号是拼写的一部分，绝不剥掉 —— 剥掉会把 ice cream / icecream 折叠成同一个词。
 import { generateMap } from './map.js';
+import { learningCounts, isPoolComplete } from './word-selection.js';
 
 export const CUSTOM_UNIT = 0;
 
@@ -132,6 +133,74 @@ export function canSelectUnit(progress, unit) {
 }
 
 /* ---------------- 跨单元衔接 ---------------- */
+/* 本轮学习范围（docs/feature-rounds.md）。
+ *
+ * 「本轮学习范围」是**这一轮真正选的起点到本册末尾**：
+ *   教材起点 Unit 3 → [3,4,5,6]；自定义起点 0 → 只有 [0]。
+ * 它不是「这一轮到过的单元」也不是「1..6」：从 Unit 3 开局的这一轮从来没学过
+ * Unit 1/2，声称完成了 1..6 就是虚报。 */
+export const LAST_UNIT = 6;
+const CUSTOM_SCOPE = [CUSTOM_UNIT];
+
+/* 该轮的起点：campaign.startedUnit 优先，缺字段时退回当前单元（保守）。 */
+function scopeStart(run) {
+  const started = run && run.campaign ? run.campaign.startedUnit : undefined;
+  if (Number.isInteger(started) && (started === CUSTOM_UNIT || (started >= 1 && started <= LAST_UNIT))) {
+    return started;
+  }
+  return run && Number.isInteger(run.unit) ? run.unit : 1;
+}
+
+export function roundScopeUnits(run) {
+  if (!run) return [];
+  const start = scopeStart(run);
+  if (start === CUSTOM_UNIT) return CUSTOM_SCOPE.slice();
+  const out = [];
+  for (let u = Math.max(1, Math.min(start, LAST_UNIT)); u <= LAST_UNIT; u++) out.push(u);
+  return out;
+}
+
+/* 记录「本轮在这个单元把目标词全部整词完成了」。
+ * 只有**本轮**的真实完成证据才写（调用方是抽词抽干 / 跨单元过渡这两条真实路径）；
+ * 到过某个单元、击败 BOSS、跳过节点都不是。幂等。范围外的单元一律拒绝。
+ *
+ * ★ 本轮整词证据闸门（允许跨单元 ≠ 允许记本轮完成）：
+ *   跨单元解锁的口径是 DB.mastered 的历史覆盖 —— 一份「259 个词历史全掌握」的存档
+ *   从 Unit 1 起手点一次「继续下一单元」，解锁本身完全合法（口径不许收紧）。
+ *   但这条 run 里**一个词都没答过**，run.done 空、doneKeys 与该单元词池毫无交集，
+ *   于是 completedUnits 必须仍然是 [] —— 否则卡上会凭空长出「本轮完成 Unit 1」，
+ *   把一段根本没学过的学习写成学完了。历史掌握与本轮完成是两个独立事实。
+ *   判据只有两条，且与抽词/检查点同源（word-selection）：
+ *     learningCounts(...).total > 0（有词可学；空单元不算完成）
+ *     isPoolComplete(...)（该词池被 run.done 真正全覆盖）
+ *
+ * pool 参数：调用方可以显式给出**该单元当时的真实词池**作为证据。
+ *   这不是为了放宽闸门，而是因为 runtime 的真实顺序是「先 applyUnitTransition
+ *   换池、再记完成」——那时 run.pool 已经是下一个单元的了。不显式传就会用
+ *   新单元的覆盖去给旧单元记完成（那正好是本闸门要挡的错误）。 */
+export function recordRoundUnitComplete(run, unit, { pool = run && run.pool } = {}) {
+  if (!run) return false;
+  if (!Number.isInteger(unit)) return false;
+  if (roundScopeUnits(run).indexOf(unit) < 0) return false;   // 范围外：不是本轮的目标
+  if (!Array.isArray(run.completedUnits)) run.completedUnits = [];
+  if (run.completedUnits.indexOf(unit) >= 0) return false;    // 幂等
+  const evidence = Object.assign({}, run, { pool: pool || [] });
+  if (learningCounts(evidence).total <= 0) return false;       // 没词：无从完成
+  if (!isPoolComplete(evidence)) return false;                 // 本轮没整词答完
+  run.completedUnits.push(unit);
+  return true;
+}
+
+/* 本轮学习范围是否真的全部完成。只看本轮的整词完成记录，绝不按到过的单元算，
+ * 也绝不因为「历史存档里 Unit 1..6 的词都在 mastered 里」就说本轮完成了。
+ * 名义口径是「本轮学习范围已完成」，不是「全册已掌握」。 */
+export function roundCompletion(run) {
+  const targets = roundScopeUnits(run);
+  const done = Array.isArray(run && run.completedUnits) ? run.completedUnits : [];
+  const missing = targets.filter(u => done.indexOf(u) < 0);
+  return { targets, done: targets.filter(u => done.indexOf(u) >= 0), missing, complete: targets.length > 0 && missing.length === 0 };
+}
+
 /* 纯事实：只回答「能不能过渡到下一单元」，不碰 run、不碰 DB。
  * 重复调用天然安全：过渡已经发生时 run.unit 已经变了，判据随之改变。 */
 export function transitionNextUnit({ run, progress }) {
