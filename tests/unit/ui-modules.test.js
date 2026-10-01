@@ -362,13 +362,17 @@ test('fight.renderFight paints the same DOM as the legacy function', async () =>
     globalThis.innerWidth = 390;   // 旧版直接读裸全局，Node 里没有 → 给出浏览器等价值
     withDocument(docOld, () => legacyFn('renderFight', deps)());
     delete globalThis.innerWidth;
-    // tSkip 是本任务唯一有意偏离旧版的元素（代价文案），单独比；
+    // tSkip 是本任务唯一有意偏离旧版的元素（代价文案 + run 级影分身额度），单独比；
     // 其余每个 id 仍要求与旧版真实输出逐字一致。
     const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip');
     assert.equal(snapDoc(docMine, COMPARE_IDS), snapDoc(docOld, COMPARE_IDS), 'kb=' + DB.kbMode);
-    // 偏离面必须精确：只多出「影分身」标签 + 免费撤退小字，属性/尺寸行为不变
-    assert.equal(snap(docMine.getElementById('tSkip')).replace('#影分身<small>免费撤退</small>', '="影分身"'),
-      snap(docOld.getElementById('tSkip')), 'kb=' + DB.kbMode);
+    // 偏离面必须精确：只多出「影分身」标签 + 免费撤退小字 + tooltip，属性/尺寸行为不变。
+    // 归一化掉新文案后必须与旧版逐字相同（title 是新加的，单独抹平）。
+    // 名字不叫 norm：会和模块顶部 import 的 norm(text) 撞车（TDZ）。
+    const normalizeSkip = s => s
+      .replace('#影分身<small>免费撤退 · 本轮仅剩 1 次</small>', '="影分身"')
+      .replace('[title=影分身：本轮远征唯一一次免费撤退，不计失败、不扣生命]', '');
+    assert.equal(normalizeSkip(snap(docMine.getElementById('tSkip'))), snap(docOld.getElementById('tSkip')), 'kb=' + DB.kbMode);
     assert.equal(B.keyEls.length, B.letters.length);
     assert.deepEqual(pressed, []);
   }
@@ -391,7 +395,7 @@ test('fight.renderFight routes key presses through onPress and never mutates sel
   assert.equal(B.sel, 2, 'the screen must not set B.sel — that is the parent state owner');
 });
 
-test('fight.renderFight labels the skip button by ghost relic, states the 50 HP cost, and marks flee by gold', async () => {
+test('fight.renderFight labels the skip button by the run-level ghost charge, states the 50 HP cost, and marks flee by gold', async () => {
   const { createFightScreen } = await import('../../src/ui/screens/fight.js');
   const { SKIP_HP_COST } = await import('../../src/data/balance.js');
   const ids = FIGHT_IDS;
@@ -404,30 +408,42 @@ test('fight.renderFight labels the skip button by ghost relic, states the 50 HP 
         onPress: () => {}, onUseItem: () => {}, paintSayBtn: () => {} }).renderFight();
       return {
         skip: doc.getElementById('tSkip')._html,
+        title: doc.getElementById('tSkip').title,
         flee: doc.getElementById('tFlee').disabled,
         hint: doc.getElementById('tHint').disabled,
         hintN: doc.getElementById('tHintN').textContent,
       };
     });
   };
-  const free = '影分身<small>免费撤退</small>';
+  // 额度是 run 级：可用时必须点明「本轮」与剩余次数
+  const free = '影分身<small>免费撤退 · 本轮仅剩 1 次</small>';
   const costly = '跳过<small>损失 ' + SKIP_HP_COST + ' 生命</small>';
-  assert.deepEqual(paint({ relics: ['shield', 'ghost'] }), { skip: free, flee: false, hint: false, hintN: '3 次' });
+  assert.deepEqual(paint({ relics: ['shield', 'ghost'] }),
+    { skip: free, title: '影分身：本轮远征唯一一次免费撤退，不计失败、不扣生命', flee: false, hint: false, hintN: '3 次' });
   // 普通跳过必须点明固定代价，不能再写「不掉血」
-  assert.deepEqual(paint({ relics: ['shield'] }), { skip: costly, flee: false, hint: false, hintN: '3 次' });
+  assert.deepEqual(paint({ relics: ['shield'] }),
+    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: false, hint: false, hintN: '3 次' });
   assert.notEqual(costly.includes('不掉血'), true, '代价文案不得声称不掉血');
-  // 本场已经用过影分身 → 按钮回到「跳过（付 50）」，不能再白嫖一次撤退
+  // ★ 本轮已用完 → 按钮回到「跳过（付 50）」，tooltip 说明影分身已用完。
+  //   判据是 run 上的 ghostUsed；战斗对象上根本没有 ghost 字段。
   const usedGhost = withDom(ids, doc => {
-    const B = { ...makeBattle(), ghostUsed: true };
-    createFightScreen({ getRun: () => ({ ...run, relics: ['ghost'] }), getBattle: () => B, getDB: () => ({}),
-      onPress: () => {}, onUseItem: () => {}, paintSayBtn: () => {} }).renderFight();
-    return doc.getElementById('tSkip')._html;
+    const B = makeBattle();
+    assert.ok(!('ghostUsed' in B), '战斗对象不携带 ghost 状态');
+    createFightScreen({ getRun: () => ({ ...run, relics: ['ghost'], ghostUsed: true }), getBattle: () => B,
+      getDB: () => ({}), onPress: () => {}, onUseItem: () => {}, paintSayBtn: () => {} }).renderFight();
+    return { html: doc.getElementById('tSkip')._html, title: doc.getElementById('tSkip').title };
   });
-  assert.equal(usedGhost, costly);
+  assert.equal(usedGhost.html, costly);
+  assert.match(usedGhost.title, /已用完/);
+  assert.match(usedGhost.title, new RegExp(String(SKIP_HP_COST)), 'tooltip 要写明用完后的实际代价');
+  // 重复拿到影分身也不得把按钮显示成免费
+  assert.deepEqual(paint({ relics: ['ghost', 'ghost'], ghostUsed: true }),
+    { skip: costly, title: '影分身本轮已用完：撤退需要损失 ' + SKIP_HP_COST + ' 点生命', flee: false, hint: false, hintN: '3 次' },
+    '重复持有不恢复额度');
   assert.deepEqual(paint({ relics: ['shield'], gold: 9 }),
-    { skip: costly, flee: true, hint: false, hintN: '3 次' }, '金币不足 10 禁逃跑');
+    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: true, hint: false, hintN: '3 次' }, '金币不足 10 禁逃跑');
   assert.deepEqual(paint({ relics: ['shield'], gold: 10 }),
-    { skip: costly, flee: false, hint: false, hintN: '3 次' }, '刚好 10 金币仍可逃跑');
+    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: false, hint: false, hintN: '3 次' }, '刚好 10 金币仍可逃跑');
 });
 
 test('fight.renderFight sizes keyboard keys to the container in kb mode', async () => {

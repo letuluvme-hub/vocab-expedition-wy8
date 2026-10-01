@@ -7,8 +7,8 @@
 
 | 情况 | 生命 | 结算 | 明确不做的事 |
 |---|---|---|---|
-| 有影分身且本场未用 | 不变 | `finishNode` → 正常推进 | 不扣血、不记失败（**保持旧逻辑**，免费额度仍是每场一次，任务 3 才改） |
-| 影分身本场已用完 | 不变 | 拒绝（`skipFight()` 返回 `false`） | 不退化成普通跳过（**保持旧逻辑**） |
+| 有影分身且本轮未用 | 不变 | `finishNode` → 正常推进 | 不扣血、不记失败（额度是 **run 级**，见 `docs/bug-ghost.md`） |
+| 影分身本轮已用完 | `B.myHp -= 50` | 与没有影分身完全一致 | **不**拒绝、**不**永久禁用跳过（任务 3 已改，见下） |
 | 普通跳过，HP > 50 | `B.myHp -= 50` | `finishNode` → 普通/精英 `'advance'`、BOSS `'boss-loss'` | 不计击杀、不给掌握、不算通关 |
 | 普通跳过，HP ≤ 50 | `B.myHp = 0` | `loseFight` → `endRun(false)` | **不** `finishNode`、**不** clamp 保底、无击杀/通关/纪念卡 |
 
@@ -127,6 +127,8 @@ BOSS 跳过即使血够，也只走 `finishBattleNode` 的 `battle.boss && !batt
 - **影分身仍是每场一次**：任务 A.3 要求改成每轮远征仅一次且跨暂停保存。
   本轮**刻意未动**（`hasR('ghost') && !B.ghostUsed` 与"已用完则拒绝"两条路径原样保留），
   并在单测里固定了这两条旧行为，避免任务 3 找不到基线。
+  → **已由任务 3 完成**：额度改为 run 级 `G.ghostUsed`，用完后回普通跳过（付 50），
+  详见 `docs/bug-ghost.md`。本表上方两行已同步更新。
 - **离线单文件导出（`dist/index.html`）未验证**：本轮没跑 `npm run build` /
   `test:build` / `test:release`（改动不涉及构建配置），父亲的全套 `check` 会覆盖。
 - **`G.hp` 在死亡路径不结转**：`finishBattleNode` 没跑，所以远征状态里的

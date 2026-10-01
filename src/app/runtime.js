@@ -493,7 +493,7 @@ function startFight(n){
       // hintUsed=提示窗口宽度（相对当前位置，敲字母会消耗）；hintTotal=累计用了几次（只增不减，给标签/统计用）
       hintUsed:(G.nextHint?1:0), hintTotal:(G.nextHint?1:0),
       combo:0, maxCombo:0, dmgBonus:0, firstWrong:true,
-      lethUsed:hasR('lucky')?1:0, ghostUsed:false, wordsDone:0, over:false, mistaken:[],
+      lethUsed:hasR('lucky')?1:0, wordsDone:0, over:false, mistaken:[],
       // 连续整词计数：每拼完一个词 +1（连错清零），只影响大招的档位 finTier()，
       // 有上限（FIN_TIER_MAX），所以不可能数值爆炸
       wordStreak:0,

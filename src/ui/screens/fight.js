@@ -177,10 +177,18 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     $('tHintN').textContent = B.hints + ' 次';
     $('tHint').disabled = B.hints <= 0;
     // 跳过按钮：innerHTML 而不是 textContent —— textContent 会抹掉 <small> 里的代价说明。
-    // 影分身可用时是免费撤退；否则点明固定代价（血不够付就会战败）。
-    $('tSkip').innerHTML = hasR('ghost') && !B.ghostUsed
-      ? '影分身<small>免费撤退</small>'
+    // ★ 影分身额度是 run 级（G.ghostUsed），不是本场（B 上没有任何 ghost 状态）：
+    //   可用 → 「影分身 · 本轮仅剩 1 次」；用完 → 回到普通跳过并写明已用完与固定代价。
+    //   只读 G，所以换战斗/重复拿到影分身都不会把按钮错误地显示成免费。
+    const ghostLeft = hasR('ghost') && !G.ghostUsed;
+    $('tSkip').innerHTML = ghostLeft
+      ? '影分身<small>免费撤退 · 本轮仅剩 1 次</small>'
       : '跳过<small>损失 ' + SKIP_HP_COST + ' 生命</small>';
+    $('tSkip').title = !hasR('ghost')
+      ? '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）'
+      : (ghostLeft
+        ? '影分身：本轮远征唯一一次免费撤退，不计失败、不扣生命'
+        : '影分身本轮已用完：撤退需要损失 ' + SKIP_HP_COST + ' 点生命');
     $('tFlee').disabled = G.gold < 10;
     $('fCombo').textContent = B.combo > 0 ? ('连击 ' + B.combo + '  ✦ 伤害 ×' + (1 + B.combo * comboRate()).toFixed(1)) : '';
     renderItems();

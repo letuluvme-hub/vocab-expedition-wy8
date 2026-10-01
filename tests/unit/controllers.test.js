@@ -63,7 +63,9 @@ function battleFixture(over) {
   // 答案 keep + 一个干扰字母 x：下标 4 是唯一「不在词里」的字母
   const B = { word, letters: ['k', 'e', 'e', 'p', 'x'], used: [false, false, false, false, false],
     bad: [false, false, false, false, false], input: [], sel: 0, hints: 3, hintUsed: 0, hintTotal: 0,
-    combo: 0, maxCombo: 0, dmgBonus: 0, firstWrong: true, lethUsed: 0, ghostUsed: false,
+    combo: 0, maxCombo: 0, dmgBonus: 0, firstWrong: true, lethUsed: 0,
+    // ★ 战斗对象上**没有** ghostUsed：影分身额度是 run 级（G.ghostUsed），
+    //   放在 B 上会让每场战斗都能重新白嫖一次免费撤退。
     wordsDone: 0, over: false, boss: false, elite: false, myHp: 50, enHp: 200, enMax: 200,
     shield: 0, rageLeft: 0, freezeWord: false, chainNext: false, goldMult: 1,
     usedThisFight: {}, wordStreak: 0, mistaken: [], foe: { n: '词灵', ic: '👾', tint: '#fff' } };
@@ -377,24 +379,38 @@ test('skipFight：影分身首次免费，之后普通跳过固定损失 50 点�
   assert.ok(b.fxOrder.includes('finishNode'));
 });
 
-test('skipFight：影分身每场只能用一次，第二次必须走扣血路径', async () => {
+test('skipFight：影分身额度是 run 级 —— 第二场战斗必须付 50 点生命', async () => {
   const h = await makeCombat();
   h.state.G.relics.push('ghost');
   h.ctrl.skipFight();
+  assert.ok(h.fxOrder.includes('finishNode'));
   assert.equal(h.state.B.myHp, 50, '第一次：免费撤退，不扣血');
-  assert.equal(h.state.B.ghostUsed, true);
+  assert.equal(h.state.G.ghostUsed, true, '额度记在 run 上，不是本场');
+  // 真实的 startFight 每场都重建 B：额度不能因为换了一场战斗而重置
+  const fresh = battleFixture();
+  h.state.B = fresh.B;
+  assert.ok(!('ghostUsed' in fresh.B), '新战斗对象不携带任何 ghost 状态');
+  h.ctrl.skipFight();
+  assert.equal(h.state.B.myHp, 0, '第二场必须走普通跳过的固定 50（50 血场 → 战败）');
+  assert.ok(h.fxOrder.includes('loseFight'), '用完额度后不再拒绝，而是真的结算代价');
+});
+
+test('skipFight：新开一轮远征会重新获得一次免费撤退', async () => {
+  const { createRun } = await import('../../src/domain/run.js');
+  const h = await makeCombat();
+  h.state.G.relics.push('ghost');
+  h.ctrl.skipFight();
+  assert.equal(h.state.G.ghostUsed, true);
+  // createRun 是唯一把额度置回 false 的地方
+  const next = createRun(1, null, []);
+  assert.equal(next.ghostUsed, false);
+  h.state.G = next;
   const fresh = battleFixture();
   fresh.G.relics = ['ghost'];
-  h.state.B = fresh.B;                             // 下一场：影分身应重新可用
+  h.state.B = fresh.B;
   h.ctrl.skipFight();
-  assert.equal(h.state.B.myHp, 50);
-  const again = battleFixture();
-  again.G.relics = ['ghost'];
-  h.state.B = again.B;
-  h.state.B.ghostUsed = true;                      // 本场已用掉
-  assert.equal(h.ctrl.skipFight(), false, '已用完时直接拒绝，不按普通跳过扣血');
-  assert.equal(h.state.B.myHp, 50);
-  assert.ok(h.toasts.some(t => t.indexOf('影分身已用完') >= 0));
+  assert.equal(h.state.B.myHp, 50, '新一局的第一场仍然免费');
+  assert.equal(h.state.G.ghostUsed, true);
 });
 
 test('pressKey：整词拼完后连击清零，伤害不跨词叠加', async () => {

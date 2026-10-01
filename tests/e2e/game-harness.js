@@ -112,7 +112,10 @@ export const test = base.extend({
             DB,
             G: G && { unit: G.unit, hp: G.hp, maxhp: G.maxhp, shield: G.shield, gold: G.gold,
               floor: G.floor, kills: G.kills, att: G.att, attOk: G.attOk, heroId: G.heroId,
-              done: [...G.done], wrong: G.wrong, bag: G.bag, shopHints: G.shopHints || 0 },
+              done: [...G.done], wrong: G.wrong, bag: G.bag, relics: G.relics,
+              // 影分身额度是 run 级字段：E2E 必须能直接读到它，证明跨战斗不重置
+              ghostUsed: G.ghostUsed,
+              shopHints: G.shopHints || 0 },
             B: B && { word: B.word.w, input: B.input, used: B.used, bad: B.bad, myHp: B.myHp,
               enHp: B.enHp, shield: B.shield, combo: B.combo, over: B.over,
               won: !!B.won, wordsDone: B.wordsDone, boss: B.boss },

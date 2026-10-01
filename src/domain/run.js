@@ -34,6 +34,12 @@ export function createRun(unit, hero, pool, random = Math.random) {
     shield: M.shield || 0, gold: M.gold || 0,
     floor: 1, maxFloor: 1,
     relics: [], skipFree: false,
+    // ★ 影分身额度是 **run 级**，不是 battle 级：一轮远征只能免费撤退一次。
+    //   旧实现把标记放在 B.ghostUsed（每场战斗重建），于是每场都能白嫖一次。
+    //   放在 run 上意味着换战斗不会重置、重复拿到影分身也不会重置；
+    //   createRun 是**唯一**把它置回 false 的地方，所以「新一局」永远拿到新额度。
+    //   布尔而不是次数：语义就是 1 次，缺字段（老存档/旧快照）回落为未使用。
+    ghostUsed: false,
     heroId: hero && hero.id, hm: M.hint || 0, hnoise: M.noise || 0,
     hcombo: M.combo || 1, hregen: M.regen || 0, hleech: M.leech || 0,
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,

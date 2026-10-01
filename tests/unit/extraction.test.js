@@ -17,10 +17,24 @@ test('extracted vocabulary preserves all 259 records and their order', async () 
 });
 
 test('extracted game catalogs are byte-for-byte equivalent values', async () => {
-  for (const [file, name] of [['heroes','HEROES'],['items','ITEMS'],['relics','RELICS'],['enemies','ENEMIES'],['units','UNITS']]) {
+  for (const [file, name] of [['heroes','HEROES'],['items','ITEMS'],['enemies','ENEMIES'],['units','UNITS']]) {
     const module = await import(`../../src/data/${file}.js`);
     assert.deepEqual(module[name], oldValue(name));
   }
+});
+
+// 影分身的图鉴文案是**有意**偏离：旧版写「每场战斗可免费跳过一次」，
+// 但免费额度现在是 run 级（一轮远征只有一次）。文案必须与实际口径一致，
+// 否则玩家会以为每场战斗都能白嫖一次撤退。
+// 偏离面精确到 RELICS 里的 ghost 一条；其余遗物、字段、顺序仍要求逐字相同。
+test('relic catalog differs from legacy only in the ghost description', async () => {
+  const { RELICS } = await import('../../src/data/relics.js');
+  const old = oldValue('RELICS');
+  assert.equal(RELICS.length, old.length, '遗物数量不变');
+  const drift = RELICS.filter((r, i) => JSON.stringify(r) !== JSON.stringify(old[i])).map(r => r.id);
+  assert.deepEqual(drift, ['ghost'], '只有影分身的图鉴文案可以变');
+  assert.equal(RELICS.map(r => r.id).join(), old.map(r => r.id).join(), '顺序与 id 不变');
+  assert.match(RELICS.filter(r => r.id === 'ghost')[0].d, /每轮/);
 });
 
 test('CSS extraction preserves cascade order and every original rule', () => {
