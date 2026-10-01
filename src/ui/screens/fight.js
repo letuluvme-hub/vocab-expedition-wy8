@@ -17,6 +17,7 @@ import { clamp } from '../../domain/math.js';
 import { norm, wordGapBefore } from '../../domain/text.js';
 import { comboRate as calculateComboRate } from '../../domain/damage.js';
 import { foeArtHTML } from '../components/monster-art.js';
+import { SKIP_HP_COST } from '../../data/balance.js';
 import { HERO_DEFAULT, heroById } from '../components/hero.js';
 import { paintHpBar } from '../components/hp-bar.js';
 import { fitPhraseSlots } from '../components/phrase-slots.js';
@@ -175,7 +176,11 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     syncBankBar();
     $('tHintN').textContent = B.hints + ' 次';
     $('tHint').disabled = B.hints <= 0;
-    $('tSkip').textContent = hasR('ghost') && !B.ghostUsed ? '影分身' : '跳过';
+    // 跳过按钮：innerHTML 而不是 textContent —— textContent 会抹掉 <small> 里的代价说明。
+    // 影分身可用时是免费撤退；否则点明固定代价（血不够付就会战败）。
+    $('tSkip').innerHTML = hasR('ghost') && !B.ghostUsed
+      ? '影分身<small>免费撤退</small>'
+      : '跳过<small>损失 ' + SKIP_HP_COST + ' 生命</small>';
     $('tFlee').disabled = G.gold < 10;
     $('fCombo').textContent = B.combo > 0 ? ('连击 ' + B.combo + '  ✦ 伤害 ×' + (1 + B.combo * comboRate()).toFixed(1)) : '';
     renderItems();

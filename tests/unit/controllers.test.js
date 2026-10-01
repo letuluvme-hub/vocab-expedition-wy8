@@ -365,12 +365,13 @@ test('undoLetter：退回最后输入的字母并重置对应实例', async () =
   assert.equal(h.ctrl.undoLetter(), false, '空输入时无操作');
 });
 
-test('skipFight：影分身首次免费，之后普通跳过损失 40% 生命', async () => {
+test('skipFight：影分身首次免费，之后普通跳过固定损失 50 点生命', async () => {
   const a = await makeCombat();
   a.state.G.relics.push('ghost');
   a.ctrl.skipFight();
   assert.ok(a.fxOrder.includes('finishNode'));
-  const b = await makeCombat();
+  // 固定 50 取代旧的「本场 40%」：50 血场上旧逻辑只扣 20，新逻辑扣到 0 → 战败。
+  const b = await makeCombat({ myHp: 80 });
   b.ctrl.skipFight();
   assert.equal(b.state.B.myHp, 30);
   assert.ok(b.fxOrder.includes('finishNode'));

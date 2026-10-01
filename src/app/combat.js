@@ -7,6 +7,7 @@
  *   4) 「最后一击 → winFight」与「整词拼完 → wordDmg/creditWord/nextWord」的先后照旧。
  */
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
+import { SKIP_HP_COST } from '../data/balance.js';
 
 export function createCombatController({ state, ports }) {
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
@@ -366,8 +367,11 @@ export function createCombatController({ state, ports }) {
     return true;
   }
 
-  // 跳过：影分身（每场一次）免费撤退；否则损失本场 40% 生命。
+  // 跳过 = 一次有代价的撤退。影分身（每场一次）仍然免费；否则固定损失
+  // SKIP_HP_COST 点生命 —— 不走 hurtPlayer，所以护盾不吸收、幸运草不免伤。
   // ★ 扣的是 B.myHp —— 扣 G.hhp 会被 finishNode 的结转覆盖掉。
+  // ★ 固定点数而不是本场生命的百分比：百分比在低血时只会扣掉一点点，
+  //   玩家可以反复撤退而不真正承担风险，跳过就变成了比打完更优的策略。
   function skipFight() {
     const B = state.B, G = state.G;
     if (!B || B.over) return false;
@@ -378,10 +382,19 @@ export function createCombatController({ state, ports }) {
       return true;
     }
     if (hasR('ghost')) { toast('本场影分身已用完'); return false; }
-    const loss = Math.round(B.myHp * 0.4);
-    B.myHp = Math.max(1, B.myHp - loss);
+    B.myHp -= SKIP_HP_COST;
+    if (B.myHp <= 0) {
+      // 付不起代价就是战败。★ 不要在这里先置 B.over：loseFight 开头就是
+      // `if (B.over) return`，先置会让它直接返回，战斗永远不结算失败。
+      // 也不调 finishNode —— 它的 clamp(myHp, 1, maxhp) 会把 0 血救成 1 血，
+      // 那正是「跳过永远不会输」的旧 bug。
+      B.myHp = 0;
+      toast('跳过：生命耗尽（-' + SKIP_HP_COST + '），远征失败');
+      loseFight();
+      return true;
+    }
     B.over = true;
-    toast('跳过：损失 ' + loss + ' 点生命');
+    toast('跳过：损失 ' + SKIP_HP_COST + ' 点生命');
     finishNode();
     return true;
   }
