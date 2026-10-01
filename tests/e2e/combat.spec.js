@@ -97,9 +97,13 @@ test('complete phrase with repeated letters credits exactly one mastered word on
 });
 
 test('QWERTY uppercase switches preserve in-progress input and consumed letter instances', async ({ game, page }) => {
-  await game.open();
+  // 这条用例测的是「点一下切到键盘、再点一下切回网格」，所以必须显式从网格出发：
+  // 任务14 起无 kbMode 字段的新档默认已是 QWERTY。legacy 归档页默认仍是网格，
+  // 但显式写 false 对两个目标都是合法的旧档，两边行为一致。
+  await game.open({ saved: { kbMode: false } });
   await game.start();
   await game.fight({ word: 'cotton' });
+  await expect(page.locator('#fBank')).not.toHaveClass(/kb/);
   await page.keyboard.type('cot');
   const before = await game.state();
   await page.locator('#tBankMode').click();

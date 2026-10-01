@@ -41,7 +41,10 @@ test('shield capacity geometry preserves archived map and fight rendering', asyn
 for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
   test(`mobile ${viewport.width}x${viewport.height} keeps core controls in viewport without horizontal overflow`, async ({ game, page }) => {
     await page.setViewportSize(viewport);
-    await game.open();
+    // 这条要量的是「切到 QWERTY 键盘之后底部控件还装得下」，所以显式从网格出发：
+    // 任务14 起无 kbMode 字段的新档默认已是键盘。显式 false 对 legacy 归档页
+    // 同样合法，两边行为一致。
+    await game.open({ saved: { kbMode: false } });
     const assertNoOverflow = async () => {
       const metrics = await page.evaluate(() => ({
         width: innerWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth,

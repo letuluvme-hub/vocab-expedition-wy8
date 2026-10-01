@@ -21,6 +21,7 @@ import { SKIP_HP_COST } from '../../data/balance.js';
 import { HERO_DEFAULT, heroById } from '../components/hero.js';
 import { paintHpBar } from '../components/hp-bar.js';
 import { fitPhraseSlots } from '../components/phrase-slots.js';
+import { createEquipmentPanel } from '../components/equipment-panel.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0];
 
@@ -30,6 +31,9 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
   const isKbUpper = () => !!getDB().kbUpper;
   const hasR = id => getRun().relics.indexOf(id) >= 0;
   const comboRate = () => calculateComboRate(getRun());
+  // 「装备与能力」只读面板：挂在道具栏后面，自己在 #fItems 旁边建 <details>。
+  // 它读的是同一批 G/B 快照，不做任何结算；这里每帧调用也不会重复生效。
+  const equipmentPanel = createEquipmentPanel({ getRun, getBattle });
 
   /* 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键 */
   function renderItems() {
@@ -192,8 +196,9 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     $('tFlee').disabled = G.gold < 10;
     $('fCombo').textContent = B.combo > 0 ? ('连击 ' + B.combo + '  ✦ 伤害 ×' + (1 + B.combo * comboRate()).toFixed(1)) : '';
     renderItems();
+    equipmentPanel.renderEquipmentPanel();
     return B.keyEls;
   }
 
-  return { renderFight, renderItems, syncBankBar };
+  return { renderFight, renderItems, syncBankBar, renderEquipmentPanel: equipmentPanel.renderEquipmentPanel };
 }

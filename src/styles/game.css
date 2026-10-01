@@ -8,5 +8,8 @@
 /* 暂停屏样式：只追加在最后，只作用于 #s-pause / #continueRow，
    不改任何既有选择器，因此原有层叠顺序与规则逐字不变。 */
 @import './pause.css';
-/* 词汇完成检查点样式：同样只追加在最后，只作用于 #s-learning-complete。 */
+/* 词汇完成检查点样式：只作用于 #s-learning-complete。 */
 @import './learning-complete.css';
+/* Independent UI extensions; the original seven sheets stay unchanged. */
+@import './audio-settings.css';
+@import './equipment-panel.css';

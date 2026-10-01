@@ -93,7 +93,7 @@ test('initializeDB creates exactly the legacy defaults for absent or falsy saves
   const { initializeDB } = await import(moduleURL);
   const expected = {
     runs: 0, wins: 0, mastered: [], best: 0, custom: [], rewards: [],
-    kbMode: false, kbUpper: false, voice: true,
+    kbMode: true, kbUpper: false, voice: true,
   };
   for (const value of [undefined, null, false, 0, '']) {
     assert.deepEqual(initializeDB(value), expected);
@@ -125,7 +125,7 @@ test('initializeDB mutates existing saves using only the legacy fallback rules',
   for (const value of [undefined, null, false, 0, '']) {
     const sparse = { mastered: value, custom: value, rewards: value };
     assert.deepEqual(initializeDB(sparse), {
-      mastered: [], custom: [], rewards: [], kbMode: false, kbUpper: false, voice: true,
+      mastered: [], custom: [], rewards: [], kbMode: true, kbUpper: false, voice: true,
     });
     assert.equal(Object.hasOwn(sparse, 'runs'), false);
   }

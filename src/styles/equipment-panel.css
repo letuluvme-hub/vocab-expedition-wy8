@@ -1,0 +1,79 @@
+/* 战斗页「装备与能力」折叠面板（#fEquipment）。
+ *
+ * 只作用于 .equip / #fEquipment 及其后代，不触碰任何既有选择器，
+ * 因此原有层叠顺序与线上外观逐字不变（与 pause.css 同样的追加策略）。
+ *
+ * 移动端优先：
+ *  - 折叠态只是一行 summary，不抢词卡与字母盘的注意力，也不推高 HUD。
+ *  - 展开态的每一行是 grid：左列名称、右列效果，窄屏下名称不压缩消失。
+ *  - 用 min-width:0 + overflow-wrap:anywhere 防止长 id（未知装备）撑破 320px。
+ */
+.equip {
+  margin: 6px 0 0;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .18);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.equip > .eq-sum {
+  padding: 7px 10px;
+  cursor: pointer;
+  color: #cfd8e3;
+  font-weight: 600;
+  letter-spacing: .02em;
+  list-style: none;
+  -webkit-user-select: none;
+  user-select: none;                /* 点开面板不该顺手选中整段文字 */
+  touch-action: manipulation;        /* 去掉 300ms 双击缩放延迟 */
+}
+.equip > .eq-sum::-webkit-details-marker { display: none; }
+/* 自己画一个三角：不依赖浏览器默认 marker，各端形状一致。 */
+.equip > .eq-sum::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  color: #8fa3bb;
+  transition: transform .15s ease;
+}
+.equip[open] > .eq-sum::before { transform: rotate(90deg); }
+
+.equip > .eq-body {
+  padding: 2px 10px 9px;
+  display: grid;
+  gap: 6px;
+}
+/* 窄屏：名称列用 minmax(0,7em) 而不是固定宽度，320px 下它自己收缩，
+   右侧效果列永远拿得到剩余宽度；不靠媒体查询切单列，这样本表的规则
+   全部是纯 .equip 选择器（与 pause.css 同样可以逐条核对作用域）。 */
+.equip .eq-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7em) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+}
+.equip .eq-row:first-child { border-top: 0; padding-top: 0; }
+.equip .eq-h {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #f0e4c0;
+  font-weight: 600;
+}
+.equip .eq-d {
+  min-width: 0;
+  overflow-wrap: anywhere;         /* 未知 id 里可能带长串，不能撑破 320px */
+  color: #a9b6c6;
+}
+.equip .eq-hero .eq-h { color: #ffd98a; }
+.equip .eq-shield .eq-h { color: #9fd8ff; }
+.equip .eq-relic .eq-h,
+.equip .eq-item .eq-h { color: #e6d7a8; }
+.equip .eq-ghost .eq-h { color: #cbb6ff; }
+.equip .eq-empty .eq-h,
+.equip .eq-empty .eq-d { color: #7c8899; }
+.equip .eq-unknown .eq-h { color: #ffb3b3; }
+/* 耗尽态（用满的道具、已用完的影分身）：仍然显示，但视觉上明确「本场不再生效」。 */
+.equip .eq-spent .eq-h { color: #6f7a88; text-decoration: line-through; }
+.equip .eq-spent .eq-d { color: #6f7a88; }

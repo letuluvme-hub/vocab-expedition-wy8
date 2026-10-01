@@ -26,12 +26,11 @@
     <button class="btn g" id="toRelics">遗物图鉴</button>
     <button class="btn g" id="toImport">导入词表</button>
   </div>
-  <!-- 音量控制：放在标题页最底部、低调不显眼（原先固定在右上角，窄屏会挡住界面） -->
-  <div class="volrow">
-    <span class="vollbl">音量</span>
-    <button class="volbtn" id="volBtn" type="button" title="点击切换音量">🔊</button>
-    <span class="volval" id="volVal">55%</span>
-  </div>
+  <!-- 声音设置：音效与单词朗读两个独立开关，整块留在主页文档流里。
+       旧版是一个 position:fixed 钉在右上角的浮动语音开关，窄屏会压住战斗页
+       敌方血条；现在按钮由 src/ui/components/audio-settings.js 画进这个容器，
+       离开主页就整块隐藏。 -->
+  <div id="audioSettings"></div>
   <div class="card" style="margin-top:16px">
     <div class="stats">
       <div><b id="sRun">0</b><i>远征次数</i></div>
