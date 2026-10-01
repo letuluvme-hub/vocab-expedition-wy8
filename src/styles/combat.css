@@ -1,0 +1,30 @@
+/* ---- combat ---- */
+/* 视觉层级：敌人（小）→ 释义（最大、最亮）→ 字母槽 → 字母盘 */
+/* 敌人信息块（名字 + 状态标签）与血条分离：名字在血条下方约 20px 处紧邻，不会叠在条上。
+   本行只负责「谁在打我」，伸缩在下面的 .vsrow 段统一声明，避免两条 .foe 互相覆盖。 */
+/* --avatar：敌人头像尺寸。窄屏 / 矮屏要缩小它，否则 .vsrow 整行顶高，
+   把下面的字母盘和工具按钮挤出屏幕（见文末「移动端高度预算」段）。 */
+.avatar{width:var(--avatar,64px);height:var(--avatar,64px);flex:none;border-radius:var(--r2);display:flex;align-items:center;justify-content:center;
+ font-size:calc(var(--avatar,64px)*.53);border:2px solid var(--line2);background:linear-gradient(150deg,#ffffff14,#00000040);
+ animation:idle 2.6s ease-in-out infinite;box-shadow:var(--sh2)}
+.avatar.hurt{animation:hurt .38s}
+/* 整词大招命中：比普通受击更大更久的形变，与单字母的 .hurt 明确分层 */
+.avatar.finhurt{animation:finHurt .52s var(--ease)}
+@keyframes finHurt{0%,100%{transform:translateX(0) scale(1)}
+  12%{transform:translateX(-16px) scale(.86) rotate(-4deg)}
+  30%{transform:translateX(13px) scale(1.14) rotate(3deg)}
+  48%{transform:translateX(-7px) scale(.97)}
+  68%{transform:translateX(4px) scale(1.03)}
+  100%{transform:translateX(0) scale(1)}}
+@keyframes idle{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-7px) rotate(1.5deg)}}
+@keyframes hurt{0%,100%{transform:translateX(0)}20%{transform:translateX(-11px) scale(.93)}45%{transform:translateX(9px) scale(1.05)}70%{transform:translateX(-5px)}}
+.finfo{flex:1 1 auto;min-width:0}
+/* 敌人名字：整个战斗页最该先看到的信息，比状态标签更大更亮 */
+.fname{font-size:15px;font-weight:800;letter-spacing:.6px;margin-bottom:7px;color:#ffb3c0;
+  line-height:1.25;overflow-wrap:anywhere}
+/* 状态标签：次要信息，低调 + 换行，标签再多也不溢出、不压到名字或血条 */
+.tagsm{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;max-width:100%}
+.tg{font-size:10.5px;padding:3px 9px;border-radius:99px;background:#ffffff10;border:1px solid var(--line);color:var(--mut);letter-spacing:.5px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tg.bad{background:#ff54701f;border-color:#ff547055;color:#ff9db0}
+.tg.ok{background:#3ddc8418;border-color:#3ddc8455;color:#7fe6b0}
+

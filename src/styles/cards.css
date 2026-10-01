@@ -1,0 +1,97 @@
+/* ---- cards / rewards ---- */
+/* 注意：地图可选节点的 class 是 "node pick"，与奖励卡片的 .pick 同名。
+   奖励卡一律由 JS 追加到 .picks 容器内，故用 .picks > .pick 限定作用域，
+   避免 position/width 泄漏到地图节点上。 */
+.picks{display:grid;gap:12px;margin-top:14px}
+/* 可点击感：抬升 + 高光 + 左侧强调条 */
+.picks > .pick{position:relative;display:block;width:100%;
+ border:1px solid var(--line2);border-radius:var(--r2);padding:16px 16px 16px 20px;
+ cursor:pointer;transition:transform .14s var(--ease),box-shadow .18s,border-color .18s,background .18s;
+ background:linear-gradient(150deg,#ffffff14,#ffffff06);text-align:left;color:var(--fg);font-family:inherit;
+ box-shadow:var(--sh1);overflow:hidden}
+.picks > .pick::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+ background:linear-gradient(180deg,var(--acc2),var(--acc));opacity:.85}
+.picks > .pick:hover{transform:translateY(-2px);border-color:#ffffff4d;
+ background:linear-gradient(150deg,#ffffff1f,#ffffff0a);box-shadow:var(--sh2)}
+.picks > .pick:active{transform:translateY(1px) scale(.985);box-shadow:var(--sh1)}
+.picks > .pick b{display:block;font-size:15.5px;margin-bottom:6px;letter-spacing:.3px}
+.picks > .pick span{font-size:12.5px;color:var(--mut);line-height:1.65;display:block}
+.picks > .pick.gold{border-color:#ffce4d55;background:linear-gradient(150deg,#ffce4d1a,#ffce4d05)}
+.picks > .pick.gold::before{background:linear-gradient(180deg,#fde68a,var(--gold))}
+/* ---- 奖励类别徽标 ----
+   类别来自 JS 的结构化字段 o.cat（见 CAT_LABEL），不是从标题文字里猜的。
+   徽标独立于标题之上，字号小、位置固定，既醒目又不抢奖励名称。
+   六类全部用 color-mix 从既有变量派生，不引入新的色值。 */
+.picks > .pick i.ctag{display:inline-block;font-style:normal;font-size:10.5px;font-weight:800;
+ letter-spacing:.8px;line-height:1;padding:4px 8px;border-radius:999px;margin-bottom:9px;
+ border:1px solid;white-space:nowrap;opacity:.95}
+/* 每类一色：道具=紫 --acc / 遗物=金 --gold / 恢复=绿 --ok / 增益=青 --acc2 / 事件=橙 --warn / 无=灰 --dim */
+.picks > .pick i.ctag[data-cat=relic]{color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border-color:color-mix(in srgb,var(--gold) 45%,transparent)}
+.picks > .pick i.ctag[data-cat=item] {color:var(--acc); background:color-mix(in srgb,var(--acc)  13%,transparent);border-color:color-mix(in srgb,var(--acc)  45%,transparent)}
+.picks > .pick i.ctag[data-cat=heal] {color:var(--ok);  background:color-mix(in srgb,var(--ok)   13%,transparent);border-color:color-mix(in srgb,var(--ok)   45%,transparent)}
+.picks > .pick i.ctag[data-cat=boost]{color:var(--acc2);background:color-mix(in srgb,var(--acc2) 13%,transparent);border-color:color-mix(in srgb,var(--acc2) 45%,transparent)}
+.picks > .pick i.ctag[data-cat=event]{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.picks > .pick i.ctag[data-cat=none] {color:var(--dim); background:color-mix(in srgb,var(--dim)  10%,transparent);border-color:color-mix(in srgb,var(--dim)  40%,transparent)}
+/* 左侧强调条与描边跟随类别，颜色与徽标一致 */
+.picks > .pick[data-cat=relic]{border-color:color-mix(in srgb,var(--gold) 25%,transparent)}
+.picks > .pick[data-cat=relic]::before{background:linear-gradient(180deg,#fde68a,var(--gold))}
+.picks > .pick[data-cat=item]{border-color:color-mix(in srgb,var(--acc) 25%,transparent)}
+.picks > .pick[data-cat=item]::before{background:linear-gradient(180deg,#a78bfa,var(--acc))}
+.picks > .pick[data-cat=heal]{border-color:color-mix(in srgb,var(--ok) 25%,transparent)}
+.picks > .pick[data-cat=heal]::before{background:linear-gradient(180deg,#86efac,var(--ok))}
+.picks > .pick[data-cat=boost]{border-color:color-mix(in srgb,var(--acc2) 25%,transparent)}
+.picks > .pick[data-cat=boost]::before{background:linear-gradient(180deg,#67e8f9,var(--acc2))}
+.picks > .pick[data-cat=event]{border-color:color-mix(in srgb,var(--warn) 25%,transparent)}
+.picks > .pick[data-cat=event]::before{background:linear-gradient(180deg,#fcd34d,var(--warn))}
+.picks > .pick[data-cat=none]{border-color:var(--line2)}
+.picks > .pick[data-cat=none]::before{background:linear-gradient(180deg,#8b93b8,#6b7396)}
+/* 道具的「代价提示」独立成行，和效果描述区分开 */
+.picks > .pick span.ctip{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.55}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.gcell{background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);padding:14px 6px;text-align:center}
+.gcell b{display:block;font-size:22px;font-variant-numeric:tabular-nums;margin-bottom:3px}
+.gcell i{font-style:normal;font-size:10.5px;color:var(--dim)}
+.rl{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:12px}
+.rlc{border:1px solid var(--line2);border-radius:var(--r2);padding:14px 8px;text-align:center;cursor:pointer;
+ background:linear-gradient(160deg,#ffffff12,#ffffff05);transition:.16s var(--ease);color:var(--fg);font-family:inherit;
+ box-shadow:var(--sh1)}
+.rlc:hover{transform:translateY(-2px);border-color:#ffffff4d;box-shadow:var(--sh2)}
+.rlc:active{transform:translateY(1px) scale(.98)}
+.rlc.sel{border-color:var(--gold);box-shadow:0 0 0 3px #ffce4d33,0 0 18px #ffce4d2e;background:#ffce4d18}
+.rlc .ic{font-size:26px;margin-bottom:7px;line-height:1.2}
+.rlc b{display:block;font-size:12.5px;margin-bottom:4px}
+.rlc span{font-size:10.5px;color:var(--dim);line-height:1.55;display:block}
+.warnbox{border:1px solid #ffb02055;background:#ffb02014;border-radius:var(--r2);padding:14px;margin-top:12px;
+ font-size:12.5px;color:#ffd48a;line-height:1.7}
+.flashfx{position:fixed;inset:0;pointer-events:none;z-index:55;opacity:0}
+.flashfx.go{animation:fl .36s}
+@keyframes fl{0%{opacity:0}12%{opacity:.85}100%{opacity:0}}
+.float{position:fixed;z-index:70;pointer-events:none;font-weight:900;font-size:24px;
+ text-shadow:0 2px 7px #000,0 0 12px #0009;animation:fl2 1s ease-out forwards}
+@keyframes fl2{0%{opacity:0;transform:translate(-50%,0) scale(.5)}
+ 18%{opacity:1;transform:translate(-50%,-16px) scale(1.16)}100%{opacity:0;transform:translate(-50%,-62px) scale(.95)}}
+textarea{width:100%;height:124px;background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);
+ padding:12px;color:var(--fg);font-family:ui-monospace,Consolas,monospace;font-size:13px;outline:none;resize:vertical;user-select:text}
+textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
+/* 单元选择卡片 */
+.units{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.unit{position:relative;background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);padding:14px 12px;
+ cursor:pointer;color:var(--fg);font-family:inherit;text-align:left;transition:.16s var(--ease);box-shadow:var(--sh1)}
+.unit:hover{transform:translateY(-2px);border-color:var(--line2);background:#ffffff14;box-shadow:var(--sh2)}
+.unit:active{transform:translateY(1px) scale(.98)}
+.unit.sel{border-color:var(--acc);background:#8b5cf626;box-shadow:0 0 0 2px #8b5cf64d,0 0 20px #8b5cf633}
+.unit.sel::after{content:'✓';position:absolute;top:9px;right:11px;font-size:13px;font-weight:900;color:var(--acc2)}
+.unit b{display:block;font-size:13.5px;margin-bottom:3px;letter-spacing:.3px;padding-right:16px}
+.unit span{font-size:11px;color:var(--dim);line-height:1.5}
+.unit em{font-style:normal;color:var(--gold);font-size:10.5px;display:block;margin-top:5px}
+
+/* 标题页统计条 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stats>div b{font-size:19px;font-variant-numeric:tabular-nums;display:block}
+.stats>div i{font-style:normal;font-size:10.5px;color:var(--dim);margin-top:3px;display:block}
+/* 事件页标题区 */
+.evhead{text-align:center;padding:4px 0 14px}
+.evhead .ic{font-size:44px;line-height:1.1;margin-bottom:10px}
+.evhead h2{font-size:18px;font-weight:800;margin:0 0 8px;letter-spacing:.5px}
+.evhead p{font-size:13.5px;color:var(--mut);line-height:1.8;margin:0}
+

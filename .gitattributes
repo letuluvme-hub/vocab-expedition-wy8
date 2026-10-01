@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.html whitespace=cr-at-eol
+*.js whitespace=cr-at-eol
+*.css whitespace=-blank-at-eof,cr-at-eol
+# Preserve the archived stylesheet's exact trailing newline.
+src/styles/game.css whitespace=-blank-at-eof,cr-at-eol
