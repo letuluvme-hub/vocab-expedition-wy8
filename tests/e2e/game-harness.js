@@ -78,7 +78,16 @@ export const test = base.extend({
         await expect.poll(() => page.evaluate(() => !!window.__gameTest)).toBe(true);
       },
       async start(unit = 1) {
-        await page.locator('#units .unit').filter({ hasText: unit === 0 ? '我的词表' : `Unit ${unit} ` }).click();
+        // 新版按钮带 data-unit：按文本 'Unit 2 ' 定位会同时命中「完成 Unit 2 …后解锁」
+        // 这类锁说明文案（strict mode 直接报多元素）。legacy 存档页没有这个属性，
+        // 那里才退回原来的文本定位。
+        const byData = meta.target === 'legacy'
+          ? page.locator('#units .unit[data-unit]')
+          : page.locator('#units .unit[data-unit="' + unit + '"]');
+        const btn = (await byData.count()) > 0
+          ? byData.first()
+          : page.locator('#units .unit').filter({ hasText: unit === 0 ? '我的词表' : `Unit ${unit} ` });
+        await btn.click();
         await page.locator('#startRun').click();
         await expect(page.locator('#s-map')).toBeVisible();
       },

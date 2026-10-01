@@ -295,6 +295,8 @@ test('finishing a run clears the snapshot', async ({ game, page }, testInfo) => 
   await expect(page.locator('#s-over')).toBeVisible();
   expect((await game.saved()).activeRun).toBeUndefined();
   await page.locator('#oHome').click();
+  await expect(page.locator('#s-title')).toBeVisible();
+  expect((await game.state()).G).toBeNull();
   await game.reload();
   await expect(page.locator('#continueRow')).toBeHidden();
 });

@@ -338,6 +338,10 @@ export function createProgressController({ state, api, store, now = Date.now }) 
   const takeReward = id => (gate() ? mutating(() => api.takeReward(id)) : false);
   const advance = () => (gate() ? mutating(() => api.advance()) : false);
   const endRun = win => (gate() ? endRunNow(win) : false);
+  /* 单元解锁主线的两个动作（docs/feature-campaign.md）。和所有改状态的入口一样
+   * 走闸门 + 事务：暂停期间无效；跑完立即提交（解锁事实与快照同一次写入）。 */
+  const nextUnit = () => (gate() ? mutating(() => api.nextUnit()) : false);
+  const continueUnit = () => (gate() ? mutating(() => api.continueUnit()) : false);
 
   /* ---------------- 主页入口 ---------------- */
   function titleState() {
@@ -406,7 +410,7 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     pause, resume, returnToTitle, save, checkpoint, continueRun,
     abandonRun, endRun, resetProgress, discardSnapshot, peekSnapshot,
     pressLetter, typeLetter, undoLetter, useItem, requestHint, skipFight, fleeFight,
-    enterNode, chooseEncounter, takeReward, advance,
+    enterNode, chooseEncounter, takeReward, advance, nextUnit, continueUnit,
     titleState, startRunFromUi,
     onHidden, onVisible, onPageHide,
     setConfirm: fn => { confirmFn = fn; },

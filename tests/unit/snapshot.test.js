@@ -65,6 +65,49 @@ function envelopeOf(over = {}) {
 
 const roundTrip = env => decodeSnapshot(JSON.parse(JSON.stringify(encodeSnapshot(env))));
 
+/* ---------------- 0. 段结算标记 / 纪念卡 id：跨刷新的事实（任务 7 补丁 A）---------------- */
+test('clearedSegment and rewardId survive a round trip; old snapshots fall back', () => {
+  const fresh = seededRun();
+  fresh.clearedSegment = false;
+  const a = roundTrip({ phase: PHASE.BATTLE, run: fresh, battle: battleFor(fresh) });
+  assert.equal(a.ok, true, a.reason);
+  assert.equal(a.value.run.clearedSegment, false, 'a fresh segment must stay false across a refresh');
+  assert.equal(a.value.run.rewardId, undefined, 'no card yet → no id');
+
+  const won = seededRun();
+  won.clearedSegment = true; won.clearedRun = true; won.rewardId = 'WR-abc-1-0';
+  const b = roundTrip({ phase: PHASE.BATTLE, run: won, battle: battleFor(won) });
+  assert.equal(b.value.run.clearedSegment, true);
+  assert.equal(b.value.run.rewardId, 'WR-abc-1-0', 'the memorial card id must survive the JSON trip');
+
+  // 旧客户端写出的存档：两个字段都没有。缺 clearedSegment 保守按 clearedRun 回落。
+  const legacy = seededRun();
+  legacy.clearedRun = true;
+  const env = JSON.parse(JSON.stringify(encodeSnapshot({ phase: PHASE.BATTLE, run: legacy, battle: battleFor(legacy) })));
+  delete env.run.clearedSegment; delete env.run.rewardId;
+  const c = decodeSnapshot(env);
+  assert.equal(c.ok, true, c.reason);
+  assert.equal(c.value.run.clearedSegment, true, 'legacy runs fall back to clearedRun');
+  assert.equal(c.value.run.rewardId, undefined);
+});
+
+test('a dirty clearedSegment / rewardId fails the whole envelope closed', () => {
+  for (const bad of [{ clearedSegment: 1 }, { clearedSegment: 'yes' }, { rewardId: 7 }, { rewardId: {} }]) {
+    const run = seededRun();
+    const env = JSON.parse(JSON.stringify(encodeSnapshot({ phase: PHASE.BATTLE, run, battle: battleFor(run) })));
+    Object.assign(env.run, bad);
+    assert.equal(decodeSnapshot(env).ok, false, JSON.stringify(bad) + ' must be rejected');
+  }
+});
+
+test('encoding an in-memory reward without rewardId takes the id from the reward', () => {
+  const run = seededRun();
+  run.reward = { id: 'WR-mem-1', unit: 1, heroId: 'ranger', accuracy: 90, kills: 3, floor: 5, earnedAt: 'x' };
+  delete run.rewardId;                                  // 旧内存态
+  const env = encodeSnapshot({ phase: PHASE.BATTLE, run, battle: battleFor(run) });
+  assert.equal(env.run.rewardId, 'WR-mem-1');
+});
+
 /* ---------------- 1. 战斗快照：半词、提示、连击、道具全在 ---------------- */
 
 test('半词战斗往返后保留每一个事实位，done 仍是 Set', () => {

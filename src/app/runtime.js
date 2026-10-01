@@ -27,6 +27,8 @@ import { comboRate as calculateComboRate, hitDmg as calculateHitDmg, wordDmg as 
   finTier as calculateFinTier, WORD_RATIO, WORD_COMBO_BOOST } from '../domain/damage.js';
 import { hpBarGeom } from '../domain/hp.js';
 import { canFinishFight } from '../domain/battle-rules.js';
+import { unlockProgress, canSelectUnit, recordUnitComplete, transitionNextUnit,
+  applyUnitTransition, applyUnitSegment, ensureProgress } from '../domain/campaign.js';
 import { wordComplete as isWordComplete, creditWordProgress, onWordWrongProgress } from '../domain/learning.js';
 import { createSpeech } from '../services/speech.js';
 import { createAudio } from '../services/audio.js';
@@ -279,6 +281,12 @@ const {burst,ring,floatTxt,flash,centerOf,heroPoint,animHero,wordFinisher}=creat
 
 const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
 
+/* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.mastered +
+   DB.unitProgress，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
+   所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
+const campaignState = () => unlockProgress({ units: UNITS.map(u=>u.n), wordsFor: allWords,
+  mastered: DB.mastered, unitProgress: ensureProgress(DB) });
+
 /* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
    设计原则：每个道具都有明确代价，不能无脑全带。
    吸血类回复少、爆发类消耗连击、防御类牺牲伤害。 */
@@ -400,6 +408,12 @@ const setPhase=p=>{ PHASE_STATE=p };
 let OUTCOME=null;
 
 function newRun(){
+  // ★ 运行时闸门：主页把锁住的单元画成不可点只是一层，真正的拒绝在这里 ——
+  //   任何绕过 UI 的路径（测试探针、将来的恢复流程）都过不了这一关。
+  if(!canSelectUnit(campaignState(),curUnit)){
+    toast(curUnit>0 ? ('完成 Unit '+(curUnit-1)+' 的全部词汇后解锁 Unit '+curUnit) : '这个单元还不能开始');
+    return false;
+  }
   const pool=allWords(curUnit);
   if(!pool.length){alert('这个单元还没有词，去「导入词表」添加吧');return false}
   lifecycle.resetRun();TTS.stop();B=null;
@@ -579,6 +593,9 @@ function drawWord(budget){return selectWord(G,B,budget)}
  * 下一单元的衔接是后续功能，这个屏只说「本单元完成」，不预告解锁。 */
 function showLearningComplete(){
   if(!G) return false;
+  // 词池抽干 = 本单元目标词全部完整拼对：这是**真实**的完成事实，值得记一次。
+  // 幂等（domain 内部挡重复），且不改任何次数。
+  if(recordUnitComplete(DB,G.unit)) saveDB();
   ENCOUNTER=null; setPhase(PHASE.LEARNING_COMPLETE);
   lifecycle.pause();                       // 冻结在途延迟任务：这一局不再往前跑
   show('s-learning-complete');
@@ -586,6 +603,122 @@ function showLearningComplete(){
   // 落盘：玩家在这个屏上刷新，回来还是这个检查点。
   // 恢复路径由 progress.rebuildFromPhase 处理，绝不重发奖励或重抽词。
   return commit(true);
+}
+/* ================= 单元解锁主线（docs/feature-campaign.md）=================
+ * 三个动作，全部走 progress 的闸门与事务边界：
+ *   nextUnit()     —— 「继续下一单元」：本单元词汇全部完成 → 进入已解锁的下一单元。
+ *   continueUnit() —— 「继续本单元词汇」：BOSS 打完了但本单元还有词，换一段地图继续。
+ *   两者都**不** createRun / registerRunStart / applyRelicInit / 重发新手道具 /
+ *   回血 / 补影分身额度 / 生成纪念卡 / 动 DB.wins —— 同一轮学习，只是换词池与地图。
+ *   迁移不是击杀：kills / gold / wins / 奖励一个都不动。
+ */
+const CAMPAIGN_REFUSALS = {
+  'no-run':    '现在没有进行中的远征',
+  'custom':    '自定义词表没有下一单元',
+  'already':   '已经在这一轮的新单元里了',
+  'last-unit': '已经是本册最后一个单元',
+  'incomplete':'本单元的词还没全部完成',
+  'locked':    '下一个单元还没有解锁',
+  'phase':     '现在不在可以切换单元的界面上',
+  'settled':   '这一局已经结算了，不能再从结算屏继续',
+};
+function campaignRefuse(facts){
+  toast(CAMPAIGN_REFUSALS[facts&&facts.reason] || '现在不能切换单元');
+  return false;
+}
+/* ★★ 跨单元 / 跨段的**来源相位闸门**（应用层唯一的准入判据）。
+ *
+ * 为什么必须有它（领域层的 startedUnit 守卫已经被移除）：
+ *   domain 现在只回答「Unit N 的下一单元是几」，判据是 run.unit + 当前 counts。
+ *   于是「普通地图上的一次误调用 / 测试探针 / 连点」全都满足同一个判据：
+ *   一份把所有 259 个词都记成已掌握的旧存档，连点三次就能 1→2→3→4 一路跳过去，
+ *   每一跳都在**重发物资**（虽然 run 本身守住了）之外凭空吃掉一段学习。
+ *   领域层不该、也无法知道「玩家此刻站在哪一屏」。
+ *
+ * 两个动作各自只认一个来源：
+ *   nextUnit    —— 词汇完成检查点（PHASE.LEARNING_COMPLETE），
+ *                  或一局**已成功结算**的 BOSS（run.result===true）且本单元词已学完。
+ *   continueUnit—— 一局**已成功结算**的 BOSS（run.result===true）且同单元还有词可练。
+ * 两个动作都会把相位/结果换掉（MAP + result===undefined），
+ * 所以第二次、第三次连点在闸门这里就被拒 —— 幂等由「来源状态」保证，不靠时间窗。
+ *
+ * 这同时保证「已结算的一局只可能被明确的用户按钮复活」：reopenRun 只接受
+ * result===true 的那一局，后台恢复路径（rebuildFromPhase）根本不调这两个动作，
+ * 定时器 / visibilitychange 更碰不到它们。 */
+function campaignSourceRefusal(kind){
+  if(!G) return { reason:'no-run' };
+  const settledWin = (typeof G.result==='boolean') && G.result===true;
+  if(kind==='next'){
+    if(PHASE_STATE===PHASE.LEARNING_COMPLETE) return null;
+    return settledWin ? null : { reason:'phase' };
+  }
+  // continue：本单元「打完 BOSS 但词还没学完」之后的续练入口。
+  return settledWin ? null : { reason:'phase' };
+}
+// 屏幕上的血才是真的：最后一词没打死怪时，run.hp 可能还是进战斗前的旧值。
+// 这里把活着的战斗里的真实 myHp/shield 结转回 run，再换地图 —— 否则玩家会发现
+// 「打完最后一个词莫名其妙回血」，那是拿 stale run.hp 覆盖真实战况。
+function carryLiveHp(){
+  if(B && typeof B.myHp==='number' && !B.over){
+    G.hp=clamp(B.myHp,1,G.maxhp);
+    G.shield=clamp(B.shield|0,0,G.maxhp);
+  }
+}
+// 重新激活这一轮：结算屏上的 G.result 是布尔值（已结算，快照已被清掉）。
+// 「继续」是一次**明确的用户动作**，所以这里把它退回 active 并立刻重建快照 ——
+// 这不是让后台计时器复活旧局：复活路径（ENDING 相位）完全不经过这里。
+function reopenRun(){
+  if(!G) return false;
+  lifecycle.resetRun();          // 冻结中的待办全部作废：不得复活旧结算
+  TTS.stop();
+  ENCOUNTER=null; OUTCOME=null;
+  G.result=undefined;            // 同一轮学习继续，不是新开一次
+  return true;
+}
+function nextUnit(){
+  if(!G) return campaignRefuse({reason:'no-run'});
+  // ★ 先问来源相位：普通地图上的一次误调用、探针、连点都在这里被拒。
+  const src=campaignSourceRefusal('next');
+  if(src) return campaignRefuse(src);
+  const facts=transitionNextUnit({run:G,progress:campaignState()});
+  if(!facts.ok) return campaignRefuse(facts);
+  // ★ facts.from 必须就是**当前**这一局的单元。领域层 applyUnitTransition 也会查这一条，
+  //   但它返回 null 时已经太晚：carryLiveHp / recordUnitComplete 都写过状态了。
+  //   所以这里先自己判一次，绝不在「注定被拒」的过渡上留下任何副作用。
+  if(facts.from!==G.unit) return campaignRefuse({reason:'phase'});
+  const applied=applyUnitTransition(G,facts,{words:allWords(facts.to)});
+  if(!applied) return campaignRefuse({reason:'phase'});
+  // 过渡成功之后才结转真实血量、才记完成凭据（顺序反了就是拿 stale hp 覆盖战况）。
+  carryLiveHp();
+  if(recordUnitComplete(DB,facts.from)) saveDB();
+  curUnit=G.unit;
+  reopenRun();
+  lifecycle.resetBattle();       // 上一场的迟到回调作废
+  B=null;
+  setPhase(PHASE.MAP);
+  show('s-map'); renderMap();
+  toast('Unit '+facts.from+' 的词汇已全部完成，进入 Unit '+facts.to+'（物资保留）');
+  return true;
+}
+function continueUnit(){
+  if(!G) return campaignRefuse({reason:'no-run'});
+  // 「继续本单元词汇」只从**成功结算的 BOSS 局**出发：普通地图上不存在这个动作，
+  // 一次连点的第二次调用会看到 result 已经变回 undefined，在这里被拒。
+  const src=campaignSourceRefusal('continue');
+  if(src) return campaignRefuse(src);
+  const uc=campaignState().counts(G.unit);
+  if(uc && uc.complete){ toast('本单元词汇已经全部完成'); return false; }
+  if(!allWords(G.unit).length) return false;
+  const applied=applyUnitSegment(G,{words:allWords(G.unit)});
+  if(!applied) return campaignRefuse({reason:'phase'});
+  carryLiveHp();
+  reopenRun();
+  lifecycle.resetBattle();
+  B=null;
+  setPhase(PHASE.MAP);
+  show('s-map'); renderMap();
+  toast('继续练 Unit '+G.unit+' 的词汇（物资保留，不算新开一次远征）');
+  return true;
 }
 // 生成字母盘（答案字母 + 干扰字母）
 function drawLetters(qword){return generateLetters(G,B,qword)}
@@ -925,7 +1058,13 @@ function settleRun(win){
   lifecycle.resetRun();                    // 冻结中的待办全部作废：已结束的局不得再动
   endRunProgress(G,DB,win);
   ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
-  renderOver({run:G,db:DB,win,onTitle:renderTitle,show});
+  // 结算屏的三个动作各自语义明确：复习=新开一轮；继续下一单元/继续本单元词汇=
+  // 同一轮跨段继续。oNext 的可见性与文案由 over.js 按「本单元词汇是否完成」决定。
+  renderOver({run:G,db:DB,win,campaign:campaignState(),onTitle:renderTitle,show,
+    onAgain:()=>{ if(!G||typeof G.result!=='boolean')return; curUnit=G.unit; startRunFromUi() },
+    onNextUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.nextUnit() },
+    onContinueUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.continueUnit() },
+    onHome:()=>{ progress.abandonRun(); renderTitle(); show('s-title') }});
   return true;
 }
 // 结束路径的统一入口：闸门 + 结算 + 一次原子提交。
@@ -950,9 +1089,9 @@ function takeReward(id){
   btn.onclick();
   return true;
 }
-$('oAgain').onclick=()=>{ if(!G || typeof G.result!=='boolean') return; curUnit=G.unit; startRunFromUi() };
-$('oNext').onclick=()=>{ if(!G || !G.result || !UNITS.some(u=>G.unit>0 && u.n===G.unit+1)) return; curUnit=G.unit+1; startRunFromUi() };
-$('oHome').onclick=()=>{ progress.abandonRun(); renderTitle(); show('s-title') };
+// oAgain / oNext / oHome 的回调由 renderOver 在**每次结算时**挂上：
+// 旧实现是在启动时挂一次静态回调，于是它永远看不见「本单元词汇是否已完成」，
+// 也没法区分「继续下一单元」和「继续本单元词汇」两种语义。
 $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ progress.abandonRun(); renderTitle(); show('s-title') } };
 
 /* ================= 标题页 ================= */
@@ -988,8 +1127,10 @@ const state={get DB(){return DB},get G(){return G},get B(){return B}};
 // 暂停/恢复接线：encounters 把「当前展开的界面描述」交给 runtime 存进快照。
 // 描述里只有 id 与展示字段，没有闭包，也没有 DOM。
 const publishEncounter=d=>{ ENCOUNTER=d };
-const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,
-  onHero:id=>{DB.hero=id;saveDB();commit(false)},onUnit:unit=>{curUnit=unit}});
+const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,getCampaign:campaignState,
+  onHero:id=>{DB.hero=id;saveDB();commit(false)},
+  // 选中的单元必须真的解锁：锁住的按钮根本不会回调，这里是第二道。
+  onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit }});
 const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
 const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
   onPress:i=>{ if(progress.isPaused())return; B.sel=i;progress.pressLetter(i)},
@@ -1007,6 +1148,9 @@ const pauseScreen=createPauseScreen({getRun:()=>G,
     renderTitle(); show('s-title');
   }});
 const learningCompleteScreen=createLearningCompleteScreen({getRun:()=>G,getBattle:()=>B,
+  db:DB,getCampaign:campaignState,
+  // 「继续下一单元」= 同一轮学习跨单元：走 progress 的闸门与事务，不新建 run、不加次数。
+  onNext:()=>{ progress.nextUnit() },
   // 「保存并返回主页」= 暂停式返回：不放弃这一局，进度留档，随时能继续。
   onHome:()=>{ if(progress.returnToTitle()){ renderTitle(); show('s-title') }
     else { renderTitle(); show('s-title') } },
@@ -1104,6 +1248,9 @@ const progress=createProgressController({state,api:{
     return encounters.reopenEncounter(d);
   },
   advance:()=>advance(),
+  // 单元解锁主线的动作（受闸门 + 事务保护）
+  nextUnit:()=>nextUnit(),
+  continueUnit:()=>continueUnit(),
   clearRun:()=>{ G=null; B=null; ENCOUNTER=null; setPhase(PHASE.MAP) },
 },store:progressStore});
 progressCtl=progress;
@@ -1179,7 +1326,8 @@ $('toReset').onclick=()=>{
   const keepHero=DB.hero;   // 清档不该让人重选角色
   // 字母盘显示偏好也留着：清档清的是进度，不是界面口味（与 keepHero 同理）
   const keepKb={kbMode:DB.kbMode,kbUpper:DB.kbUpper};
-  DB={runs:0,wins:0,mastered:[],best:0,custom:[],rewards:[],hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
+  DB={runs:0,wins:0,mastered:[],best:0,custom:[],rewards:[],unitProgress:{},
+      hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
   // 清档必须连未结束的远征快照一起删，否则刷新会把「已清空」的存档复活成一局死局。
   // 走 progress.resetProgress：删快照与写新的 DB 在**同一次** storage.save 里完成。
   lifecycle.resetRun(); TTS.stop(); progress.resetProgress();
@@ -1199,6 +1347,7 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     get curUnit(){return curUnit}, set curUnit(value){curUnit=value},
     newRun,startFight,pressKey,endRun:endRunNow,renderFight,renderTitle,renderMap,
     enterNode,showEvent,showRest,showShop,finishNode,advance,winFight,
+    nextUnit,continueUnit,campaignState,
     loseFight,drawLetters,norm,hitDmg,wordDmg,wordComplete,typeLetter,
     creditWord,onWordWrong,hpBarGeom,paintHpBar,bankRows,syncBankBar,
     sayCurrentWord,useItem,show,TTS,AU,WORDS,UNITS,HEROES,ITEMS,RELICS,
