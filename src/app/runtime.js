@@ -8,6 +8,10 @@ import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, b
 import { createTitleScreen } from '../ui/screens/title.js';
 import { createMapScreen } from '../ui/screens/map.js';
 import { createFightScreen } from '../ui/screens/fight.js';
+import { createPauseScreen } from '../ui/screens/pause.js';
+import { createProgressStore } from '../services/progress.js';
+import { PHASE } from '../domain/run-snapshot.js';
+import { createProgressController } from './progress.js';
 import { renderOver } from '../ui/screens/over.js';
 import { paintHpBar } from '../ui/components/hp-bar.js';
 import { pcHTML, heroStatLines, heroById, HERO_DEFAULT } from '../ui/components/hero.js';
@@ -174,10 +178,59 @@ const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=rnd(i+
 
 const has = (a,v) => a.indexOf(v)>=0;
 const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0,0); try{ syncVoiceBtn() }catch(e){} };
+// 当前可见的 screen id：暂停屏要靠它知道「该回到哪一屏」。
+const currentScreen = () => { const s=document.querySelector('.screen.on'); return s ? s.id : null };
 
 const storage=createStorage();
 let DB=initializeDB(storage.load());
-const saveDB=()=>storage.save(DB);
+/* ★ 存档一致性：saveDB **不再**直接 storage.save(DB)。
+   整词答对时 creditWord 会调它，可那一刻 wordsDone / fin / enHp 都还没更新 ——
+   直接落盘就会把「新掌握的词」和「上一帧的战斗」写在一起，暂停/刷新都读得到中间态。
+   现在 saveDB 只**标脏**，由每个完成状态的动作末尾（progress 的 mutating 包装）
+   或显式的相位切换走 commit(false)：那一刻所有副作用都已落地，
+   于是「学习记录 + 当前快照」是同一次 commit，永远读不到旧奖励 / 旧相位。 */
+let dbDirty=false;
+const saveDB=()=>{ dbDirty=true };
+let progressCtl=null;   // progress 在本文件后面才创建；用可变引用避免 TDZ。
+/* ★ 真正的提交点。
+ *   force=true（受闸门动作的事务末尾）：**无条件**把当前快照写下去。
+ *     旧实现只在这里「若被 saveDB 标脏才提交」，而 enterNode / 半词 / 提示 /
+ *     道具 / 商店按钮 / 语音开关这些真实动作根本不调 saveDB —— 于是它们改完的
+ *     状态只活在内存里，玩家刷新就回到上一个动作。落盘的判据必须是
+ *     「这个动作跑完了」，不是「学习记录碰巧脏了」。
+ *   force=false（纯设置项 / 嵌套内部）：仍按 dbDirty 判定，且在事务内部一律延期，
+ *     绝不写出中间态（badphase 快照）。
+ *   没有远征时（音量、字母盘模式、导入词表、语音开关）只写 DB：
+ *     存档里那份解不开的 activeRun 属于**未知字段**，原样保留，不在这里清掉。 */
+const commit=(force)=>{
+  if(mutationDepth>0) return false;                 // 事务未收尾：交给最外层
+  const dirty=dbDirty;
+  if(!force && !dirty) return false;
+  dbDirty=false;
+  // G 在本文件后面才声明（let），模块初始化早期调用这里会踩 TDZ —— 用 try 取。
+  const run=(()=>{ try{ return G }catch(e){ return null } })();
+  // 没有进行中的远征（纯设置项：音量、字母盘模式、导入词表、语音开关）：
+  // 只写学习 DB。存档里那份解不开的 activeRun 属于**未知字段**，原样保留。
+  // 这一局已结算时同理 —— endRun 的 store.clear 已经写过一次，不重复提交。
+  if(!run || typeof run.result==='boolean'){
+    if(!dirty) return false;
+    try{ return storage.save(DB) }catch(e){ return false }
+  }
+  try{
+    if(progressCtl) return progressCtl.checkpoint().ok;
+    return storage.save(DB);
+  }catch(e){ return false }
+};
+// 受闸门动作的事务边界：跑完 → 提交一次当前快照。
+// mutationDepth 支持嵌套：enterNode→startFight、领奖→finishNode→advance、
+// 战败→markEnding 这些内层收尾都不许提前写盘，只有最外层 depth 归零才提交。
+let mutationDepth=0;
+const mutate=fn=>{
+  mutationDepth++;
+  let out;
+  try{ out=fn() }finally{ mutationDepth--; if(mutationDepth===0) commit(true) }
+  return out;
+};
 
 /* ================= 音效系统 =================
    调性：D 小调五声音阶（D E F A C），所有音高都从这条音阶上取，不再随手写 Hz。
@@ -205,7 +258,7 @@ let volStep=0;
   if(DB.mute && v>0) volStep=0;
   AU.vol=VOL_STEPS[volStep]; AU.muted=v<=0;
 })();
-const saveVol=()=>{ DB.vol=AU.vol; DB.mute=AU.muted; saveDB() };
+const saveVol=()=>{ DB.vol=AU.vol; DB.mute=AU.muted; saveDB(); commit(false) };
 /* 音量按钮：改为挂到「标题页」底部的 .volrow 里（不再是右上角浮层）。
    音量逻辑与存档字段（AU.vol / AU.muted / DB.vol / DB.mute）保持不变。 */
 (function mountVolBtn(){
@@ -268,7 +321,11 @@ const heroVoice = id => heroById(id).voice || HERO_VOICE_DEFAULT;
    ★ 降级（本层最重要的一条）：Node 测试环境 / 老浏览器 / 隐私模式里没有
    speechSynthesis 时，TTS.supported=false，speak/word/line/hint 全部静默返回
    false，游戏逻辑一行不变、不抛任何异常。UI 按钮会自动变成禁用态。      */
-const TTS=createSpeech({heroVoice,curHeroId,rnd,voiceLines:VOICE_LINES,foeLineCfg,onChange:enabled=>{DB.voice=enabled;saveDB()}});
+/* ★ onChange 必须落盘，不能只标脏：语音开关是玩家随时会按的按钮，
+   标脏后没有后续动作来触发提交，于是「内存已关、盘上还是开」——
+   刷新一次语音自己回来了。commit(false) 在事务内部会自动延期到最外层。 */
+const TTS=createSpeech({heroVoice,curHeroId,rnd,voiceLines:VOICE_LINES,foeLineCfg,
+  onChange:enabled=>{DB.voice=enabled;saveDB();commit(false)}});
 
 /* ---- 语音层的启动挂钩 ----
    1) 浏览器自动播放策略：speechSynthesis 必须先有用户手势才肯发声。
@@ -281,11 +338,6 @@ if(typeof addEventListener==='function'){
   addEventListener('pointerdown',ttsUnlock);
   addEventListener('keydown',ttsUnlock);
   addEventListener('touchstart',ttsUnlock);
-}
-if(typeof document!=='undefined' && document.addEventListener){
-  document.addEventListener('visibilitychange',()=>{
-    try{ if(document.hidden) TTS.stop() }catch(e){}
-  });
 }
 /* 起手就按存档设置语音开关（老存档没这字段 → DB.voice 默认 true） */
 try{ TTS.on = (typeof DB!=='undefined' && DB.voice!==undefined) ? !!DB.voice : true }catch(e){}
@@ -353,15 +405,30 @@ let G=null;          // 当前远征
 let B=null;          // 当前战斗
 let curUnit=1;
 let selIdx=0;
+// ★ 当前相位：暂停快照靠它决定「存什么、恢复成什么样」。
+//   它是**恢复检查点**的描述，不是闭包：跨刷新后靠它重建待办，
+//   绝不能把 setTimeout 的回调序列化过去。
+let PHASE_STATE=PHASE.MAP;
+let ENCOUNTER=null;  // 已展开但未必已选择的事件/营火/商店/奖励卡描述
+const setPhase=p=>{ PHASE_STATE=p };
+// 结算相位的结果：这一局已经打完，只差一次收尾（纪念卡 + 清快照）。
+// 它必须进快照，否则刷新后没人知道该补「赢的结算」还是「输的结算」。
+let OUTCOME=null;
 
 function newRun(){
   const pool=allWords(curUnit);
   if(!pool.length){alert('这个单元还没有词，去「导入词表」添加吧');return false}
   lifecycle.resetRun();TTS.stop();B=null;
+  OUTCOME=null;
   G=createRun(curUnit,curHero(),pool);
   // ★ 远征次数的唯一入口：真正新开一轮才 +1，恢复/读档不经过这里。
   registerRunStart(DB,G);applyRelicInit();saveDB();
-  show('s-map');renderMap();return true;
+  ENCOUNTER=null; setPhase(PHASE.MAP);
+  show('s-map');renderMap();
+  // 完整建好 G 与相位之后才提交：快照必须是一局**可玩**的远征，
+  // 不能是「次数已 +1、地图还没建出来」的那一帧。force=true：无条件写一次。
+  commit(true);
+  return true;
 }
 // ★ 玩家点「开始远征 / 再来一次 / 下一单元」的唯一入口。
 // 连点时第二次会看到「当前 G 还是一场没结束的远征」，直接放弃 —— 不建 run、不计数。
@@ -369,8 +436,10 @@ function newRun(){
 // 「结算完 → 立刻下一单元」这些正常操作。
 // 内部强制重开（测试探针、将来的恢复流程）直接调 newRun()，不受这个闸门约束。
 function startRunFromUi(){
-  if(isDuplicateRunStart(G))return false;
-  return newRun();
+  // 暂停中返回主页的那一局不算「重复触发」：它本来就该由 startRunFromUi 接管
+  // （确认放弃 → 建新局）。只有**正在玩**的一局才挡住连点。
+  if(isDuplicateRunStart(G) && !(progress.isPaused() && progress.atTitle()))return false;
+  return progress.startRunFromUi();
 }
 // 答对 → 本局退休；答错 → 进复习队列
 function onWordRight(w){
@@ -461,7 +530,6 @@ function enterNode(n){
   else if(n.type==='shop') showShop();
   else showEvent();
 }
-
 /* ================= 战斗 ================= */
 function startFight(n){
   lifecycle.resetBattle();
@@ -505,6 +573,7 @@ function startFight(n){
   G.shopHints=0;   // 商店买的提示本场用完后清零
   if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
     if(h>0) setTimeout(()=>toast('💚 开场治疗：回复 '+h+' 点生命'),260) }
+  ENCOUNTER=null; setPhase(PHASE.BATTLE);
   show('s-fight'); renderFight();
   sfx.enemy(boss||elite);
   foeCry('spawn');                                    // ← 语音层：敌人登场叫（音高按敌人种类散开）
@@ -565,10 +634,11 @@ function renderFight(){return fightScreen.renderFight()}
 // 同步字母盘模式按钮的高亮状态与文案（renderFight 每次都会调）
 function syncBankBar(){return fightScreen.syncBankBar()}
 // 切换字母盘排布：字母盘 ↔ QWERTY 键盘。只改 DB + 重渲染，
-// B.used / B.bad / B.input 全在 B 上没动，所以进度一个字母都不丢
-$('tBankMode').onclick=()=>{ DB.kbMode=!isKbMode(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
+// B.used / B.bad / B.input 全在 B 上没动，所以进度一个字母都不丢。
+// 字母盘显示偏好：纯设置项，标脏后必须显式提交（有远征时 commit 会把快照一起写）。
+$('tBankMode').onclick=()=>{ DB.kbMode=!isKbMode(); saveDB(); commit(false); if(B&&!B.over) renderFight(); syncBankBar() };
 // 切换大小写显示：纯显示层。判定走 norm()（转小写），所以两种显示都能正常判对
-$('tBankCase').onclick=()=>{ DB.kbUpper=!isKbUpper(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
+$('tBankCase').onclick=()=>{ DB.kbUpper=!isKbUpper(); saveDB(); commit(false); if(B&&!B.over) renderFight(); syncBankBar() };
 
 
 /* ================= 「听读音」按钮 + 语音开关 =================
@@ -681,10 +751,10 @@ function syncVoiceBtn(){
 // 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键
 function renderItems(){return fightScreen.renderItems()}
 // 使用道具
-function useItem(id){return combat.useItem(id)}
+function useItem(id){return progress.useItem(id)}
 // idx：本次要按下的字母实例下标。省略时回落到 B.sel（点击路径就是这么调的）。
 // 打字路径直接传下标，因此完全不依赖 B.sel / 光标。
-function pressKey(idx){return combat.pressKey(idx)}
+function pressKey(idx){return progress.pressLetter(idx)}
 function hitDmg(){ return calculateHitDmg(G,B) }
 /* ================= 战斗反馈的两条路径 =================
    玩家必须一眼看出「这一下是打对一个字母」还是「整个词拼完了」，
@@ -738,8 +808,11 @@ function winFight(){
   if(hasR('purse')) g+=25;
   // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
   goldGain(Math.round(g*(B.goldMult||1)));   // 贪婪钱币 ×3
-  // 走到这里时当前词一定已整词拼完并已 creditWord，所以没有「没拼完」要如实上报。
-  lifecycle.scheduleBattle(()=>encounters.showBattleRewards(g,null),900);
+  // 相位切到待领奖：金币与击杀已经入账，900ms 只延迟展示。
+  setPhase(PHASE.REWARD);
+  // 立即确定并发布同一批奖励卡，暂停或刷新都不重新抽取。
+  const rolled=encounters.rollBattleRewards(Math.round(g*(B.goldMult||1)),null);
+  lifecycle.scheduleBattle(()=>encounters.showRolledRewards(rolled),900);
 }
 function markMastered(w){
   if(DB.mastered.indexOf(w)<0){ DB.mastered.push(w); saveDB() }
@@ -754,32 +827,61 @@ function creditWord(w){ if(creditWordProgress(DB,G,w)) saveDB() }
 // 所以两边的长度口径一致，可以直接比。
 function wordComplete(){ return isWordComplete(B) }
 function loseFight(){
-  if(B.over) return;
-  B.over=true; sfx.lose();
+  if(!B||B.over) return;
+  B.over=true;
+  // 致命一击会把 myHp 扣成负数，而快照的校验口径是 [0, maxhp]：战败那一刻的
+  // 快照会因此被判为损坏，于是「刚输掉就暂停/刷新」反而进不去这一局。
+  // 这里夹到 0 —— 战斗已结束，负血没有任何后续语义（也不会被结转回 G）。
+  B.myHp=Math.max(0,B.myHp);
+  sfx.lose();
   TTS.line('lose',null,{force:true});               // ← 语音：失败台词，角色自己的收场白
   flash('#ff547055');
   const run=G;
-  setTimeout(()=>{ if(G===run) endRun(false) },800);
+  // ★ 走 lifecycle 而不是裸 setTimeout：这样在 800ms 里暂停/切后台会被真正冻结，
+  //   玩家继续后才补结算。裸 setTimeout 会在暂停期间照样把这一局结算掉。
+  markEnding(false,run,800);
 }
-function finishNode(){
+/* 「这一局已打完，只差收尾」：切到结算相位 + 排一次最终结算。
+   立刻把快照落盘（结果就是玩家在这段延迟里刷新，回来仍能补出同一个结算，
+   而不是重新开奖一次）。guardRun 保证迟到的回调不会结算换掉的那一局。 */
+function markEnding(win,guardRun,delay){
+  ENCOUNTER=null; OUTCOME=!!win; setPhase(PHASE.ENDING);
+  lifecycle.scheduleRun(()=>{ if(G && G!==guardRun) return; endRunNow(win) },delay);
+  // ★ ending 相位必须无条件落盘（DB.wins / 纪念卡在 finishBattleNode 那一刻已改完）：
+  //   这一局即将结束，后面再没有受闸门动作来顺带提交它了。
+  //   在事务内部（领奖→finishNode→markEnding）这里会延期，由最外层一次性提交。
+  commit(true);
+}
+function finishNode() {
   const result=finishBattleNode(G,B,DB);
   if(result==='ignored')return;
-  if(result==='boss-win'){toast('🏆 通关！回复 30 生命');saveDB();lifecycle.scheduleRun(()=>endRun(true),700);return}
-  if(result==='boss-loss'){toast('👑 词汇之王逃脱了……远征失败');lifecycle.scheduleRun(()=>endRun(false),700);return}
+  // ★ BOSS 的两种结局都走 markEnding：胜负、纪念卡、清快照必须是一次结算。
+  //   B.rewardTaken 已置位、battle.finished 已被 finishBattleNode 标记，
+  //   所以恢复路径**绝不能再调 finishNode**（它只会拿到 'ignored'）。
+  if(result==='boss-win'){toast('🏆 通关！回复 30 生命');markEnding(true,G,700);return}
+  if(result==='boss-loss'){toast('👑 词汇之王逃脱了……远征失败');markEnding(false,G,700);return}
   advance();
 }
         // 双击去重窗口：够挡住连点，又短到不会挡住正常下一次推进
 function advance(){
   if(!G)return;
   const result=advanceRun(G);
-  if(result==='locked')return;
-  if(result==='ended'){endRun(false);return}
+  // ★ locked（400ms 双击窗口）也要提交：调用方（商店「离开」）已经发布了
+  //   chosenId 并切到 encounter-done，此刻盘上必须有一份**合法**的快照，
+  //   否则刷新后这一局会被判损坏。提交的是「已选完、等推进」这个真实状态。
+  if(result==='locked'){ commit(true); return }
+  if(result==='ended'){endRunNow(false);return}
+  ENCOUNTER=null; setPhase(PHASE.MAP);
   show('s-map');renderMap();
+  // 延迟的营火/事件推进也走这里（不在事务内），所以必须无条件落盘。
+  commit(true);
 }
-$('tHint').onclick=()=>combat.requestHint();
-$('tSkip').onclick=()=>combat.skipFight();
-$('tFlee').onclick=()=>combat.fleeFight();
+$('tHint').onclick=()=>progress.requestHint();
+$('tSkip').onclick=()=>progress.skipFight();
+$('tFlee').onclick=()=>progress.fleeFight();
 document.addEventListener('keydown',e=>{
+  // 暂停屏优先：暂停期间任何键都不得改状态（闸门在 progress 里，这里只是不抢键）。
+  if(progress.isPaused()) return;
   if($('s-fight').classList.contains('on') && B && !B.over){
     // 焦点在输入框里时一律不抢键（自定义词表导入框、存档文本框等）
     const tn=(e.target&&e.target.tagName||'').toUpperCase();
@@ -791,16 +893,16 @@ document.addEventListener('keydown',e=>{
       // 数字键快速使用第 N 个道具
       const held=Object.keys(G.bag||{}).filter(id=>(G.bag[id]|0)>0);
       const id=held[parseInt(e.key,10)-1];
-      if(id) useItem(id);
+      if(id) progress.useItem(id);
       e.preventDefault();
     }
     else if(e.key==='Backspace'){
-      combat.undoLetter();
+      progress.undoLetter();
       e.preventDefault();
     }
     // 电脑键盘直接打字（A-Z / a-z，效果与点击字母键完全一致）
     else if(e.key.length===1 && /[a-z]/i.test(e.key)){
-      typeLetter(e.key);
+      progress.typeLetter(e.key);
       e.preventDefault();
     }
   }
@@ -808,7 +910,7 @@ document.addEventListener('keydown',e=>{
 // 打字入口：把敲下的字符映射到字母盘上的一个字母实例，再走**和点击同一个** pressKey
 // 判定 —— 不经过 B.sel、不依赖任何光标，所以有没有光标对打字路径毫无影响。
 // 返回是否消费了这次输入（字母盘上没有这个字母时不消费，交给浏览器默认行为）。
-function typeLetter(raw){return combat.typeLetter(raw)}
+function typeLetter(raw){return progress.typeLetter(raw)}
 function moveSel(d){
   let n=B.letters.length;
   for(let i=0;i<n;i++){ B.sel=(B.sel+d+n*2)%n; if(!B.used[B.sel]&&!B.bad[B.sel]) break }
@@ -823,15 +925,46 @@ function showShop(){return encounters.showShop()}
 // 纪念卡只记录本次远征表现，不代表掌握所选范围的全部词汇。
 
 
-function endRun(win){
+/* 结算的**内存侧**：只改 DB 与 G、只画结算屏，绝不落盘。
+   落盘由 progress.endRunNow 统一做 —— 它必须在 DB 改完之后，用**同一次**
+   storage.save 写入「新 totals + 纪念卡」与「快照已删除」。
+   分两次写就会出现：先删快照写一次（此时 totals 还是旧的），
+   或者先记奖励写一次（此时快照还在，刷新会再结算一遍）。 */
+function settleRun(win){
   if(!G)return;
-  endRunProgress(G,DB,win);saveDB();
+  if(typeof G.result==='boolean')return;   // 绝不重复结算
+  lifecycle.resetRun();                    // 冻结中的待办全部作废：已结束的局不得再动
+  endRunProgress(G,DB,win);
+  ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
   renderOver({run:G,db:DB,win,onTitle:renderTitle,show});
+  return true;
+}
+// 结束路径的统一入口：闸门 + 结算 + 一次原子提交。
+function endRunNow(win){ return progress.endRun(win) }
+/* 已展开卡片的选择入口：暂停期间一律无效（闸门在 progress 里）。
+ * 已展开的卡都带 data-opt=id，这里按 id 点真实的那张。 */
+function chooseEncounter(id){
+  if(!ENCOUNTER) return false;
+  const screen = ENCOUNTER.kind==='shop' ? 'rPicks' : (ENCOUNTER.kind==='rest' ? 'rPicks' : 'ePicks');
+  const box=$(screen); if(!box) return false;
+  const btn=(box._kids||[]).filter(b=>b.dataset && b.dataset.opt===id)[0]
+    || Array.prototype.slice.call(box.children).filter(b=>b.dataset && b.dataset.opt===id)[0];
+  if(!btn||!btn.onclick) return false;
+  btn.onclick();
+  return true;
+}
+function takeReward(id){
+  if(!ENCOUNTER||ENCOUNTER.kind!=='reward') return false;
+  const box=$('pPicks'); if(!box) return false;
+  const btn=Array.prototype.slice.call(box.children).filter(b=>b.dataset && b.dataset.opt===id)[0];
+  if(!btn||!btn.onclick) return false;
+  btn.onclick();
+  return true;
 }
 $('oAgain').onclick=()=>{ if(!G || typeof G.result!=='boolean') return; curUnit=G.unit; startRunFromUi() };
 $('oNext').onclick=()=>{ if(!G || !G.result || !UNITS.some(u=>G.unit>0 && u.n===G.unit+1)) return; curUnit=G.unit+1; startRunFromUi() };
-$('oHome').onclick=()=>{ lifecycle.resetRun(); TTS.stop(); G=null; B=null; renderTitle(); show('s-title') };
-$('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ lifecycle.resetRun(); TTS.stop(); G=null; B=null; renderTitle(); show('s-title') } };
+$('oHome').onclick=()=>{ progress.abandonRun(); renderTitle(); show('s-title') };
+$('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ progress.abandonRun(); renderTitle(); show('s-title') } };
 
 /* ================= 标题页 ================= */
 // 角色形象 HTML：全部部件用 <i>，靠 data-h 上色/变形（标题页与战斗页共用同一套图形）
@@ -840,22 +973,178 @@ $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){
 // 卡片上的数值速览：把 mod 翻成「生命 -10 / 提示 +1」这种一眼能懂的短标签
 
 function renderHeroes(){return titleScreen.renderHeroes()}
-function renderTitle(){return titleScreen.renderTitle()}
+function renderTitle(){
+  titleScreen.renderTitle();
+  // 存在快照（或存在解不开的快照）时，主页必须给出入口：
+  // 刷新后玩家看到的是主页，不会被自动丢进战斗或听见语音。
+  const row=$('continueRow'), btn=$('continueRun');
+  if(!row||!btn)return;
+  const t=progress.titleState();
+  // 坏快照也让入口可见：否则玩家只能手改存档才能丢掉这份远征。
+  row.hidden=!(t.hasSnapshot||t.hasUnusableSnapshot);
+  if(t.hasSnapshot){
+    btn.textContent='继续远征';
+    // 同页暂停中的那一局没有落盘时间（heldInMemory），如实说「还在这一页里」，
+    // 绝不显示成「保存于 null」—— 那看起来像一个坏掉的时间戳。
+    btn.title = t.heldInMemory
+      ? '继续 Unit '+t.unit+' 第 '+t.floor+' 层（还在这一页里，关掉页面就会丢失）'
+      : '继续 Unit '+t.unit+' 第 '+t.floor+' 层（保存于 '+t.savedAt+'）';
+  } else if(t.hasUnusableSnapshot){
+    btn.textContent=t.unusableReason==='version'?'远征进度无法恢复':'远征进度已损坏';
+    btn.title='点一下可以查看原因并丢弃这份远征进度（掌握记录与纪念卡不受影响）';
+  }
+}
 // One state owner; feature controllers and renderers receive explicit live getters/actions.
 const state={get DB(){return DB},get G(){return G},get B(){return B}};
+// 暂停/恢复接线：encounters 把「当前展开的界面描述」交给 runtime 存进快照。
+// 描述里只有 id 与展示字段，没有闭包，也没有 DOM。
+const publishEncounter=d=>{ ENCOUNTER=d };
 const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,
-  onHero:id=>{DB.hero=id;saveDB()},onUnit:unit=>{curUnit=unit}});
-const mapScreen=createMapScreen({getRun:()=>G,onEnter:enterNode,onToast:toast,onNodeSound:()=>sfx.node()});
+  onHero:id=>{DB.hero=id;saveDB();commit(false)},onUnit:unit=>{curUnit=unit}});
+const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
 const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
-  onPress:i=>{B.sel=i;pressKey(i)},onUseItem:useItem,paintSayBtn});
+  onPress:i=>{ if(progress.isPaused())return; B.sel=i;progress.pressLetter(i)},
+  onUseItem:id=>progress.useItem(id),paintSayBtn});
+const pauseScreen=createPauseScreen({getRun:()=>G,
+  onResume:()=>{ resumeFromPause() },
+  // ★ 返回主页**不放弃**远征：只把这一局留在内存里继续暂停，快照照旧留着。
+  //   以前这里是 resume + abandonRun —— 玩家只是想去主页看看别的入口，
+  //   回来时发现整局被删了，而且 resume 还会把冻结中的回调挂上（推进/结算在主页自己跑）。
+  onHome:()=>{ progress.returnToTitle(); renderTitle(); show('s-title') },
+  onAbandon:()=>{
+    // ★ 只有真删掉了才说「已放弃」：清不掉时 abandonRun 自己会如实提示，
+    //   这里再补一句成功的话就成了谎报。
+    if(progress.abandonRun()) toast('已放弃这次远征');
+    renderTitle(); show('s-title');
+  }});
+/* 暂停 → 冻结 + 存快照 + 切到暂停屏。
+ * 冻结由 progress 控制器按入口逐个挡住（不是 CSS 遮罩）：暂停期间
+ * 输入、道具、提示、跳过、逃跑、地图节点、事件选项、领奖、推进全部无效。 */
+function pauseNow(opts){
+  const from=PHASE_STATE;
+  const result=progress.pause(Object.assign({fromReload:false},opts||{}));
+  // 这一局已经结算（结算屏上）：切后台/关页面都不该再存，更不该切到暂停屏抢界面。
+  if(result.reason==='finished') return result;
+  show('s-pause');
+  pauseScreen.renderPause({saved:result.saved,reason:result.reason,fromReload:!!(opts&&opts.fromReload)});
+  // AudioContext 挂起：浏览器要求在用户手势里恢复，所以这里只挂起。
+  try{ if(AU.ctx()&&typeof AU.ctx().suspend==='function') AU.ctx().suspend() }catch(e){}
+  return result;
+}
+/* 回到暂停前那一屏，并重画它。
+   这是**同页恢复**：DOM 里的卡片都还在原样，所以事件/营火/商店/奖励
+   一律不重建 —— 重建会把 _used 清掉（同一个回血能被点两次），
+   也会重新挂一批按钮，让玩家拿着旧引用再点一次。
+   ENCOUNTER_DONE（已选完、等推进）更是必须原样留着：冻结中的那个
+   「推进到下一层」在 resume 后正好补上一次。 */
+function resumeFromPause(){
+  const meta=progress.pauseMeta();
+  const from=meta?meta.screen:null;
+  progress.resume();
+  try{ const c=AU.ctx(); if(c&&typeof c.resume==='function') c.resume() }catch(e){}
+  restoreScreen(from);
+}
+/* 同页恢复共用的「回到那一屏」。暂停屏的「继续」和主页的「继续远征」走同一条。 */
+function restoreScreen(from){
+  if(from==='s-map'){ show('s-map'); renderMap() }
+  else if(from==='s-fight'){ show('s-fight'); renderFight() }
+  else if(from==='s-pick'){ show('s-pick') }
+  else if(from==='s-rest'||from==='s-event'||from==='s-pick') show(from)   // 原样回来
+  else { show('s-map'); renderMap() }
+}
 const combat=createCombatController({state,ports:{$,norm,clamp,rnd,hasR,itemById,hitDmg,wordDmg,wordComplete,
   creditWord,onWordWrong,centerOf,heroPoint,toast,sfx,TTS,burst,floatTxt,flash,ring,animHero,
   wordFinisher,foeCry,renderFight,nextWord,winFight,loseFight,finishNode,saveDB,
   scheduleBattle:lifecycle.scheduleBattle}});
 const encounters=createEncounterController({state,ports:{$,clamp,pick,shuffle,rnd,has,hasR,goldGain,applyRelicInit,
-  sfx,toast,advance,endRun,finishNode,show,scheduleRun:lifecycle.scheduleRun,scheduleBattle:lifecycle.scheduleBattle}});
+  sfx,toast,advance,endRun:endRunNow,finishNode,show,scheduleRun:lifecycle.scheduleRun,scheduleBattle:lifecycle.scheduleBattle,
+  publishEncounter,setPhase,
+  // ★ 事务边界：商店购买、营火/事件选择、领奖这些副作用都在这里收尾提交。
+  //   少了它，「扣了钱/给了遗物」只改内存，玩家刷新就白嫖一次。
+  mutate:fn=>mutate(fn),
+  // 事件/营火/商店/奖励的按钮回调自己也要问闸门：暂停屏挡得住点击，挡不住
+  // 「玩家握着暂停前那个按钮引用再 dispatchEvent 一次」。
+  canAct:()=>!progress.isPaused()}});
+/* 进度控制器：暂停闸门 + 快照采集/提交 + 恢复检查点重建。
+ * 必须在 titleScreen/fightScreen 之后创建（它们闭包引用 progress）。 */
+const progressStore=createProgressStore(storage);
+const progress=createProgressController({state,api:{
+  getRun:()=>G, getBattle:()=>B, getDB:()=>DB,
+  getPhase:()=>PHASE_STATE, setPhase,
+  getOutcome:()=>OUTCOME,
+  getEncounter:()=>ENCOUNTER, setEncounter:d=>{ ENCOUNTER=d },
+  setRun:r=>{ G=r }, setBattle:b=>{ B=b },
+  show, screen:()=>currentScreen(), toast, renderMap, renderFight, renderTitle,
+  lifecycle,
+  // 结算的内存侧（改 DB / 画结算屏）；落盘由控制器用同一次写完成。
+  settleRun:w=>settleRun(w),
+  // 同页恢复：把玩家放回他离开的那一屏。
+  restoreScreen:from=>restoreScreen(from),
+  // 受闸门动作的事务边界：动作返回即提交。
+  mutate:fn=>mutate(fn),
+  TTS, audio:{suspend:()=>{}, resume:()=>{}},
+  confirm:m=>confirm(m),
+  newRun:()=>newRun(),
+  // 受闸门保护的动作：全部走 progress，暂停期间一律无效。
+  pressLetter:i=>combat.pressKey(i), typeLetter:ch=>combat.typeLetter(ch),
+  undoLetter:()=>combat.undoLetter(), useItem:id=>combat.useItem(id),
+  requestHint:()=>combat.requestHint(), skipFight:()=>combat.skipFight(),
+  fleeFight:()=>combat.fleeFight(),
+  enterNode:n=>enterNode(n),
+  chooseEncounter:id=>chooseEncounter(id),
+  takeReward:id=>takeReward(id),
+  // 恢复时按快照描述重建事件/营火/商店/奖励卡（不重新 roll）
+  reopenEncounter:d=>{
+    // 快照里的奖励检查点可能还没有卡面（暂停正好落在 900ms 延迟里）：
+    // 那时用 live state 重建面板 —— 金币早已入账，B.rewardTaken 仍是 false，
+    // 所以只可能展开一次，绝不会二次发奖。
+    if(d && d.kind==='reward' && (!d.options||!d.options.length)) return encounters.showBattleRewards(d.gold,d.unfinished);
+    return encounters.reopenEncounter(d);
+  },
+  advance:()=>advance(),
+  clearRun:()=>{ G=null; B=null; ENCOUNTER=null; setPhase(PHASE.MAP) },
+},store:progressStore});
+progressCtl=progress;
+
         // 字母光标
 
+/* 切后台 / 关闭页面：安全保存一次并进入暂停屏。
+ * 回前台**不自动继续** —— 刷新后玩家面对的是暂停屏，必须自己点「继续」，
+ * 所以不会一回到页面就撞上敌人或自动播语音。 */
+if(typeof document!=='undefined' && document.addEventListener){
+  document.addEventListener('visibilitychange',()=>{
+    try{ if(document.hidden) TTS.stop() }catch(e){}
+    try{
+      // 已结算的一局（结算屏上）不参与：切后台既不重存也不抢界面。
+      if(document.hidden){ if(G && !progress.isPaused() && !progress.isFinished()) pauseNow({fromReload:true}) }
+      else progress.onVisible();
+    }catch(e){}
+  });
+}
+if(typeof addEventListener==='function'){
+  addEventListener('pagehide',()=>{
+    try{ if(G && !progress.isPaused() && !progress.isFinished()) pauseNow({fromReload:true}) }catch(e){}
+  });
+}
+
+/* 暂停入口：地图与战斗各一个显式按钮。冻结逻辑在 progress 控制器里。 */
+$('mPause').onclick=()=>{ if(G && !progress.isFinished()) pauseNow() };
+$('tPause').onclick=()=>{ if(G&&B && !progress.isFinished()) pauseNow() };
+$('continueRun').onclick=()=>{
+  const out=progress.continueRun();
+  if(!out.ok){
+    // 明确的失败原因：损坏 / 版本不支持 / 没有快照。
+    // 明确说明原因并询问是否丢弃。
+    if(out.reason==='invalid'||out.reason==='version'){
+      if(confirm(out.message+'\n\n要丢弃这份存档里的远征进度吗？（掌握记录、自定义词库和纪念卡都会保留）')){
+        // ★ 清不掉就不能紧接一句「已丢弃」：那会让玩家以为存档干净了，
+        //   刷新后那一局又回来。clear 失败时由它自己如实提示。
+        if(progress.discardSnapshot()){ renderTitle(); toast('已丢弃无法恢复的远征进度') }
+        else renderTitle();
+      }
+    } else toast(out.message||'没有可以继续的远征');
+  }
+};
 $('startRun').onclick=()=>{ startRunFromUi() };
 $('toRelics').onclick=()=>{
   const box=$('rlBox'); box.innerHTML='';
@@ -876,11 +1165,12 @@ $('doImport').onclick=()=>{
   if(!out.length){ $('impMsg').innerHTML="<span style='color:var(--bad)'>没解析出词，格式：英文 中文</span>"; return }
   DB.custom=out; saveDB();
   $('impMsg').innerHTML="<span style='color:var(--ok)'>导入 "+out.length+" 个词"+(bad?("，"+bad+" 行被跳过"):"")+"</span>";
+  commit(false);
   renderTitle();
 };
 $('clearCustom').onclick=()=>{
   if(!confirm('清空自定义词库？')) return;
-  DB.custom=[]; saveDB(); $('ta').value=''; $('impMsg').innerHTML="<span style='color:var(--mut)'>已清空</span>"; renderTitle();
+  DB.custom=[]; saveDB(); commit(false); $('ta').value=''; $('impMsg').innerHTML="<span style='color:var(--mut)'>已清空</span>"; renderTitle();
 };
 $('toReset').onclick=()=>{
   if(!confirm('清空所有存档（远征次数、通关次数、已掌握词、自定义词库、通关纪念卡）？')) return;
@@ -888,9 +1178,11 @@ $('toReset').onclick=()=>{
   // 字母盘显示偏好也留着：清档清的是进度，不是界面口味（与 keepHero 同理）
   const keepKb={kbMode:DB.kbMode,kbUpper:DB.kbUpper};
   DB={runs:0,wins:0,mastered:[],best:0,custom:[],rewards:[],hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
-  lifecycle.resetRun(); TTS.stop(); G=null; B=null;
+  // 清档必须连未结束的远征快照一起删，否则刷新会把「已清空」的存档复活成一局死局。
+  // 走 progress.resetProgress：删快照与写新的 DB 在**同一次** storage.save 里完成。
+  lifecycle.resetRun(); TTS.stop(); progress.resetProgress();
   $('oReward').innerHTML=''; $('oReward').hidden=true;
-  saveDB(); renderTitle();
+  commit(false); renderTitle();
 };
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ renderTitle(); show('s-title') });
 
@@ -903,11 +1195,15 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     get G(){return G}, set G(value){G=value},
     get B(){return B}, set B(value){B=value},
     get curUnit(){return curUnit}, set curUnit(value){curUnit=value},
-    newRun,startFight,pressKey,endRun,renderFight,renderTitle,renderMap,
+    newRun,startFight,pressKey,endRun:endRunNow,renderFight,renderTitle,renderMap,
     enterNode,showEvent,showRest,showShop,finishNode,advance,winFight,
     loseFight,drawLetters,norm,hitDmg,wordDmg,wordComplete,typeLetter,
     creditWord,onWordWrong,hpBarGeom,paintHpBar,bankRows,syncBankBar,
     sayCurrentWord,useItem,show,TTS,AU,WORDS,UNITS,HEROES,ITEMS,RELICS,
+    // 暂停/恢复测试面：只暴露动作，不暴露内部实现
+    progress, pauseNow, resumeFromPause, chooseEncounter, takeReward,
+    get phase(){return PHASE_STATE}, get encounter(){return ENCOUNTER},
+    get outcome(){return OUTCOME},
   };
 }
 }

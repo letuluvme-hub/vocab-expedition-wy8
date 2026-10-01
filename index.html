@@ -20,6 +20,7 @@
   <div class="lbl">选择你的远征者</div>
   <div class="heroes" id="heroes"></div>
   <div class="herodesc" id="heroDesc"></div>
+  <div class="row" id="continueRow" hidden><button class="btn" id="continueRun">继续远征</button></div>
   <div class="row"><button class="btn" id="startRun">开始远征</button></div>
   <div class="row">
     <button class="btn g" id="toRelics">遗物图鉴</button>
@@ -68,7 +69,10 @@
     <span class="crumbs" id="mTip"></span>
   </div>
   <div class="map" id="map"></div>
-  <button class="btn g" id="mQuit" style="margin-top:8px">放弃远征</button>
+  <div class="row" style="margin-top:8px">
+    <button class="btn g" id="mPause">暂停并保存</button>
+    <button class="btn g" id="mQuit">放弃远征</button>
+  </div>
 </div>
 
 <div class="screen" id="s-fight">
@@ -126,6 +130,7 @@
     <button class="tool" id="tHint">提示<small id="tHintN">3 次</small></button>
     <button class="tool" id="tSkip">跳过<small>损失 50 生命</small></button>
     <button class="tool" id="tFlee">逃跑<small>损失金币</small></button>
+    <button class="tool" id="tPause">暂停<small>保存进度</small></button>
   </div>
 </div>
 
@@ -185,6 +190,21 @@
   </div>
   <div class="rl" id="rlBox"></div>
   <div class="note">战斗中点击已获得的遗物可查看效果。遗物在一次远征内持续生效。</div>
+</div>
+
+<div class="screen" id="s-pause">
+  <div class="card" style="text-align:center">
+    <div style="font-size:44px;margin:6px 0" id="pzIcon">⏸</div>
+    <div class="hdrtitle" id="pzTitle">已暂停</div>
+    <div class="pztext" id="pzText"></div>
+    <div class="pzsave ok" id="pzSave">已保存到本机</div>
+    <div style="display:grid;gap:9px;margin-top:14px">
+      <button class="btn" id="pzResume">继续远征</button>
+      <button class="btn g" id="pzHome">返回主页</button>
+      <button class="btn g" id="pzAbandon">放弃这次远征</button>
+    </div>
+    <div class="note" style="margin-top:12px">离开这一页前进度已经存好。回到主页后可以点「继续远征」接着玩。</div>
+  </div>
 </div>
 
 <div class="screen" id="s-import">

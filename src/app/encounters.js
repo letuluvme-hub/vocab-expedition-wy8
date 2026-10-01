@@ -9,6 +9,10 @@
  *   2) run/battle 捕获 —— 事件、营火、商店、奖励面板的按钮回调都记住打开时的
  *      远征与战斗实例；一旦玩家清档/重开/进入下一场，旧按钮的迟到回调直接丢弃。
  *      原版只靠 advance() 的 400ms 时间窗，挡不住已经排进 900/1100ms 队列的回调。
+ *   3) canAct —— 每个按钮回调第一行都问一次「现在允许改状态吗」。
+ *      暂停屏是一整屏、看起来点不到这些按钮，但玩家完全可以拿着一个**旧的**按钮
+ *      引用（暂停前点过、或恢复后 DOM 还在）再 dispatchEvent。之前这些路径直接调
+ *      o.fn()，完全绕过了 progress 的闸门 —— 暂停期间点事件选项照样回血、照样领遗物。
  */
 import { RELICS } from '../data/relics.js';
 import { ITEMS } from '../data/items.js';
@@ -19,13 +23,37 @@ export function createEncounterController({ state, ports }) {
     advance, endRun, finishNode, show, scheduleRun, scheduleBattle } = ports;
   // 造按钮的入口：Node 测试没有全局 document，所以走 ports 注入；浏览器里退回 document。
   const makeButton = ports.makeButton || (() => document.createElement('button'));
+  // 暂停/恢复接线：把「当前展开的界面」交给 runtime 存进快照。
+  const publishEncounter = ports.publishEncounter || null;
+  const setPhase = ports.setPhase || null;
+  const PHASE_ENCOUNTER = 'encounter', PHASE_ENCOUNTER_DONE = 'encounter-done', PHASE_REWARD = 'reward';
+  // 唯一的暂停判据来源。单元测试台不注入时默认放行（老测试没有闸门概念）。
+  const canAct = ports.canAct || (() => true);
+  /* 受闸门动作的事务边界。runtime 的 mutate 负责「副作用跑完 → 提交一次」，
+     这里所有会改状态的按钮回调都必须经过它 —— 否则买药扣钱、领遗物、选营火
+     这些副作用只改了内存、从不落盘。Node 测试台不注入时回落成直接调用。 */
+  const mutate = ports.mutate || (fn => fn());
+
+  // 当前已展开的描述：只存 id 与展示字段，绝不存闭包或 DOM。
+  let currentDesc = null;
+  function current() { return currentDesc; }
+  function publish(desc) { currentDesc = desc; if (publishEncounter) publishEncounter(desc); }
+
+  /* ================= 恢复路径的展示字段 =================
+     快照里的 ic/t/d/tip 来自**存档**，属于不可信输入：直接塞进 innerHTML 就是注入面。
+     但展示又必须与玩家暂停前看到的一致（同一批卡、同一句描述）。
+     做法：只在恢复路径上把这些字段转义后再交给 pickCardHTML，
+     普通新开的事件/商店/奖励路径保持原样（老模板一个字都不动）。 */
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
   /* ================= 事件 =================
      搬进工厂：选项动作读 live state，返回一句结果文案。
      保留原版逐字文案与数值（含赌局 / 迷路的词灵里那些手写的 return 串）。 */
   const EVENTS = [
     { ic: '🎁', t: '神秘的背包', x: '你捡到一个鼓鼓的背包，主人却不见了。', o: [
-      { cat: 'relic', ic: '💎', t: '打开看看', d: '随机获得一个遗物', fn: () => {
+      { id: 'pack:open', cat: 'relic', ic: '💎', t: '打开看看', d: '随机获得一个遗物', fn: () => {
         const G = state.G;
         const av = RELICS.filter(r => !has(G.relics, r.id));
         if (av.length) {
@@ -38,29 +66,29 @@ export function createEncounterController({ state, ports }) {
         G.gold = goldGain(40);
         return '包里只有 40 金币，但聊胜于无。';
       } },
-      { cat: 'none', ic: '🚶', t: '不关我事', d: '离开，什么也不发生', fn: () => '你背起包继续赶路。' }
+      { id: 'pack:leave', cat: 'none', ic: '🚶', t: '不关我事', d: '离开，什么也不发生', fn: () => '你背起包继续赶路。' }
     ] },
     { ic: '⛲', t: '神秘泉水', x: '一股清泉从石缝涌出，水面泛着微微的光。', o: [
-      { cat: 'heal', ic: '💚', t: '喝一口', d: '回复 25 点生命', fn: () => {
+      { id: 'spring:drink', cat: 'heal', ic: '💚', t: '喝一口', d: '回复 25 点生命', fn: () => {
         const G = state.G; G.hp = Math.min(G.maxhp, G.hp + 25); return '伤口愈合了。';
       } },
-      { cat: 'boost', ic: '🔮', t: '灌满水壶', d: '获得 2 次免费提示（下一场战斗）', fn: () => {
+      { id: 'spring:flask', cat: 'boost', ic: '🔮', t: '灌满水壶', d: '获得 2 次免费提示（下一场战斗）', fn: () => {
         const G = state.G; G.nextHint = (G.nextHint || 0) + 2; return '水壶泛着微光，下场战斗会帮你。';
       } },
-      { cat: 'heal', ic: '🥾', t: '装进瓶子带走', d: '回复 10 点生命', fn: () => {
+      { id: 'spring:bottle', cat: 'heal', ic: '🥾', t: '装进瓶子带走', d: '回复 10 点生命', fn: () => {
         const G = state.G; G.hp = Math.min(G.maxhp, G.hp + 10); return '你还是带了点水。';
       } }
     ] },
     { ic: '⚔️', t: '老兵的剑', x: '一位老兵递给你一把剑：「会用吗？」', o: [
-      { cat: 'relic', ic: '🔥', t: '学以致用', d: '获得「连击徽章」，连击加成翻倍', fn: () => {
+      { id: 'sword:learn', cat: 'relic', ic: '🔥', t: '学以致用', d: '获得「连击徽章」，连击加成翻倍', fn: () => {
         state.G.relics.push('combo'); sfx.relic(); return '你的连击从此更锋利。';
       } },
-      { cat: 'event', ic: '💰', t: '卖掉换钱', d: '获得 60 金币', fn: () => {
+      { id: 'sword:sell', cat: 'event', ic: '💰', t: '卖掉换钱', d: '获得 60 金币', fn: () => {
         const G = state.G; G.gold = goldGain(60); return '你换到了 60 金币。';
       } }
     ] },
     { ic: '📚', t: '遗忘之书', x: '一本书在你面前打开，书页上全是单词，却一个都读不懂。', o: [
-      { cat: 'relic', ic: '🧠', t: '认真研读', d: '当前战斗下次的拼写正确率提升：回复 20 生命并获得遗物', fn: () => {
+      { id: 'book:study', cat: 'relic', ic: '🧠', t: '认真研读', d: '当前战斗下次的拼写正确率提升：回复 20 生命并获得遗物', fn: () => {
         const G = state.G;
         G.hp = Math.min(G.maxhp, G.hp + 20);
         const av = RELICS.filter(r => !has(G.relics, r.id));
@@ -73,28 +101,28 @@ export function createEncounterController({ state, ports }) {
         }
         return '你读懂了更多，知识就是力量。';
       } },
-      { cat: 'heal', ic: '😴', t: '合上书休息', d: '回复 15 点生命', fn: () => {
+      { id: 'book:rest', cat: 'heal', ic: '😴', t: '合上书休息', d: '回复 15 点生命', fn: () => {
         const G = state.G; G.hp = Math.min(G.maxhp, G.hp + 15); return '小憩片刻。';
       } }
     ] },
     { ic: '🎲', t: '命运的赌局', x: '一个蒙面人推来一枚硬币：「猜正反，赢了钱翻倍，输了归我。」', o: [
-      { cat: 'event', ic: '🪙', t: '押上 40 金币', d: '一半概率翻倍，一半概率全失', fn: () => {
+      { id: 'gamble:bet', cat: 'event', ic: '🪙', t: '押上 40 金币', d: '一半概率翻倍，一半概率全失', fn: () => {
         const G = state.G;
         G.gold = goldGain(40);
         if (Math.random() < .5) { const w = G.gold; G.gold = w * 2; return '硬币停在正面！你获得了 ' + G.gold + ' 金币。'; }
         G.gold = 0;
         return '反面。你的金币全没了。';
       } },
-      { cat: 'none', ic: '✋', t: '不赌了', d: '安全离开', fn: () => '你明智地走开了。' }
+      { id: 'gamble:skip', cat: 'none', ic: '✋', t: '不赌了', d: '安全离开', fn: () => '你明智地走开了。' }
     ] },
     { ic: '👺', t: '迷路的词灵', x: '一个小词灵缩在墙角，看起来迷路了。', o: [
-      { cat: 'heal', ic: '🍬', t: '给它一颗糖', d: '花费 20 金币，获得 12 点生命', fn: () => {
+      { id: 'wisp:candy', cat: 'heal', ic: '🍬', t: '给它一颗糖', d: '花费 20 金币，获得 12 点生命', fn: () => {
         const G = state.G;
         if (G.gold < 20) return '你金币不够。';
         G.gold -= 20; G.hp = Math.min(G.maxhp, G.hp + 12);
         return '它带你找到了一条捷径，你感觉好多了。';
       } },
-      { cat: 'event', ic: '📖', t: '教它拼写', d: '获得 30 金币的「学费」', fn: () => {
+      { id: 'wisp:teach', cat: 'event', ic: '📖', t: '教它拼写', d: '获得 30 金币的「学费」', fn: () => {
         const G = state.G;
         const g = goldGain(30);
         return '它学会了，血量 +5。'.replace('血量 +5', '') + ' 你获得了 ' + g + ' 金币。';
@@ -102,13 +130,33 @@ export function createEncounterController({ state, ports }) {
     ] }
   ];
 
-  /* 卡片按钮的统一构造：结构化 cat 徽标 + 标题/描述分层，原样沿用旧版 innerHTML。 */
-  function cardButton(o) {
+  /* 卡片按钮的统一构造：结构化 cat 徽标 + 标题/描述分层，原样沿用旧版 innerHTML。
+     每张卡同时带一个**稳定 id**（选项在本次展开中的唯一标识），
+     暂停快照靠它记录「已展开哪些卡 / 玩家选了哪张」，
+     刷新后据此重建同一屏，而不是重新 roll 一批新卡。 */
+  function cardButton(o, opt) {
     const b = makeButton('button');
     b.className = 'pick';
     b.dataset.cat = CAT_LABEL[o.cat] ? o.cat : 'none';   // 供 CSS 上色与测试断言
-    b.innerHTML = pickCardHTML(o);
+    b.dataset.opt = o.id || '';
+    // ★ 转义只发生在**渲染边界**（这里），opts 本身永远保持原文。
+    //   旧实现在 reopenEncounter 里把 esc() 后的串写回 opts，再由 publish() 存进快照，
+    //   于是 reopen → publish → reopen 会把 & 再转义一次，界面上出现「&amp;lt;」实体堆叠，
+    //   存档里的原文也被污染。untrusted 只由恢复路径传。
+    const view = (opt && opt.untrusted)
+      ? { cat: o.cat, ic: esc(o.ic), t: esc(o.t), d: esc(o.d), tip: o.tip ? esc(o.tip) : o.tip }
+      : o;
+    b.innerHTML = pickCardHTML(view);
     return b;
+  }
+
+  /* 把一次已展开的界面描述成可持久化的数据：只有 id 与展示字段，
+     没有闭包、没有 DOM 引用。刷新后靠它把同一屏原样重建。 */
+  function describe(kind, options, extra) {
+    return Object.assign({
+      kind,
+      options: options.map(o => ({ id: o.id, cat: o.cat, ic: o.ic, t: o.t, d: o.d, tip: o.tip, leave: !!o.leave })),
+    }, extra || {});
   }
 
   /* 事件：只生效一次；延迟推进前先确认还是同一次远征、同一个节点。 */
@@ -123,20 +171,29 @@ export function createEncounterController({ state, ports }) {
     e.o.forEach(o => {
       const b = cardButton(o);
       b.onclick = () => {
+        if (!canAct()) return;
         if (state.G !== run) return;                   // 远征已被换掉：旧按钮失效
-        if (box._used) return;                          // 双击保护：只生效一次
-        box._used = true;
-        const msg = o.fn();
-        toast(msg || '');
-        if (state.G.hp <= 0) { endRun(false); return; }
-        scheduleRun(() => {
-          if (state.G !== run) return;
-          if (node) node.done = true;
-          advance();
-        }, 1100);
+        mutate(() => {
+          if (box._used) return;                        // 双击保护：只生效一次
+          box._used = true;
+          const msg = o.fn();
+          toast(msg || '');
+          if (state.G.hp <= 0) { endRun(false); return; }
+          // 相位切到「已选定、待推进」：副作用已生效，快照只记 chosenId，
+          // 刷新后据此推进一次，绝不重跑 o.fn()。
+          if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
+          if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
+          scheduleRun(() => {
+            if (state.G !== run) return;
+            if (node) node.done = true;
+            advance();
+          }, 1100);
+        });
       };
       box.appendChild(b);
     });
+    if (publishEncounter) publishEncounter(describe('event', e.o, { node, title: e.t, icon: e.ic, text: e.x }));
+    if (setPhase) setPhase(PHASE_ENCOUNTER);
     show('s-event');
   }
 
@@ -150,10 +207,10 @@ export function createEncounterController({ state, ports }) {
     const healAmt = hasR('forge') ? 20 : 12;
     const av = RELICS.filter(r => !has(G.relics, r.id));
     const opts = [
-      { cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
+      { id: 'rest:heal', cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
         const R = state.G; R.hp = Math.min(R.maxhp, R.hp + healAmt); return '你睡了个好觉。';
       } },
-      { cat: 'event', ic: '🧭', t: '研究地图', d: '回复 6 点生命并获得 40 金币', fn: () => {
+      { id: 'rest:map', cat: 'event', ic: '🧭', t: '研究地图', d: '回复 6 点生命并获得 40 金币', fn: () => {
         const R = state.G;
         R.hp = Math.min(R.maxhp, R.hp + 6);
         R.gold = goldGain(40);
@@ -162,7 +219,7 @@ export function createEncounterController({ state, ports }) {
     ];
     if (av.length) {
       const r = pick(av);
-      opts.push({ cat: 'relic', ic: r.ic, t: '冥想 · ' + r.n, d: r.d, fn: () => {
+      opts.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic, t: '冥想 · ' + r.n, d: r.d, fn: () => {
         const R = state.G;
         R.relics.push(r.id);
         sfx.relic();
@@ -174,18 +231,25 @@ export function createEncounterController({ state, ports }) {
     opts.forEach(o => {
       const b = cardButton(o);
       b.onclick = () => {
+        if (!canAct()) return;
         if (state.G !== run) return;
-        if (rbox._used) return;
-        rbox._used = true;
-        toast(o.fn() || '');
-        scheduleRun(() => {
-          if (state.G !== run) return;
-          if (node) node.done = true;
-          advance();
-        }, 900);
+        mutate(() => {
+          if (rbox._used) return;
+          rbox._used = true;
+          toast(o.fn() || '');
+          if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
+          if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
+          scheduleRun(() => {
+            if (state.G !== run) return;
+            if (node) node.done = true;
+            advance();
+          }, 900);
+        });
       };
       $('rPicks').appendChild(b);
     });
+    publish(describe('rest', opts, { node }));
+    if (setPhase) setPhase(PHASE_ENCOUNTER);
     show('s-rest');
   }
 
@@ -200,17 +264,17 @@ export function createEncounterController({ state, ports }) {
     const sbox = $('rPicks');
     sbox.innerHTML = '';
     const opts = [
-      { cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: () => {
+      { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: () => {
         const S = state.G;
         if (S.gold < 45) return '金币不够。';
         S.gold -= 45; S.hp = Math.min(S.maxhp, S.hp + 35); return '伤口愈合了。';
       } },
-      { cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币', d: '下一场战斗 +3 次提示', fn: () => {
+      { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币', d: '下一场战斗 +3 次提示', fn: () => {
         const S = state.G;
         if (S.gold < 40) return '金币不够。';
         S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
       } },
-      { cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
+      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
         const S = state.G;
         if (S.gold < 70) return '金币不够。';
         S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
@@ -219,7 +283,7 @@ export function createEncounterController({ state, ports }) {
     const av = RELICS.filter(r => !has(G.relics, r.id));
     if (av.length) {
       const r = pick(av);
-      opts.push({ cat: 'relic', ic: r.ic, t: r.n + ' · 80 金币', d: r.d, fn: () => {
+      opts.push({ id: 'shop:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n + ' · 80 金币', d: r.d, fn: () => {
         const S = state.G;
         if (S.gold < 80) return '金币不够。';
         S.gold -= 80; S.relics.push(r.id); sfx.relic(); applyRelicInit(); return '你买下了 ' + r.n + '！';
@@ -228,7 +292,7 @@ export function createEncounterController({ state, ports }) {
     // 卖道具：只卖玩家还没拿满的
     const shopItems = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max)).slice(0, 3);
     shopItems.forEach(it => {
-      opts.push({ cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币', d: it.d, tip: it.tip, fn: () => {
+      opts.push({ id: 'shop:item:' + it.id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币', d: it.d, tip: it.tip, fn: () => {
         const S = state.G;
         if (S.gold < it.price) return '金币不够。';
         S.gold -= it.price; S.bag[it.id] = (S.bag[it.id] | 0) + 3;
@@ -236,22 +300,40 @@ export function createEncounterController({ state, ports }) {
         return '获得 ' + it.n + ' ×3！';
       } });
     });
-    opts.push({ cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true, fn: () => '你空手离开了。' });
+    opts.push({ id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true, fn: () => '你空手离开了。' });
     const run = state.G, node = run && run.node;
     const now = () => Date.now();
     opts.forEach(o => {
       const b = cardButton(o);
       b.onclick = () => {
+        if (!canAct()) return;
         if (state.G !== run) return;                   // 旧商店界面不得操作新远征
-        if (o.leave) { if (node) node.done = true; advance(); return; }
-        const t = now();
-        if (b._at && t - b._at < CLICK_CD_MS) return;   // 仅防手滑连点扣两次金币
-        b._at = t;
-        const m = o.fn();
-        if (m) toast(m);
+        mutate(() => {
+          if (o.leave) {
+            if (node) node.done = true;
+            // ★ chosenId 必须在 setPhase(ENCOUNTER_DONE) **之前**发布。
+            //   advance 有 400ms 双击去重窗口（快速 advance→shop→leave 正好落在这里），
+            //   locked 时相位停在 encounter-done；此刻若描述里没有 chosenId，
+            //   codec 的 needChoice 判据会把这份快照判成 invalid —— 刷新后整局丢失。
+            if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
+            if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
+            advance();
+            return;
+          }
+          const t = now();
+          if (b._at && t - b._at < CLICK_CD_MS) return;   // 仅防手滑连点扣两次金币
+          b._at = t;
+          const m = o.fn();
+          if (m) toast(m);
+          // 买东西不推进层数：相位仍是 encounter，快照里带着「已扣钱」的 G 落盘。
+          // 刷新后回到同一屏商店，钱已经扣过，不会免费重买。
+          if (publishEncounter) publishEncounter(current());
+        });
       };
       sbox.appendChild(b);
     });
+    publish(describe('shop', opts, { node, gold: G.gold }));
+    if (setPhase) setPhase(PHASE_ENCOUNTER);
     show('s-rest');
   }
 
@@ -259,36 +341,31 @@ export function createEncounterController({ state, ports }) {
      gold = 本场结算金币（文案用），unfinished = 没拼完的词（可为 null）。
      ★ b.rewardTaken 闸门：整块奖励面板只能兑现一次。原版 opts.forEach 直接 b.onclick=o.fn，
        连点三张卡就能同时拿走回血 + 遗物 + 道具。 */
-  function showBattleRewards(gold, unfinished) {
+  /* ★ roll 与 show 分离：winFight 那一刻就把候选卡 roll 出来并存进快照，
+     展示只是延迟 900ms 把它们画出来。这样「在 900ms 里暂停/刷新」恢复时
+     用的仍是同一批卡（不会重新 roll 出别的遗物），而且快照里已经带着卡面。 */
+  function rollBattleRewards(gold, unfinished) {
     const B = state.B, G = state.G;
-    if (!B || !G) return false;
-    if (B.rewardTaken) return false;                    // 只能领一次
-    const acc = clamp(Math.round(G.attOk / Math.max(1, G.att) * 100), 0, 100);
-    show('s-pick');
-    $('pTitle').textContent = B.boss ? '🎉 击败词汇之王！' : B.elite ? '☠️ 精英击破！' : '⚔️ 战斗胜利！';
-    $('pSub').textContent = '击杀 ' + B.foe.ic + ' ' + B.foe.n + ' · 正确率 ' + acc + '% · 最高连击 ' + B.maxCombo +
-      ' · 获得 ' + gold + ' 金币' + (unfinished ? ' · ⚠️「' + unfinished + '」没拼完，不算学会' : '');
-    const picks = $('pPicks');
-    picks.innerHTML = '';
+    if (!B || !G) return null;
     const opts = [];
     if (!B.boss) {
       const heal = Math.round(12 + B.enMax * 0.12);
       // 回血要作用在 B.myHp 上，否则会被 finishNode 的结转覆盖
-      opts.push({ cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + heal + ' 点生命', fn: () => {
+      opts.push({ cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + heal + ' 点生命', id: 'reward:heal', fn: () => {
         const S = state.G, b = state.B;
         b.myHp = Math.min(S.maxhp, b.myHp + heal);
         finishNode();
       } });
     }
     if (hasR('scholar') && rnd(3) === 0) {
-      opts.push({ cat: 'boost', ic: '🃏', t: '先知卡', d: '下一场战斗开始时，自动揭示一个字母', fn: () => {
+      opts.push({ cat: 'boost', ic: '🃏', t: '先知卡', d: '下一场战斗开始时，自动揭示一个字母', id: 'reward:seer', fn: () => {
         state.G.nextHint = true;
         finishNode();
       } });
     }
     const availRel = RELICS.filter(r => !has(G.relics, r.id));
     if (availRel.length) {
-      shuffle(availRel).slice(0, 3).forEach(r => opts.push({ cat: 'relic', ic: r.ic, t: r.n, d: r.d, fn: () => {
+      shuffle(availRel).slice(0, 3).forEach(r => opts.push({ cat: 'relic', ic: r.ic, t: r.n, d: r.d, id: 'reward:relic:' + r.id, fn: () => {
         const S = state.G;
         S.relics.push(r.id);
         sfx.relic();
@@ -302,7 +379,7 @@ export function createEncounterController({ state, ports }) {
       const drop = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max))[0];
       if (drop) {
         const n = B.boss ? 3 : (B.elite ? 2 : 1);
-        opts.push({ cat: 'item', ic: drop.ic, t: drop.n + ' ×' + n, d: drop.d, tip: drop.tip, fn: () => {
+        opts.push({ cat: 'item', ic: drop.ic, t: drop.n + ' ×' + n, d: drop.d, tip: drop.tip, id: 'reward:item:' + drop.id, fn: () => {
           const S = state.G;
           S.bag[drop.id] = (S.bag[drop.id] | 0) + n;
           sfx.coin();
@@ -311,15 +388,40 @@ export function createEncounterController({ state, ports }) {
         } });
       }
     }
-    if (!opts.length) opts.push({ cat: 'none', ic: '✅', t: '继续前进', d: '没有更多奖励了', fn: finishNode });
+    if (!opts.length) opts.push({ cat: 'none', ic: '✅', t: '继续前进', d: '没有更多奖励了', id: 'reward:next', fn: finishNode });
+    // ★ roll 完立刻发布检查点。胜利后到展示之间有 900ms，玩家完全可能在这段
+    //   空窗里暂停或杀掉页面 —— 没有这份描述，reward 相位的快照会因为「缺
+    //   encounter」被判为损坏，刷新后反而进不去这一局。
+    publish(describe('reward', opts, { gold, unfinished, node: B.node }));
+    if (setPhase) setPhase(PHASE_REWARD);
+    return { opts, gold, unfinished, boss: !!B.boss, elite: !!B.elite, node: B.node };
+  }
 
+  /* 把已经 roll 好的一批卡画出来：这一步不再有任何随机。 */
+  function showRolledRewards(rolled) {
+    if (!rolled) return false;
+    const B = state.B, G = state.G;
+    if (!B || !G) return false;
+    if (B.rewardTaken) return false;                    // 只能领一次
+    const acc = clamp(Math.round(G.attOk / Math.max(1, G.att) * 100), 0, 100);
+    const { opts, gold, unfinished } = rolled;
+    show('s-pick');
+    $('pTitle').textContent = rolled.boss ? '🎉 击败词汇之王！' : rolled.elite ? '☠️ 精英击破！' : '⚔️ 战斗胜利！';
+    $('pSub').textContent = '击杀 ' + B.foe.ic + ' ' + B.foe.n + ' · 正确率 ' + acc + '% · 最高连击 ' + B.maxCombo +
+      ' · 获得 ' + gold + ' 金币' + (unfinished ? ' · ⚠️「' + unfinished + '」没拼完，不算学会' : '');
+    const picks = $('pPicks');
+    picks.innerHTML = '';
     // 兑现闸门：先确认还是同一场战斗、还没领过奖，再改状态。
     const take = o => {
+      if (!canAct()) return false;
       if (state.B !== B || state.G !== G) return false;   // 战斗已经换掉：旧按钮失效
       if (B.rewardTaken) return false;                     // 重复领奖无效
-      B.rewardTaken = true;
-      o.fn();
-      return true;
+      // 领奖的副作用（回血/遗物/道具/结转/推进）与快照必须同一次提交。
+      return mutate(() => {
+        B.rewardTaken = true;
+        o.fn();
+        return true;
+      });
     };
     opts.forEach(o => {
       const b = cardButton(o);
@@ -328,9 +430,242 @@ export function createEncounterController({ state, ports }) {
     });
     const skip = $('pSkip');
     skip.style.display = opts.length > 1 ? '' : 'none';
-    skip.onclick = () => { if (opts.length) take(opts[0]); else { B.rewardTaken = true; finishNode(); } };
+    skip.onclick = () => {
+      if (!canAct()) return;
+      if (opts.length) take(opts[0]); else mutate(() => { B.rewardTaken = true; finishNode(); });
+    };
+    // 相位切到「待领奖」：金币在 winFight 时已入账，这里只把「还剩这些卡可领」记下来。
+    // 刷新后靠这份描述重建同一批卡 —— 不重新 roll，玩家也刷不出额外遗物。
+    publish(describe('reward', opts, { gold, unfinished, node: rolled.node }));
+    if (setPhase) setPhase(PHASE_REWARD);
     return true;
   }
+  /* 兼容旧调用：现 roll 再画。真实路径走 winFight 的 roll + 延迟 show。 */
+  function showBattleRewards(gold, unfinished) {
+    return showRolledRewards(rollBattleRewards(gold, unfinished));
+  }
 
-  return { showEvent, showRest, showShop, showBattleRewards };
+  /* ---------- 暂停恢复：按快照里的描述重建同一屏 ----------
+   * desc 只含 id 与展示字段，所以这里必须把 id 映射回**原来的选项对象**
+   * （含它的 fn），才能在恢复后继续正常生效。
+   * 映射不上的 id 一律跳过：宁可少一张卡，也不得凭空执行未知动作。 */
+  function optionById(kind, desc, id) {
+    let table = null;
+    if (kind === 'event') {
+      const e = EVENTS.filter(x => x.t === (desc && desc.title))[0];
+      table = e ? e.o : null;
+    } else if (kind === 'rest') {
+      const G = state.G;
+      const healAmt = hasR('forge') ? 20 : 12;
+      table = [
+        { id: 'rest:heal', cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
+          const R = state.G; R.hp = Math.min(R.maxhp, R.hp + healAmt); return '你睡了个好觉。';
+        } },
+        { id: 'rest:map', cat: 'event', ic: '🧭', t: '研究地图', d: '回复 6 点生命并获得 40 金币', fn: () => {
+          const R = state.G; R.hp = Math.min(R.maxhp, R.hp + 6); R.gold = goldGain(40);
+          return '你规划了路线，还捡到了钱。';
+        } },
+      ];
+      // 营火同理：冥想卡按 id 全量铺开，快照里那张才能原样恢复。
+            for (const r of RELICS) table.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic,
+              t: '冥想 · ' + r.n, d: r.d, fn: () => {
+                const R = state.G; R.relics.push(r.id); sfx.relic(); applyRelicInit();
+                return '你获得了 ' + r.n + '！';
+              } });
+    } else if (kind === 'shop') {
+      const G = state.G;
+      table = [
+        { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: () => {
+          const S = state.G; if (S.gold < 45) return '金币不够。';
+          S.gold -= 45; S.hp = Math.min(S.maxhp, S.hp + 35); return '伤口愈合了。';
+        } },
+        { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币', d: '下一场战斗 +3 次提示', fn: () => {
+          const S = state.G; if (S.gold < 40) return '金币不够。';
+          S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
+        } },
+        { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
+          const S = state.G; if (S.gold < 70) return '金币不够。';
+          S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
+        } },
+      ];
+      // 遗物/道具候选表按 id 全量铺开（而不是重新 pick 一个）：
+            // 快照里记的是**当时那一张**，重新 pick 会得到别的 id，
+            // 于是那张卡在恢复后凭空消失 —— 玩家会以为货变了。
+            for (const r of RELICS) table.push({ id: 'shop:relic:' + r.id, cat: 'relic', ic: r.ic,
+              t: r.n + ' · 80 金币', d: r.d, fn: () => {
+                const S = state.G; if (S.gold < 80) return '金币不够。';
+                S.gold -= 80; S.relics.push(r.id); sfx.relic(); applyRelicInit();
+                return '你买下了 ' + r.n + '！';
+              } });
+      for (const it of ITEMS) table.push({
+        id: 'shop:item:' + it.id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币',
+        d: it.d, tip: it.tip, fn: () => {
+          const S = state.G; if (S.gold < it.price) return '金币不够。';
+          S.gold -= it.price; S.bag[it.id] = (S.bag[it.id] | 0) + 3; sfx.coin();
+          return '获得 ' + it.n + ' ×3！';
+        } });
+      table.push({ id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true,
+        fn: () => '你空手离开了。' });
+    } else if (kind === 'reward') {
+      const B = state.B, G = state.G;
+      if (!B || !G) return null;
+      const heal = Math.round(12 + B.enMax * 0.12);
+      table = [{ id: 'reward:heal', cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + heal + ' 点生命', fn: () => {
+        const S = state.G, b = state.B; b.myHp = Math.min(S.maxhp, b.myHp + heal); finishNode();
+      } }];
+      table.push({ id: 'reward:seer', cat: 'boost', ic: '🃏', t: '先知卡',
+        d: '下一场战斗开始时，自动揭示一个字母', fn: () => { state.G.nextHint = true; finishNode(); } });
+      for (const r of RELICS) table.push({ id: 'reward:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n, d: r.d, fn: () => {
+        const S = state.G; S.relics.push(r.id); sfx.relic(); toast('获得遗物：' + r.n);
+        applyRelicInit(); finishNode();
+      } });
+      for (const it of ITEMS) table.push({ id: 'reward:item:' + it.id, cat: 'item', ic: it.ic,
+        t: it.n + ' ×' + (B.boss ? 3 : B.elite ? 2 : 1), d: it.d, tip: it.tip, fn: () => {
+          const S = state.G, n = B.boss ? 3 : (B.elite ? 2 : 1);
+          S.bag[it.id] = (S.bag[it.id] | 0) + n; sfx.coin(); toast('🎒 获得 ' + it.n + ' ×' + n);
+          finishNode();
+        } });
+      table.push({ id: 'reward:next', cat: 'none', ic: '✅', t: '继续前进', d: '没有更多奖励了', fn: finishNode });
+    }
+    if (!table) return null;
+    return table.filter(o => o.id === id)[0] || null;
+  }
+
+  // 恢复用：把快照描述里的每张卡换成带 fn 的真实选项，再画回原界面。
+  function reopenEncounter(desc) {
+    if (!desc || !Array.isArray(desc.options)) return false;
+    const opts = [];
+    let unmapped = 0;
+    for (const o of desc.options) {
+      const real = optionById(desc.kind, desc, o.id);
+      // ★ 展示字段用快照里的**原文**（玩家暂停前看到的那一版），转义只发生在
+      //   cardButton 的渲染边界（{untrusted:true}）。opts 保持原文，publish() 存回
+      //   快照的也是原文 —— 否则 reopen → publish → reopen 会把 & 再转义一次。
+      //   动作则用真实选项的 fn：快照只决定「显示成什么样」，永远不决定「做什么」。
+      if (!real) { unmapped++; continue; }
+      opts.push(Object.assign({}, real, {
+        cat: o.cat, ic: o.ic, t: o.t, d: o.d,
+        tip: o.tip, leave: !!o.leave,
+      }));
+    }
+    // 一张都映射不上：既不能把玩家留在点不动的界面上，也不能一声不响丢回地图。
+    if (!opts.length) {
+      toast('这张事件卡无法恢复，请回到地图重新选择');
+      return false;
+    }
+    if (unmapped) toast('有 ' + unmapped + ' 张卡无法恢复，已跳过');
+
+    const node = desc.node || (state.G && state.G.node);
+    const run = state.G;
+    if (desc.kind === 'event') {
+      $('eIcon').textContent = desc.icon || '';
+      $('eTitle').textContent = desc.title || '';
+      $('eText').textContent = desc.text || '';
+      const box = $('ePicks');
+      box.innerHTML = ''; box._kids = [];
+      // ★ 已有 chosenId 说明这个选项的副作用已经生效过：必须重新置为「已用」。
+      //   否则恢复后玩家能再点一次营火/事件，把回血、遗物、金币再拿一遍。
+      box._used = !!desc.chosenId;
+      opts.forEach(o => {
+        const b = cardButton(o, { untrusted: true });
+        b.onclick = () => {
+          if (!canAct()) return;
+          if (state.G !== run || box._used) return;
+          mutate(() => {
+            box._used = true;
+            toast(o.fn() || '');
+            if (state.G.hp <= 0) { endRun(false); return; }
+            if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
+            if (publishEncounter) publishEncounter(Object.assign({}, desc, { chosenId: o.id }));
+            scheduleRun(() => { if (state.G !== run) return; if (node) node.done = true; advance(); }, 1100);
+          });
+        };
+        box.appendChild(b);
+      });
+      publish(Object.assign({}, desc, { options: opts.map(o => ({ id: o.id, cat: o.cat, ic: o.ic, t: o.t, d: o.d, tip: o.tip })) }));
+      show('s-event');
+      return true;
+    }
+    if (desc.kind === 'rest' || desc.kind === 'shop') {
+      const G = state.G;
+      $('rTitle').textContent = desc.kind === 'shop' ? '商店 🛒' : '营火 🔥';
+      $('rSub').textContent = desc.kind === 'shop' ? ('你的金币：' + G.gold + ' 枚 —— 用金币强化自己') : '只能选择一项';
+      const sbox = $('rPicks');
+      sbox.innerHTML = ''; sbox._kids = [];
+      sbox._used = !!desc.chosenId && desc.kind !== 'shop';
+      opts.forEach(o => {
+        const b = cardButton(o, { untrusted: true });
+        b.onclick = () => {
+          if (!canAct()) return;
+          if (state.G !== run) return;
+          mutate(() => {
+            if (o.leave) {
+              if (node) node.done = true;
+              // 与真实商店同序：chosenId 先发布，再切 encounter-done，再推进。
+              if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
+              if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
+              advance();
+              return;
+            }
+            if (desc.kind !== 'shop') {
+              if (sbox._used) return;
+              sbox._used = true;
+            }
+            const t = Date.now();
+            if (b._at && t - b._at < CLICK_CD_MS) return;
+            b._at = t;
+            const m = o.fn();
+            if (m) toast(m);
+            if (desc.kind === 'shop' && publishEncounter) publishEncounter(current());
+            else {
+              if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
+              if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
+              scheduleRun(() => { if (state.G !== run) return; if (node) node.done = true; advance(); },
+                desc.kind === 'shop' ? 0 : 900);
+            }
+          });
+        };
+        sbox.appendChild(b);
+      });
+      publish(Object.assign({}, desc, { options: opts.map(o => ({ id: o.id, cat: o.cat, ic: o.ic, t: o.t, d: o.d, tip: o.tip, leave: !!o.leave })) }));
+      if (setPhase) setPhase(PHASE_ENCOUNTER);
+      show('s-rest');
+      return true;
+    }
+    if (desc.kind === 'reward') {
+      const B = state.B, G = state.G;
+      if (!B || !G) return false;
+      const acc = clamp(Math.round(G.attOk / Math.max(1, G.att) * 100), 0, 100);
+      show('s-pick');
+      $('pTitle').textContent = B.boss ? '🎉 击败词汇之王！' : B.elite ? '☠️ 精英击破！' : '⚔️ 战斗胜利！';
+      $('pSub').textContent = '击杀 ' + B.foe.ic + ' ' + B.foe.n + ' · 正确率 ' + acc + '% · 最高连击 ' + B.maxCombo +
+        ' · 获得 ' + desc.gold + ' 金币' + (desc.unfinished ? ' · ⚠️「' + desc.unfinished + '」没拼完，不算学会' : '');
+      const picks = $('pPicks');
+      picks.innerHTML = '';
+      const take = o => {
+        if (!canAct()) return false;
+        if (state.B !== B || state.G !== G) return false;
+        if (B.rewardTaken) return false;
+        return mutate(() => {
+          B.rewardTaken = true;
+          o.fn();
+          return true;
+        });
+      };
+      opts.forEach(o => { const b = cardButton(o, { untrusted: true }); b.onclick = () => take(o); picks.appendChild(b); });
+      const skip = $('pSkip');
+      skip.style.display = opts.length > 1 ? '' : 'none';
+      skip.onclick = () => {
+        if (!canAct()) return;
+        if (opts.length) take(opts[0]); else mutate(() => { B.rewardTaken = true; finishNode(); });
+      };
+      publish(Object.assign({}, desc, { options: opts.map(o => ({ id: o.id, cat: o.cat, ic: o.ic, t: o.t, d: o.d, tip: o.tip })) }));
+      if (setPhase) setPhase(PHASE_REWARD);
+      return true;
+    }
+    return false;
+  }
+
+  return { showEvent, showRest, showShop, showBattleRewards, rollBattleRewards, showRolledRewards,
+    reopenEncounter, currentEncounter: current };
 }
