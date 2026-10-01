@@ -1,6 +1,9 @@
 import { clamp } from '../domain/math.js';
+import { CHANNEL } from './audio-capability.js';
 
-export function createAudio({ getCombo, environment = globalThis }) {
+/* capability 是**可选**注入：不给就完全不启用兼容层（老调用方签名不变）。
+   它只用来回答「这个浏览器到底放不放得出声音」，不参与任何发声决策。 */
+export function createAudio({ getCombo, environment = globalThis, capability = null }) {
 const PENTA=[0,2,3,7,10];        // D 小调五声音阶的半音偏移
 const PENTA_ROOT=146.83;         // 根音 D3
 function pnote(i){               // 音阶取音：0=D3 4=C4 5=D4 9=A4 12=E5 …可跨八度
@@ -10,6 +13,9 @@ function pnote(i){               // 音阶取音：0=D3 4=C4 5=D4 9=A4 12=E5 …
 const AU={
   ac:null, master:null, dry:null, send:null, conv:null, wet:null, nbuf:null,
   voices:0, maxVoices:32, vol:.55, muted:false, ready:false, lastKey:-9, lastHover:-9,
+  rebuilds:0, maxRebuilds:3,          // 上下文被浏览器关掉时换新的，但**有封顶**：防止无限重建/泄漏
+  _probeGen:0,                        // 探测代号：迟到的 resume promise 靠它认出「自己已经过期」
+  cap:capability,
   ctx(){
     const a=this.build();
     if(!a) return null;                            // 没有音频能力 → 静默降级
@@ -17,6 +23,7 @@ const AU={
     // onended 也就不会触发，voice 计数会一直堆积到上限导致「彻底没声音」。
     // 所以挂起期间直接拒绝发声，恢复时把计数清零。
     if(a.state==='suspended'){ this.voices=0; return null }
+    if(a.state==='closed') return null;            // closed 的上下文永远不会再出声
     if(a.state==='running' && this.wasSuspended){ this.voices=0; this.wasSuspended=false }
     return a;
   },
@@ -47,16 +54,67 @@ const AU={
   setVol(v){
     this.vol=clamp(v,0,1); this.muted=this.vol<=0;
     if(this.master){ try{ this.master.gain.setTargetAtTime(this.muted?0:this.vol,this.ac.currentTime,.02) }catch(e){} }
+    // ★ 静音是玩家偏好，不是故障：告诉兼容层这一路先别写结论。
+    //   解锁照旧可以跑（暖机对玩家有利），只是不会因此报「放不出声」。
+    this.report('setEnabled',CHANNEL.SFX,!this.muted);
   },
-  cleanup(nodes,done){ AU.voices--; for(let i=0;i<nodes.length;i++){ try{nodes[i].disconnect()}catch(e){} } if(done)done() },
+  /* 计数只防「脏」：cleanup 可能被重复触发（onended 之后再被 close 路径调一次），
+     也会被上一个已被换掉的 context 的迟到 onended 回调触发。
+     这里只保证不把计数扣成负数 —— 注意**不是**为了「防止闸门提前触发」：
+     负数只会让 maxVoices 闸门更宽松（更晚触发），不会更早。
+     这是纯粹的防御：脏计数不该顺着 rebuild 一路传下去。 */
+  cleanup(nodes,done){ if(this.voices>0) this.voices--; for(let i=0;i<nodes.length;i++){ try{nodes[i].disconnect()}catch(e){} } if(done)done() },
+  /* 兼容层是可选的：没注入就完全不做事，绝不改变原有发声行为。 */
+  report(fn,...args){ const c=this.cap; if(!c||typeof c[fn]!=='function') return; try{ c[fn](...args) }catch(e){} },
   /* 在真实用户手势里调用：建图 + 解除挂起。ctx() 只负责取用、不负责 resume，
-     这样任何非手势路径都不会偷偷启动 AudioContext（浏览器自动播放策略）。 */
+     这样任何非手势路径都不会偷偷启动 AudioContext（浏览器自动播放策略）。
+
+     ★ resume() 返回 promise，现代浏览器在**拒绝**时用它表达
+       「自动播放被拦 / 没有用户激活」—— 只 try/catch 抓不到这个，
+       会变成一个没人处理的 unhandledrejection。所以这里两个都要接。 */
   unlock(){
     const a=this.build();
-    if(!a) return null;
-    if(a.state!=='running'){ this.wasSuspended=true; try{ a.resume() }catch(e){} }
-    if(a.state==='running') this.voices=0;
+    if(!a){ this.report('noCapability',CHANNEL.SFX); return null }
+    this.report('beginProbe',CHANNEL.SFX);
+    if(a.state==='closed'){
+      // 浏览器关掉过的上下文永远不会再出声：换一个，但重建次数有封顶
+      if(this.rebuilds>=this.maxRebuilds){ this.report('rejectProbe',CHANNEL.SFX,'context-closed'); return null }
+      this.rebuilds++;
+      this.ac=null; this.master=this.dry=this.send=this.conv=this.wet=this.nbuf=null; this.ready=false;
+      const b=this.build();
+      if(!b){ this.report('noCapability',CHANNEL.SFX); return null }
+      return this.resumeInto(b);
+    }
+    return this.resumeInto(a);
+  },
+  /* 真正的 try+resume；成功/失败都交给兼容层下结论，自己绝不替玩家改偏好。 */
+  resumeInto(a){
+    /* ★ 单次活跃探测标记。连点两下 = 同一个上下文上两个 resume() promise，
+       先发起的那个可能**迟到地**落地（自动播放策略下很常见）。
+       原来的守卫只有 `this.ac!==a`，它只挡得住「上下文被换掉」，
+       挡不住「同一上下文上的旧 promise」：迟到的 reject 会把后一次已经拿到的
+       available 覆盖成 blocked，玩家看着一个能出声的浏览器被反复告知放不出声。
+       每次进入 resumeInto 都发一个递增代号，所有异步回调先验代号，
+       过期的直接丢弃 —— 与 speech.js 的 _obsSeq 同一套思路。 */
+    const gen = ++this._probeGen;
+    const live = () => this._probeGen === gen && this.ac === a;
+    if(a.state==='running'){ this.report('resolveProbe',CHANNEL.SFX,{state:'running'}); this.voices=0; return a }
+    this.wasSuspended=true;
+    let p=null;
+    try{ p=a.resume() }catch(e){ this.report('rejectProbe',CHANNEL.SFX,e&&e.message||e); return a }
+    if(p&&typeof p.then==='function'){
+      p.then(()=>{ if(!live()) return; this.report('resolveProbe',CHANNEL.SFX,{state:a.state}); if(a.state==='running') this.voices=0 },
+             err=>{ if(!live()) return; this.report('rejectProbe',CHANNEL.SFX,err&&err.message||err) });
+    }
+    // promise 还没落地时先按当前 state 记一次：仍挂着就交给超时判定
+    this.report('resolveProbe',CHANNEL.SFX,{state:a.state});
     return a;
+  },
+  /* 页面可见性变化。★ 回到前台**绝不**自动 resume：
+     自动播放策略只认真实用户手势，偷跑一次会把「能发声」永久变成「不能发声」。
+     这里只把兼容层标记成「等下一次手势重试」，由父层在 pointerdown/keydown 里再调 unlock()。 */
+  handleVisibility(){
+    return null;
   },
   /* 建图（幂等）。只在这里创建节点，ctx()/unlock() 共用。 */
   build(){

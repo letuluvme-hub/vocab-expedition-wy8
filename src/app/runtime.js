@@ -44,6 +44,8 @@ import { ENEMIES, BOSS } from '../data/enemies.js';
 import { VOICE_LINES, FOE_LINES, ELITE_LINES } from '../data/voice-lines.js';
 import { foeArtHTML } from '../ui/components/monster-art.js';
 import { createAudioSettings, nearestVolStep } from '../ui/components/audio-settings.js';
+import { createAudioCapability, CHANNEL } from '../services/audio-capability.js';
+import { createAudioCompatibility } from '../ui/components/audio-compatibility.js';
 
 // Transitional coordinator: preserve original event ordering during extraction.
 export function startGame() {
@@ -248,7 +250,16 @@ const mutate=fn=>{
    每个 voice 用完即弃（osc.onended 回收并 disconnect），并有 voice 数上限，
    连续快速答对不会堆积节点、也不会削波爆音。
    无 AudioContext 环境（Node / 老浏览器）全部静默降级，不抛错。            */
-const { AU,sfx,tone,noise,arp,pnote,audioUnlock }=createAudio({getCombo:()=> (typeof B!=='undefined'&&B&&typeof B.combo==='number')?B.combo:0});
+/* ★ 兼容层实例必须在 audio / speech **之前**建好：两者都要注入它。
+   顺序反了就成了两个服务拿到 undefined，探测结果没人接 —— 表现就是
+   「微信里没声音，但游戏从不提示」，也就是这个功能白做。
+   提示条组件在下面才 mount（它要往主页 DOM 里画），所以用 let 先占位：
+   onStatus 回调里用 ?. 读，mount 之前的状态变化只更新数据不画，
+   mount 时的那次 paint() 会把最新状态补上 —— 于是不存在 TDZ，也不丢状态。 */
+let audioCompatibility=null;
+const audioCapability=createAudioCapability({onStatus:()=>{ try{ audioCompatibility&&audioCompatibility.paint() }catch(e){} }});
+
+const { AU,sfx,tone,noise,arp,pnote,audioUnlock }=createAudio({getCombo:()=> (typeof B!=='undefined'&&B&&typeof B.combo==='number')?B.combo:0, capability:audioCapability});
 addEventListener('pointerdown',audioUnlock);
 addEventListener('keydown',audioUnlock);
 addEventListener('touchstart',audioUnlock);
@@ -262,7 +273,10 @@ let volStep=0;
   v=clamp(v,0,1);
   volStep=nearestVolStep(v);
   if(DB.mute && v>0) volStep=0;
-  AU.vol=VOL_STEPS[volStep]; AU.muted=v<=0;
+  /* ★ 走 setVol 而不是直接赋值：setVol 内部会把「玩家要不要这一路声音」
+     告诉兼容层。直接写 AU.vol 会让兼容层一直以为音效是开着的 ——
+     一个静音的玩家照样会收到「浏览器放不出音效」的提示。 */
+  AU.setVol(v<=0?0:VOL_STEPS[volStep]);
 })();
 const saveVol=()=>{ DB.vol=AU.vol; DB.mute=AU.muted; saveDB(); commit(false) };
 /* UI 点击 / 悬停提示音（事件委托，只作用于主要按钮和地图节点） */
@@ -320,7 +334,8 @@ const heroVoice = id => heroById(id).voice || HERO_VOICE_DEFAULT;
    标脏后没有后续动作来触发提交，于是「内存已关、盘上还是开」——
    刷新一次语音自己回来了。commit(false) 在事务内部会自动延期到最外层。 */
 const TTS=createSpeech({heroVoice,curHeroId,rnd,voiceLines:VOICE_LINES,foeLineCfg,
-  onChange:enabled=>{DB.voice=enabled;saveDB();commit(false)}});
+  onChange:enabled=>{DB.voice=enabled;saveDB();commit(false)},
+  capability:audioCapability});
 
 /* ---- 语音层的启动挂钩 ----
    1) 浏览器自动播放策略：speechSynthesis 必须先有用户手势才肯发声。
@@ -335,7 +350,11 @@ if(typeof addEventListener==='function'){
   addEventListener('touchstart',ttsUnlock);
 }
 /* 起手就按存档设置语音开关（老存档没这字段 → DB.voice 默认 true） */
-try{ TTS.on = (typeof DB!=='undefined' && DB.voice!==undefined) ? !!DB.voice : true }catch(e){}
+/* ★ 走 setOn 而不是直接写 TTS.on：setOn 内部会把「玩家要不要朗读」告诉兼容层。
+   直接赋值的话兼容层以为朗读一直开着 —— 一个本来就把朗读关掉的玩家，
+   只要碰巧在没 speechSynthesis 的平台上，就会被弹「浏览器不支持朗读」。
+   顺序：音量与朗读两个偏好都落到服务上之后，兼容层才知道该不该下结论。 */
+try{ TTS.setOn((typeof DB!=='undefined' && DB.voice!==undefined) ? !!DB.voice : true) }catch(e){}
 
 /* ---- 怪物叫声：走 WebAudio 合成，不走 TTS。
    判断依据：怪物的「语言」不是英语，用英文 TTS 念怪叫既不像怪叫、又会占用
@@ -883,6 +902,19 @@ const audioSettings=createAudioSettings({
     if(force===true) TTS.setOn(true); else TTS.toggle();
     audioSettings.paint(); paintSayBtn(); if(TTS.on) sfx.ui() },
 }).mount();
+/* ---- 音频兼容提示条：挂在主页声音设置区下面（index.html 里的 #audioCompatibility）----
+ * 放在 audio-settings 之后 mount：两个容器在 HTML 里也是这个顺序，提示条是对
+ * 声音设置的补充说明。create 返回 { mount, paint }，**不是** refs ——
+ * 写成 const compat=xxx.mount() 会把 mount 的返回值当组件用，下一次 paint 拿不到。
+ *
+ * onRetry 只能派发、不能自己 resume：重试必须发生在**真实手势**里，
+ * 而这个 onclick 本身就在一次真实点击中，正好满足自动播放策略。
+ * ★ 绝不顺手替玩家把静音/关掉的朗读开回来 —— 那是他的偏好，不是故障。 */
+audioCompatibility=createAudioCompatibility({
+  capability:audioCapability,
+  onRetry:()=>{ try{ AU.unlock() }catch(e){} try{ TTS.unlock() }catch(e){} }
+});
+audioCompatibility.mount($('audioCompatibility'));
 // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged 再重画一次
 // 设置区 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
 try{
