@@ -79,6 +79,23 @@ function encodeWord(w) {
 /* campaign：单元解锁主线（docs/feature-campaign.md）。startedUnit = 这一轮从哪个
  * 单元开始（跨单元过渡时不变），segments = 这一轮走过几段学习地图（不是次数）。
  * 旧快照没有这个字段：解码时按 r.unit 保守回落，绝不凭空改成别的单元。 */
+/* 本轮完成范围（docs/feature-rounds.md）。合法值是 0..6 的单元号（0 = 自定义词表）：
+ *   编码侧去重 + 排序（跨刷新后顺序不该漂移）；脏项直接丢掉而不是原样发布 ——
+ *   快照是外部输入，run 上的字段可能已经被改坏。
+ *   缺失 / 空数组都是合法形状（这一轮还没有任何整词完成的证据）。 */
+function encodeCompletedUnits(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  for (const u of list) {
+    if (isInt(u) && u >= 0 && u <= 6) seen.add(u);
+  }
+  return Array.from(seen).sort((a, b) => a - b);
+}
+function decodeCompletedUnits(list) {
+  // 形状已在 validRun 里 fail closed 过；这里只做去重（存档里出现重复不算损坏）。
+  return Array.from(new Set(list)).sort((a, b) => a - b);
+}
+
 function encodeCampaign(c, unit) {
   if (!isObj(c)) return { startedUnit: unit, segments: 1 };
   return {
@@ -93,6 +110,13 @@ function encodeRun(run) {
     || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : '');
   return {
     unit: run.unit, id: run.id,
+    // roundId / roundNumber / completedUnits 是**可选**的一组新字段（docs/feature-rounds.md）：
+    //   roundId      —— 持久轮次身份（crypto.randomUUID，由 runtime 注入）。空串 = 没有。
+    //   roundNumber  —— 真正开局之后从 DB.runs 取的轮次编号。0 = 没有（旧 run / 旧快照）。
+    //   completedUnits —— 本轮**整词完成**的单元。到过某个单元、打过 BOSS 都不算。
+    roundId: (typeof run.roundId === 'string' && run.roundId) ? run.roundId : '',
+    roundNumber: (isInt(run.roundNumber) && run.roundNumber > 0) ? run.roundNumber : 0,
+    completedUnits: encodeCompletedUnits(run.completedUnits),
     campaign: encodeCampaign(run.campaign, run.unit),
     countedStart: !!run.countedStart, clearedRun: !!run.clearedRun,
     // clearedSegment（可缺）：旧 run 没有就按 clearedRun 保守回落 —— 宁可少结算一次，
@@ -221,6 +245,15 @@ function validRun(r) {
   if (r.clearedSegment !== undefined && r.clearedSegment !== null && !isBool(r.clearedSegment)) return false;
   // 空串是编码侧的「还没有卡」表示，合法；非字符串（数字/对象/布尔）才是脏值。
   if (r.rewardId !== undefined && r.rewardId !== null && typeof r.rewardId !== 'string') return false;
+  // 轮次字段同样可选：旧快照完全没有它们是合法的（解码后保持 undefined，绝不补填）。
+  // 一旦出现就必须形状合法 —— 「有编号但不是整数」这类脏值整份 fail closed。
+  if (r.roundId !== undefined && r.roundId !== null && typeof r.roundId !== 'string') return false;
+  if (r.roundNumber !== undefined && r.roundNumber !== null
+    && !(isInt(r.roundNumber) && r.roundNumber >= 0)) return false;
+  if (r.completedUnits !== undefined && r.completedUnits !== null) {
+    if (!Array.isArray(r.completedUnits)) return false;
+    if (r.completedUnits.some(u => !isInt(u) || u < 0 || u > 6)) return false;
+  }
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -257,6 +290,10 @@ function decodeRun(r, byId) {
   const ref = id => (id === null || id === undefined ? null : byId.get(id) || undefined);
   const run = {
     unit: r.unit, id: isStr(r.id) ? r.id : 'R-restored',
+    // 轮次身份/编号：0 与空串都是「没有」→ undefined，绝不从 DB.runs 之类的别处补。
+    roundId: isStr(r.roundId) ? r.roundId : undefined,
+    roundNumber: (isInt(r.roundNumber) && r.roundNumber > 0) ? r.roundNumber : undefined,
+    completedUnits: Array.isArray(r.completedUnits) ? decodeCompletedUnits(r.completedUnits) : [],
     countedStart: r.countedStart, clearedRun: r.clearedRun,
     // clearedSegment：旧快照缺这个字段 → 保守按 clearedRun 回落（宁可少结算一次）。
     clearedSegment: isBool(r.clearedSegment) ? r.clearedSegment : !!r.clearedRun,

@@ -1,7 +1,10 @@
 import { parseCustomWords } from '../domain/custom-words.js';
 import { createCombatController } from './combat.js';
 import { createEncounterController } from './encounters.js';
-import { createRun, advanceRun, finishBattleNode, endRunProgress, isDuplicateRunStart, registerRunStart } from '../domain/run.js';
+import { createRun, advanceRun, finishBattleNode, endRunProgress, syncRoundCard, isDuplicateRunStart, registerRunStart } from '../domain/run.js';
+import { assignRoundId } from '../domain/run.js';
+import { newRoundId, noteRoundUnitComplete } from './rounds.js';
+import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
 import { drawWord as selectWord, isPoolComplete } from '../domain/word-selection.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
@@ -419,6 +422,11 @@ function newRun(){
   lifecycle.resetRun();TTS.stop();B=null;
   OUTCOME=null;
   G=createRun(curUnit,curHero(),pool);
+  // ★ 轮次身份（docs/feature-rounds.md）：这里注入一个持久 roundId。
+  //   它必须不同于进程内自增的 run.id（R1/R2…，刷新后会重复）。
+  //   轮次**编号**不在这儿取：registerRunStart 在真正 +1 之后从 DB.runs 取，
+  //   所以「是不是真正新开一轮」和「这是第几轮」永远是同一个事实。
+  assignRoundId(G,newRoundId());
   // ★ 远征次数的唯一入口：真正新开一轮才 +1，恢复/读档不经过这里。
   registerRunStart(DB,G);applyRelicInit();saveDB();
   ENCOUNTER=null; setPhase(PHASE.MAP);
@@ -596,6 +604,14 @@ function showLearningComplete(){
   // 词池抽干 = 本单元目标词全部完整拼对：这是**真实**的完成事实，值得记一次。
   // 幂等（domain 内部挡重复），且不改任何次数。
   if(recordUnitComplete(DB,G.unit)) saveDB();
+  // ★ 本轮完成范围（docs/feature-rounds.md）：词池抽干是「本轮把这个单元的
+  //   目标词全部整词拼对」的真实证据，记一次。到过某个单元不算。
+  if(noteRoundUnitComplete(G)) saveDB();
+  // ★ 本轮范围刚变长，这一轮**已经拿到**的那张卡必须立刻同步（L2）：
+  //   玩家在这个检查点可以直接「结束本轮学习」——明确放弃、不做战败结算，
+  //   但放弃之前学完的词是真实事实，绝不能因为没再打一次 BOSS 就留在旧卡上。
+  //   syncRoundCard 只更新已有卡：不 mint、不结算、不动 wins / earnedAt。
+  if(syncRoundCard(G,DB)) saveDB();
   ENCOUNTER=null; setPhase(PHASE.LEARNING_COMPLETE);
   lifecycle.pause();                       // 冻结在途延迟任务：这一局不再往前跑
   show('s-learning-complete');
@@ -686,11 +702,21 @@ function nextUnit(){
   //   但它返回 null 时已经太晚：carryLiveHp / recordUnitComplete 都写过状态了。
   //   所以这里先自己判一次，绝不在「注定被拒」的过渡上留下任何副作用。
   if(facts.from!==G.unit) return campaignRefuse({reason:'phase'});
+  // ★ **过渡之前**先抓住本单元的真实词池。applyUnitTransition 会把 G.pool 换成下一个
+  //   单元的词池，那时再看 G 就分不清「Unit 1 的词答完了没有」（run.done 是跨单元
+  //   累计的，不会被过渡清空，所以词池是唯一需要提前抓住的那一半）。
+  //   解锁口径（DB.mastered 历史覆盖）保持不变：历史全掌握的存档点一下继续下一单元
+  //   仍然合法，只是本轮 completedUnits 不许因此被记上。
+  const fromPool=G.pool.slice();
   const applied=applyUnitTransition(G,facts,{words:allWords(facts.to)});
   if(!applied) return campaignRefuse({reason:'phase'});
   // 过渡成功之后才结转真实血量、才记完成凭据（顺序反了就是拿 stale hp 覆盖战况）。
   carryLiveHp();
   if(recordUnitComplete(DB,facts.from)) saveDB();
+  // 用过渡前抓的真实词池判定「本轮整词完成」，而不是已经换过池的 G。
+  if(recordRoundUnitComplete(G,facts.from,{pool:fromPool})) saveDB();
+  // 合法过渡记下了新的完成范围：已有卡立刻同步（不 mint、不结算）。
+  if(syncRoundCard(G,DB)) saveDB();
   curUnit=G.unit;
   reopenRun();
   lifecycle.resetBattle();       // 上一场的迟到回调作废
@@ -1156,8 +1182,14 @@ const learningCompleteScreen=createLearningCompleteScreen({getRun:()=>G,getBattl
     else { renderTitle(); show('s-title') } },
   // 「结束本轮学习」= 主动放弃并回主页。刻意**不**走 endRun(false)：
   // 那是战败结算，会把这一轮记成「失败」并盖上失败标签，而玩家明明是自己收手的。
-  onQuit:()=>{ if(confirm('结束本轮学习？这次远征的进度会被清掉（已学会的词和掌握记录会保留）。'))
-    { progress.abandonRun(); renderTitle(); show('s-title'); toast('已结束本轮学习'); } }});
+  onQuit:()=>{ if(confirm('结束本轮学习？这次远征的进度会被清掉（已学会的词和掌握记录会保留）。')){
+    // ★ 「结束本轮学习」是**明确放弃**，不是战败结算：绝不调 endRun(false)（那会把
+    //   「放弃」写成一次败绩、还会重发统计）。但放弃之前这一轮已经拿到的那张纪念卡
+    //   仍然必须带着最新完成范围落盘 —— 同步只动元数据（completedUnits / roundComplete /
+    //   轮次身份），不 mint、不动 wins / earnedAt，所以放弃不会丢卡，也不会多卡。
+    //   saveDB 之后走一次 commit(false)：dbDirty 已标脏，最外层事务已收尾，这里直接写。
+    if(syncRoundCard(G,DB)){ saveDB(); commit(false); }
+    progress.abandonRun(); renderTitle(); show('s-title'); toast('已结束本轮学习'); } }});
 /* 暂停 → 冻结 + 存快照 + 切到暂停屏。
  * 冻结由 progress 控制器按入口逐个挡住（不是 CSS 遮罩）：暂停期间
  * 输入、道具、提示、跳过、逃跑、地图节点、事件选项、领奖、推进全部无效。 */

@@ -6,7 +6,7 @@
 import { UNITS } from '../../data/units.js';
 import { RELICS } from '../../data/relics.js';
 import { clamp } from '../../domain/math.js';
-import { rewardScope, renderRewardCard } from '../components/reward-card.js';
+import { rewardScope, rewardRoundLine, renderRewardCard } from '../components/reward-card.js';
 
 const relicById = id => RELICS.filter(r => r.id === id)[0];
 
@@ -70,7 +70,7 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   $('oIcon').textContent = win ? '🏆' : '💀';
   $('oTitle').textContent = win ? '远征成功！' : '远征结束';
   $('oText').textContent = win
-    ? '你击败了词汇之王，完成了' + rewardScope(G.unit) + '的本次远征！'
+    ? '你击败了词汇之王，完成了' + rewardScope(G.unit) + '的本次远征（' + rewardRoundLine(G.reward || {}) + '）！'
       + (bookLast ? '本册词汇已完成，可复习本单元或返回选择单元。'
         : nextOpen ? ('Unit ' + nextUnit + ' 的词汇已解锁，可以带着现有物资继续。')
           : continueOpen ? ('本单元还有 ' + uc.remaining + ' 个词没完成，完成后才能进入下一个单元。')

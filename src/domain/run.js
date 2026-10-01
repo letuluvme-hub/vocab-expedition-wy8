@@ -4,6 +4,19 @@
 // G/B/DB 换成显式参数，DOM 与存档写入留给调用方。
 import { clamp } from './math.js';
 import { generateMap } from './map.js';
+import { roundCompletion } from './campaign.js';
+
+/* ★ 轮次身份（docs/feature-rounds.md）。
+ * roundId 是**持久化**的轮次身份，必须和进程内自增的 run.id（'R1'、'R2'…）区分开：
+ *   进程重启后 RUN_SEQ 归零，run.id 会重复；roundId 不会。生成方是 runtime
+ *   （crypto.randomUUID），domain 只接收显式事实 —— 纯层不生成 id，也不猜。
+ * 脏值（数字 / 空串 / 对象）一律拒绝：绝不把垃圾变成一个看起来合法的身份。 */
+export function assignRoundId(run, roundId) {
+  if (!run) return null;
+  const ok = typeof roundId === 'string' && roundId.length > 0;
+  run.roundId = ok ? roundId : undefined;
+  return ok ? run.roundId : null;
+}
 
 export const ADV_LOCK_MS = 400;   // 双击去重窗口：够挡住连点，又短到不挡正常推进
 
@@ -42,6 +55,10 @@ export function createRun(unit, hero, pool, random = Math.random) {
     // 本轮纪念卡的 id：持久化在 run 上，让「再次结算」能认出同一张卡而不是再发一张。
     // 可缺（旧存档 / 尚未结算）；首次生成时由 endRunProgress 写上。
     rewardId: undefined,
+    // 本轮学习范围里**已被整词完成**的单元（见 domain/campaign 的
+    //   recordRoundUnitComplete）。开局恒为空：到过某个单元、打过 BOSS、跳过节点
+    //   都不是完成证据。旧存档 / 旧快照缺它时按「没有完成记录」回落。
+    completedUnits: [],
     shield: M.shield || 0, gold: M.gold || 0,
     floor: 1, maxFloor: 1,
     relics: [], skipFree: false,
@@ -101,6 +118,11 @@ export function registerRunStart(db, run, { restored = false } = {}) {
   run.countedStart = true;
   if (restored) return false;           // 恢复：占住名额但不 +1
   db.runs = (db.runs | 0) + 1;
+  // ★ 轮次编号**只在这里**取，而且取的是「这一轮真正开局之后」的 DB.runs。
+  //   不按卡片数量 / wins 猜；恢复路径（restored=true）绝不补填 —— 一个从旧存档
+  //   恢复出来的 run 本来就没有「这是第几轮」这个事实。
+  //   countedStart 已经是幂等闸门：同轮重复登记 / 恢复都碰不到这一行，编号因此固定。
+  run.roundNumber = db.runs;
   return true;
 }
 
@@ -148,6 +170,44 @@ export function finishBattleNode(run, battle, db) {
   return 'advance';
 }
 
+/* ★ 把「本轮完成范围 / 轮次身份」这些**元数据**同步到这一轮**已经存在**的纪念卡上。
+ *
+ * 它解决的是「打完 BOSS 先拿到卡，之后又把 Unit 2..6 学完」这类顺序：
+ *   卡是在结算时发的，而完成范围是在这一局剩下的时间里继续长出来的。
+ *   如果只在 endRunProgress 里更新，那这张卡在玩家**结束学习之前**永远是过时的；
+ *   玩家在词汇完成检查点按下「结束本轮学习」（明确放弃、不做战败结算），
+ *   存档里就永远留下一张「本轮完成单元：尚无」的卡 —— 已学完的事实被丢掉。
+ *
+ * 三条不能破的边界：
+ *  1) **只同步已存在的卡**：找 run.rewardId 或 run.reward 指向的那张，找不到返回
+ *     null。它绝不 mint 新卡、绝不动 db.rewards 长度。
+ *  2) **不结算**：不碰 run.result / db.wins / db.best，不动卡上 earnedAt 与 id
+ *     （那是「什么时候拿到这张卡」的事实，同步不是重新获得）。统计不在这里更新 ——
+ *     统计属于一次真实战绩，由 endRunProgress 的 win 分支负责。
+ *  3) **不改未知字段**，也不凭空补编号：roundId / roundNumber 只在卡上还没有时补一次，
+ *     已有编号的卡绝不改编号（旧卡就是旧卡）。 */
+export function syncRoundCard(run, db) {
+  if (!run || !db || !Array.isArray(db.rewards)) return null;
+  const knownId = (typeof run.rewardId === 'string' && run.rewardId)
+    || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : null);
+  if (!knownId) return null;                     // 这一轮还没有卡：不凭空 mint
+  const card = db.rewards.filter(r => r && r.id === knownId)[0];
+  if (!card) return null;                        // ★ 只同步真实存在的卡
+  if (!run.reward) run.reward = card;            // 内存侧也认同一张卡，避免再发一张
+  if (card.roundId === undefined && typeof run.roundId === 'string' && run.roundId) card.roundId = run.roundId;
+  if (card.roundNumber === undefined && typeof run.roundNumber === 'number' && run.roundNumber > 0) {
+    card.roundNumber = run.roundNumber;
+  }
+  const scope = roundCompletion(run);
+  const done = Array.isArray(card.completedUnits) ? card.completedUnits.slice() : [];
+  for (const u of scope.done) if (done.indexOf(u) < 0) done.push(u);
+  done.sort((a, b) => a - b);
+  card.completedUnits = done;
+  // 只有本轮范围**真的**全部完成时才置 true；曾经完成过之后再跑出去不算取消。
+  card.roundComplete = card.roundComplete === true || scope.complete;
+  return card;
+}
+
 // 远征结算：写一次纪念卡、更新 best 与 result。返回本次纪念卡（失败或已存在时为已有卡/null）
 //
 // ★ 纪念卡跨刷新幂等：卡的 id 由 run.rewardId 这个事实承载，而不是靠「内存里还有没有
@@ -157,12 +217,12 @@ export function finishBattleNode(run, battle, db) {
 export function endRunProgress(run, db, win, now = Date.now(), earnedAt = new Date(now).toISOString()) {
   if (!run) return null;
   const acc = clamp(Math.round(run.attOk / Math.max(1, run.att) * 100), 0, 100);
+  const knownId = (typeof run.rewardId === 'string' && run.rewardId)
+    || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : null);
+  const existing = knownId && db && Array.isArray(db.rewards)
+    ? db.rewards.filter(r => r && r.id === knownId)[0]
+    : null;
   if (win && !run.reward) {
-    const knownId = (typeof run.rewardId === 'string' && run.rewardId)
-      || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : null);
-    const existing = knownId && db && Array.isArray(db.rewards)
-      ? db.rewards.filter(r => r && r.id === knownId)[0]
-      : null;
     if (existing) {
       run.reward = existing;                       // 复用同一张卡：db.rewards 不动
     } else {
@@ -175,6 +235,19 @@ export function endRunProgress(run, db, win, now = Date.now(), earnedAt = new Da
       run.rewardId = reward.id;                   // ★ 首次生成就把 id 持久化在 run 上
       db.rewards.push(reward);
     }
+  }
+  // ★ 一轮**最多一张卡**，但这张卡的内容会随本轮真实进度继续更新。
+  //   打完 BOSS 先发卡、之后又把 Unit 2..6 学完（或者反过来先学完词再打 BOSS），
+  //   都必须落回**同一张卡**：id 与 earnedAt 固定（它们是「什么时候拿到这张卡」的事实，
+  //   第二次结算不是重新获得），completedUnits / roundComplete / 统计按**同一轮**
+  //   的最新真实事实更新。绝不因为范围后来完成了就再 push 一张。
+  //   战败 / 撤退不会写 card（没有卡就没卡），但不会把以前已获的卡弄掉。
+  //   元数据同步走 syncRoundCard：它只动**已有**卡，绝不 mint，所以这里的
+  //   「先发卡再同步」不会变成「无卡时凭空发一张」。
+  const card = syncRoundCard(run, db);
+  if (card && win) {
+    // 统计只在真败 BOSS 时更新（那才是一次真实战绩）；卡的面子不被一次败结算拉低。
+    card.accuracy = acc; card.kills = run.kills; card.floor = run.maxFloor;
   }
   if (db) db.best = Math.max(db.best, run.maxFloor);
   run.result = !!win;

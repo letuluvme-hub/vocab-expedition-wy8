@@ -263,12 +263,28 @@ test('reward-card.rewardScope matches legacy for every unit and the sentinels', 
 });
 
 const REWARD = { id: 'WR-abc-3-2', unit: 3, heroId: 'scout', accuracy: 87, kills: 14, floor: 9, earnedAt: '2026-10-01T09:30:00.000Z' };
-test('reward-card.renderRewardCard builds the same card DOM as legacy', async () => {
+test('reward-card.renderRewardCard keeps the legacy card DOM plus the round-aware lines', async () => {
   const { renderRewardCard } = await import('../../src/ui/components/reward-card.js');
   const mineBox = withDom([], () => { const b = new StubEl('div'); renderRewardCard(b, REWARD); return b; });
   const oldBox = new StubEl('div');
   withDocument(createDocument([]), () => legacyFn('renderRewardCard', { heroById, rewardScope })(oldBox, REWARD));
-  assert.equal(snap(mineBox), snap(oldBox));
+  // 任务 8 的**有意漂移**：卡上必须分清「轮次 / 本轮完成单元 / 本轮学习范围是否完成」
+  // （docs/feature-rounds.md）。REWARD 是旧版形状（没有 roundNumber 等字段），
+  // 所以新增三行分别是「旧版记录 · 未记录轮次」+ 两行「未记录完成范围」。
+  // ★ 旧卡**没有**这些字段：说「未完成」就是替玩家下一个他没经历过的结论，
+  //   unknown ≠ false。有记录的新卡才说得了「未完成」（见 reward-card-round.test.js）。
+  const card = mineBox.children[0];
+  const added = card.children.filter(c => c.className);
+  assert.deepEqual(added.map(c => c.className), ['reward-round', 'reward-done', 'reward-complete']);
+  assert.equal(added[0].textContent, '旧版记录 · 未记录轮次');
+  assert.equal(added[1].textContent, '本轮完成单元：未记录完成范围');
+  assert.equal(added[2].textContent, '本轮完成范围：未记录完成范围');
+  // 去掉这三行之后，剩下的 DOM 必须与旧版逐元素一致（其余文案零漂移）。
+  const stripped = new StubEl('div');
+  const article = new StubEl('article'); article.className = card.className;
+  for (const c of card.children) if (!c.className) article.appendChild(c);
+  stripped.appendChild(article);
+  assert.equal(snap(stripped), snap(oldBox));
 });
 
 /* ============================================================
@@ -745,7 +761,12 @@ test('over.renderOver draws the win screen with the current run reward', async (
   withDocument(docOld, () => legacyFn('endRun', { $: $for(docOld), document: docOld, DB: DB_old, G: G_old,
     clamp, UNITS, rewardScope, renderRewardCard, relicById,
     show: () => {}, renderTitle: () => {}, saveDB: () => {} })(true));
-  assert.equal(snapDoc(doc, OVER_IDS), snapDoc(docOld, OVER_IDS));
+  // 任务 8 的**有意漂移**：结算正文现在带轮次（docs/feature-rounds.md）。
+  // 先摘掉这一段再逐元素比对，其余文案零漂移；轮次本身另外断言。
+  const stripRound = s => s.replace(/（第 \d+ 轮）/g, '').replace(/（旧版记录 · 未记录轮次）/g, '');
+  assert.equal(stripRound(snapDoc(doc, OVER_IDS)), snapDoc(docOld, OVER_IDS));
+  assert.match(doc.getElementById('oText').textContent, /远征成功|词汇之王/);
+  assert.match(doc.getElementById('oText').textContent, /旧版记录 · 未记录轮次/, '旧 run 没有轮次事实就说旧版记录');
 
   assert.equal(doc.getElementById('oIcon').textContent, '🏆');
   assert.equal(doc.getElementById('oTitle').textContent, '远征成功！');
