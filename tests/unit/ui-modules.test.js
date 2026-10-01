@@ -362,7 +362,13 @@ test('fight.renderFight paints the same DOM as the legacy function', async () =>
     globalThis.innerWidth = 390;   // 旧版直接读裸全局，Node 里没有 → 给出浏览器等价值
     withDocument(docOld, () => legacyFn('renderFight', deps)());
     delete globalThis.innerWidth;
-    assert.equal(snapDoc(docMine, FIGHT_IDS), snapDoc(docOld, FIGHT_IDS), 'kb=' + DB.kbMode);
+    // tSkip 是本任务唯一有意偏离旧版的元素（代价文案），单独比；
+    // 其余每个 id 仍要求与旧版真实输出逐字一致。
+    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip');
+    assert.equal(snapDoc(docMine, COMPARE_IDS), snapDoc(docOld, COMPARE_IDS), 'kb=' + DB.kbMode);
+    // 偏离面必须精确：只多出「影分身」标签 + 免费撤退小字，属性/尺寸行为不变
+    assert.equal(snap(docMine.getElementById('tSkip')).replace('#影分身<small>免费撤退</small>', '="影分身"'),
+      snap(docOld.getElementById('tSkip')), 'kb=' + DB.kbMode);
     assert.equal(B.keyEls.length, B.letters.length);
     assert.deepEqual(pressed, []);
   }
@@ -385,8 +391,9 @@ test('fight.renderFight routes key presses through onPress and never mutates sel
   assert.equal(B.sel, 2, 'the screen must not set B.sel — that is the parent state owner');
 });
 
-test('fight.renderFight labels the skip button by ghost relic and marks flee by gold', async () => {
+test('fight.renderFight labels the skip button by ghost relic, states the 50 HP cost, and marks flee by gold', async () => {
   const { createFightScreen } = await import('../../src/ui/screens/fight.js');
+  const { SKIP_HP_COST } = await import('../../src/data/balance.js');
   const ids = FIGHT_IDS;
   const run = makeRun();
   const paint = (mut) => {
@@ -396,27 +403,31 @@ test('fight.renderFight labels the skip button by ghost relic and marks flee by 
       createFightScreen({ getRun: () => r, getBattle: () => B, getDB: () => ({}),
         onPress: () => {}, onUseItem: () => {}, paintSayBtn: () => {} }).renderFight();
       return {
-        skip: doc.getElementById('tSkip').textContent,
+        skip: doc.getElementById('tSkip')._html,
         flee: doc.getElementById('tFlee').disabled,
         hint: doc.getElementById('tHint').disabled,
         hintN: doc.getElementById('tHintN').textContent,
       };
     });
   };
-  assert.deepEqual(paint({ relics: ['shield', 'ghost'] }), { skip: '影分身', flee: false, hint: false, hintN: '3 次' });
-  assert.deepEqual(paint({ relics: ['shield'] }), { skip: '跳过', flee: false, hint: false, hintN: '3 次' });
-  // 本场已经用过影分身 → 按钮回到「跳过」，不能再白嫖一次撤退
+  const free = '影分身<small>免费撤退</small>';
+  const costly = '跳过<small>损失 ' + SKIP_HP_COST + ' 生命</small>';
+  assert.deepEqual(paint({ relics: ['shield', 'ghost'] }), { skip: free, flee: false, hint: false, hintN: '3 次' });
+  // 普通跳过必须点明固定代价，不能再写「不掉血」
+  assert.deepEqual(paint({ relics: ['shield'] }), { skip: costly, flee: false, hint: false, hintN: '3 次' });
+  assert.notEqual(costly.includes('不掉血'), true, '代价文案不得声称不掉血');
+  // 本场已经用过影分身 → 按钮回到「跳过（付 50）」，不能再白嫖一次撤退
   const usedGhost = withDom(ids, doc => {
     const B = { ...makeBattle(), ghostUsed: true };
     createFightScreen({ getRun: () => ({ ...run, relics: ['ghost'] }), getBattle: () => B, getDB: () => ({}),
       onPress: () => {}, onUseItem: () => {}, paintSayBtn: () => {} }).renderFight();
-    return doc.getElementById('tSkip').textContent;
+    return doc.getElementById('tSkip')._html;
   });
-  assert.equal(usedGhost, '跳过');
+  assert.equal(usedGhost, costly);
   assert.deepEqual(paint({ relics: ['shield'], gold: 9 }),
-    { skip: '跳过', flee: true, hint: false, hintN: '3 次' }, '金币不足 10 禁逃跑');
+    { skip: costly, flee: true, hint: false, hintN: '3 次' }, '金币不足 10 禁逃跑');
   assert.deepEqual(paint({ relics: ['shield'], gold: 10 }),
-    { skip: '跳过', flee: false, hint: false, hintN: '3 次' }, '刚好 10 金币仍可逃跑');
+    { skip: costly, flee: false, hint: false, hintN: '3 次' }, '刚好 10 金币仍可逃跑');
 });
 
 test('fight.renderFight sizes keyboard keys to the container in kb mode', async () => {

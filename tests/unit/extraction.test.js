@@ -31,10 +31,20 @@ test('CSS extraction preserves cascade order and every original rule', () => {
   assert.equal(actual, expected);
 });
 
+// 本任务唯一有意偏离归档骨架的地方：跳过按钮的小字。旧版写「不掉血」，
+// 而实际代价是固定 50 点生命（低血时直接战败）—— 文案必须点明代价。
+// 偏离面精确到这一段文本，其余骨架仍要求逐字相同。
+const SKIP_COPY_DIFF = /(<button class="tool" id="tSkip">跳过<small>)[^<]*(<\/small><\/button>)/;
+
 test('page skeleton preserves approved character parts and all existing controls', () => {
-  const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
+  const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-  assert.equal(strip(html), strip(baseline));
+  assert.equal(strip(html.replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
+    strip(baseline.replace(SKIP_COPY_DIFF, '$1跳过代价$2')));
+  // 骨架其他部分仍然逐字相同：把跳过按钮整段挖掉后必须完全对齐
+  assert.equal(strip(html.replace(SKIP_COPY_DIFF, '')), strip(baseline.replace(SKIP_COPY_DIFF, '')));
+  // 并且当前文案确实点明了 50 点生命
+  assert.match(html, /id="tSkip">跳过<small>损失 50 生命<\/small>/);
   assert.match(html, /<script type="module" src="\/src\/main.js"><\/script>/);
 });
 
