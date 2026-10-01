@@ -85,7 +85,8 @@ export const test = base.extend({
       async fight({ word = 'litre', enemyHp = 10_000, boss = false, elite = false } = {}) {
         await page.evaluate(({ word, enemyHp, boss, elite }) => {
           const t = window.__gameTest;
-          const entry = t.WORDS.find(x => x.w === word);
+          const entry = t.WORDS.find(x => x.w === word)
+            || t.DB.custom.find(x => x.w === word);
           if (!entry) throw new Error(`Scenario must use a real vocabulary entry: ${word}`);
           const node = boss ? t.G.rows.at(-1)[0] : t.G.avail.find(n => n.type === 'battle') || t.G.avail[0];
           if (boss) { t.G.floor = 9; t.G.maxFloor = 9; }

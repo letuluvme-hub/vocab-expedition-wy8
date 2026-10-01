@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+// 静态引入：winFight 桩的授权判定必须是**同步**的，否则 fxOrder 的顺序断言失真。
+import { canFinishFight } from '../../src/domain/battle-rules.js';
 
 /* ============================================================
  * 控制器契约测试（战斗 / 事件·商店·奖励）
@@ -96,9 +98,13 @@ function combatHarness(over) {
     animHero: (...a) => { fxOrder.push('animHero'); fxCalls.animHero(...a); },
     wordFinisher: (...a) => { fxOrder.push('wordFinisher'); }, foeCry: () => {},
     renderFight: () => fxOrder.push('renderFight'), nextWord: () => fxOrder.push('nextWord'),
-    // 真实 winFight 内部有 `if(B.over) return`，桩里保留这道幂等闸门，
-    // 这样「dealDamage 判定击杀」与「pressKey 收尾再判一次」在结算上仍然只算一次。
-    winFight: () => { if (state.B.over) return; state.B.over = true; fxOrder.push('winFight'); },
+    // winFight 的桩走**真实**授权条件 canFinishFight（不是只挡 B.over）：
+    // 半词 / 敌人没被打空 / 已结算，全部拒绝。这样单测里「赢了」这个事实
+    // 本身就等价于「整词拼完 + 大招致命 + 没重复结算」三条同时成立。
+    winFight: () => {
+      if (!canFinishFight(state.B)) return;
+      state.B.over = true; fxOrder.push('winFight');
+    },
     loseFight: () => { if (state.B.over) return; state.B.over = true; fxOrder.push('loseFight'); },
     finishNode: () => { fxOrder.push('finishNode'); }, saveDB: () => saved.push(1),
     scheduleBattle: (fn, ms) => tm.scheduleBattle(fn, ms)
@@ -219,12 +225,19 @@ test('pressKey：整词拼完 → 记学会 + 大招反馈，且伤害先于整�
   assert.equal(h.fxOrder.includes('winFight'), false);
 });
 
-test('pressKey：最后一击致死时 winFight 先于整词伤害被结算一次', async () => {
-  const h = await makeCombat({ enHp: 10 });
+// ★ 旧断言（enHp:10 时敲第一个字母就 winFight）编码的是「半词能赢」的 bug，
+//   已按新的验收标准改写：单字母打不死敌人，整词大招才是唯一胜利来源。
+test('pressKey：最后一个字母的普通命中也不会抢先赢，赢一定发生在大招上', async () => {
+  const h = await makeCombat({ enHp: 1 });      // 敌人只剩 1 血，一个字母就够打死
+  h.ctrl.pressKey(0); h.ctrl.pressKey(1); h.ctrl.pressKey(2);
+  assert.deepEqual(h.fxOrder.filter(x => x === 'winFight'), [], '半词不得赢');
+  assert.equal(h.state.B.enHp, 1, '敌人被钉在 1 血地板上');
+  assert.deepEqual(h.db.mastered, [], '没拼完不算学会');
   h.fxOrder.length = 0;
-  h.ctrl.pressKey(0);
-  assert.equal(h.state.B.enHp, 0);
-  assert.deepEqual(h.fxOrder.filter(x => x === 'winFight').length, 1);
+  h.ctrl.pressKey(3);                            // 整词拼完 → 大招 40 收尾
+  assert.equal(h.state.B.enHp, -39);
+  assert.deepEqual(h.fxOrder.filter(x => x === 'winFight'), ['winFight'], '大招赢一次');
+  assert.deepEqual(h.db.mastered, ['keep'], '拼完了才记学会');
   assert.equal(h.state.B.over, true, 'winFight 由 runtime 负责置 over');
 });
 
@@ -252,11 +265,12 @@ test('pressKey：正确字母让提示窗口同步收缩，不会白赚下一个
   assert.equal(h.state.B.hintUsed, 0, '没有新提示时不能变负');
 });
 
-test('pressKey：非最后字母致死也走 winFight', async () => {
+test('pressKey：非最后字母的伤害把敌人压到地板也不得走 winFight', async () => {
   const h = await makeCombat({ enHp: 10 });
-  h.fxOrder.length = 0;
-  h.ctrl.pressKey(0);
-  assert.deepEqual(h.fxOrder.filter(x => x === 'winFight'), ['winFight']);
+  h.ctrl.pressKey(0);                            // 10 点伤害足以打死，但只是半词
+  assert.equal(h.state.B.enHp, 1, '非完整词伤害有 1 血地板');
+  assert.deepEqual(h.fxOrder.filter(x => x === 'winFight'), [], '半词伤害不得赢');
+  assert.equal(h.state.B.over, false, '战斗继续');
 });
 
 /* ---------------- 战斗：受伤结算 ---------------- */

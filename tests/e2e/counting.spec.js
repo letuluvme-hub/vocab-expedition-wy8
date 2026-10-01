@@ -5,10 +5,13 @@ import { test, expect } from './game-harness.js';
 const newOnly = (testInfo, why) =>
   test.skip(testInfo.project.metadata.target === 'legacy', why);
 
-// 真打 BOSS 并结算：走真实的字母输入 → winFight → 奖励面板 → finishNode。
+// 真打 BOSS 并结算：走真实的字母输入 → 整词大招 → winFight → 奖励面板 → finishNode。
+// ★ 必须拼完整个词才能赢（1 血地板 + 授权闸门），不能只敲一个 'l'。
 async function clearBoss(game, page) {
   await game.fight({ boss: true, word: 'litre', enemyHp: 1 });
-  await game.clickLetter('l');
+  await game.clickLetter('l');                        // 半词：战斗继续
+  expect((await game.state()).B.over).toBe(false);
+  await page.keyboard.type('itre');                  // 整词拼完 → 大招收尾
   await expect(page.locator('#pTitle')).toContainText('击败词汇之王');
   await page.locator('#pPicks .pick').first().click();
   await expect(page.locator('#s-over')).toBeVisible();

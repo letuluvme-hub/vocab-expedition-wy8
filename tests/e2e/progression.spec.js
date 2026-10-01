@@ -40,12 +40,21 @@ test('shop permits separate repeat purchases rejects rapid duplicates and still 
   await expect(page.locator('#map .node.pick.boss')).toHaveCount(1);
 });
 
-test('BOSS victory collects one reward card and next unit starts without stale battle', async ({ game, page }) => {
-  await game.open();
-  await game.start();
+// BOSS 胜利：legacy 靠半词击杀，new 必须拼完整词（1 血地板 + 授权闸门）。
+// 两条路径最终都必须真的打开奖励面板；新版的额外断言是「半词不能赢」。
+async function defeatBoss(game, page, testInfo) {
+  const isLegacy = testInfo.project.metadata.target === 'legacy';
   await game.fight({ boss: true, word: 'litre', enemyHp: 1 });
   await game.clickLetter('l');
-  await expect(page.locator('#pTitle')).toContainText('击败词汇之王');
+  if (!isLegacy) expect((await game.state()).B.over).toBe(false);
+  await page.keyboard.type('itre');                    // legacy 下战斗已结束，这几次输入被 B.over 挡下
+  await expect(page.locator('#s-pick')).toBeVisible();
+}
+
+test('BOSS victory collects one reward card and next unit starts without stale battle', async ({ game, page }, testInfo) => {
+  await game.open();
+  await game.start();
+  await defeatBoss(game, page, testInfo);
   await page.locator('#pPicks .pick').first().click();
   await expect(page.locator('#s-over')).toBeVisible();
   await expect(page.locator('#oTitle')).toHaveText('远征成功！');
@@ -57,7 +66,9 @@ test('BOSS victory collects one reward card and next unit starts without stale b
   const win = await game.state();
   expect(win.DB.wins).toBe(1);
   expect(win.DB.rewards).toHaveLength(1);
-  expect(win.DB.mastered).not.toContain('litre');
+  // legacy 半词赢 → 不记学会；new 拼完整词 → 恰好记一次
+  if (testInfo.project.metadata.target === 'legacy') expect(win.DB.mastered).not.toContain('litre');
+  else expect(win.DB.mastered.filter(w => w === 'litre')).toHaveLength(1);
   await page.evaluate(() => window.__gameTest.endRun(true));
   expect((await game.state()).DB.rewards).toHaveLength(1);
   await page.locator('#oNext').click();
@@ -73,12 +84,10 @@ test('BOSS victory collects one reward card and next unit starts without stale b
   expect((await game.state()).DB.rewards[0]).toEqual(win.DB.rewards[0]);
 });
 
-test('last unit victory hides next-unit action in computed layout', async ({ game, page }) => {
+test('last unit victory hides next-unit action in computed layout', async ({ game, page }, testInfo) => {
   await game.open();
   await game.start(6);
-  await game.fight({ boss: true, word: 'litre', enemyHp: 1 });
-  await game.clickLetter('l');
-  await expect(page.locator('#s-pick')).toBeVisible();
+  await defeatBoss(game, page, testInfo);
   await page.locator('#pPicks .pick').first().click();
   await expect(page.locator('#s-over')).toBeVisible();
   await expect(page.locator('#oNext')).toBeHidden();
