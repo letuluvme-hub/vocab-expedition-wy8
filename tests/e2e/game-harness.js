@@ -85,8 +85,12 @@ export const test = base.extend({
       async fight({ word = 'litre', enemyHp = 10_000, boss = false, elite = false } = {}) {
         await page.evaluate(({ word, enemyHp, boss, elite }) => {
           const t = window.__gameTest;
-          const entry = t.WORDS.find(x => x.w === word)
-            || t.DB.custom.find(x => x.w === word);
+          // ★ 必须取**本局词池里那一条**（带 u/d/th 的完整形状），不能直接用
+          //   DB.custom 的 {w,z} 裸条目 —— 那样 B.word 缺 u/d，快照编解码会
+          //   fail closed 判 invalid（自定义单元的暂停/保存因此整条失效）。
+          //   真实战斗里的词永远来自 run.pool，所以这里也必须来自 run.pool。
+          const entry = (t.G.pool || []).find(x => x.w === word)
+            || t.WORDS.find(x => x.w === word);
           if (!entry) throw new Error(`Scenario must use a real vocabulary entry: ${word}`);
           const node = boss ? t.G.rows.at(-1)[0] : t.G.avail.find(n => n.type === 'battle') || t.G.avail[0];
           if (boss) { t.G.floor = 9; t.G.maxFloor = 9; }

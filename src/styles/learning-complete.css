@@ -1,0 +1,13 @@
+/* 词汇完成检查点：独立一小块样式，追加在所有原有规则之后。
+ * 只影响 #s-learning-complete 内部，不改任何既有选择器 —— 原有规则与层叠顺序保持不变。
+ * 复用 #s-pause 的 .pztext 排版口径（同一套信息密度），但不共用选择器作用域。 */
+#s-learning-complete .lccount{
+  display:inline-block;font-size:12.5px;line-height:1.6;padding:5px 12px;border-radius:999px;
+  border:1px solid #ffffff26;background:#ffffff0d;color:var(--ok);
+  border-color:#3ddc8459;margin:8px 0 2px
+}
+#s-learning-complete .pztext{
+  font-size:13px;color:var(--mut);line-height:1.8;margin:10px 0 4px;
+  overflow-wrap:anywhere
+}
+#s-learning-complete .btn{width:100%}

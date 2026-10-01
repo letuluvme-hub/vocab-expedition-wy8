@@ -3,12 +3,13 @@ import { createCombatController } from './combat.js';
 import { createEncounterController } from './encounters.js';
 import { createRun, advanceRun, finishBattleNode, endRunProgress, isDuplicateRunStart, registerRunStart } from '../domain/run.js';
 import { generateMap } from '../domain/map.js';
-import { drawWord as selectWord } from '../domain/word-selection.js';
+import { drawWord as selectWord, isPoolComplete } from '../domain/word-selection.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
 import { createTitleScreen } from '../ui/screens/title.js';
 import { createMapScreen } from '../ui/screens/map.js';
 import { createFightScreen } from '../ui/screens/fight.js';
 import { createPauseScreen } from '../ui/screens/pause.js';
+import { createLearningCompleteScreen } from '../ui/screens/learning-complete.js';
 import { createProgressStore } from '../services/progress.js';
 import { PHASE } from '../domain/run-snapshot.js';
 import { createProgressController } from './progress.js';
@@ -554,6 +555,9 @@ function startFight(n){
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
   const qword = drawWord(budget);
+  // ★ 词池已抽干（自定义小词表、或本单元词汇全部完成）：不进战斗，
+  //   也不生成空字母盘 —— 统一走「本单元词汇已全部完成」检查点。
+  if(!qword) return showLearningComplete();
   const lt = drawLetters(qword);
   B={ word:qword, letters:lt.letters, used:lt.used, bad:new Array(lt.letters.length).fill(false),
       node:n, foe:e, boss:boss, elite:elite,
@@ -583,12 +587,34 @@ function startFight(n){
 }
 // 按难度抽词：budget 越高，可选池越大但平均词长越长；池太小时放宽，避免深层反复出同样几个词
 function drawWord(budget){return selectWord(G,B,budget)}
+/* 「本单元词汇已全部完成」检查点 —— 抽词唯一的穷尽出口。
+ *
+ * 它是**检查点**不是结算：kills / gold / wins / DB.mastered 一个都不动，
+ * run.result 仍是 undefined，B 里的真实血量原样带进快照。
+ * 这样刷新后恢复的仍是同一句事实：「词都学会了，怪还没死」。
+ * ENCOUNTER 也不带：这里没有卡要选。
+ * 下一单元的衔接是后续功能，这个屏只说「本单元完成」，不预告解锁。 */
+function showLearningComplete(){
+  if(!G) return false;
+  ENCOUNTER=null; setPhase(PHASE.LEARNING_COMPLETE);
+  lifecycle.pause();                       // 冻结在途延迟任务：这一局不再往前跑
+  show('s-learning-complete');
+  learningCompleteScreen.render();
+  // 落盘：玩家在这个屏上刷新，回来还是这个检查点。
+  // 恢复路径由 progress.rebuildFromPhase 处理，绝不重发奖励或重抽词。
+  return commit(true);
+}
 // 生成字母盘（答案字母 + 干扰字母）
 function drawLetters(qword){return generateLetters(G,B,qword)}
 // 敌人还活着时换下一个词
 function nextWord(){
   const budget=B.boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(B.elite?1:0));
   const nw=drawWord(budget);
+  // ★ 最后一个未完成的词刚答完、这一场还没打死怪：进「词汇已全部完成」检查点。
+  //   combat 的整词分支已经先判过 lethal（真打死就走 winFight 的既有奖励），
+  //   所以走到这里一定还有未打死的怪 —— 这里绝不调 winFight / endRun(true)，
+  //   kills / gold / wins 一律不动，怪物血与 run 状态如实保留。
+  if(!nw) return showLearningComplete();
   const nl=drawLetters(nw);
   B.word=nw; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);
@@ -871,6 +897,9 @@ function advance(){
   //   否则刷新后这一局会被判损坏。提交的是「已选完、等推进」这个真实状态。
   if(result==='locked'){ commit(true); return }
   if(result==='ended'){endRunNow(false);return}
+  // 本单元词汇已全部完成时，领完奖励推进不再把人丢回地图让他点一个
+  // 一进去就撞检查点的战斗节点 —— 直接显示同一个检查点。
+  if(isPoolComplete(G)){ showLearningComplete(); return }
   ENCOUNTER=null; setPhase(PHASE.MAP);
   show('s-map');renderMap();
   // 延迟的营火/事件推进也走这里（不在事务内），所以必须无条件落盘。
@@ -1017,6 +1046,14 @@ const pauseScreen=createPauseScreen({getRun:()=>G,
     if(progress.abandonRun()) toast('已放弃这次远征');
     renderTitle(); show('s-title');
   }});
+const learningCompleteScreen=createLearningCompleteScreen({getRun:()=>G,getBattle:()=>B,
+  // 「保存并返回主页」= 暂停式返回：不放弃这一局，进度留档，随时能继续。
+  onHome:()=>{ if(progress.returnToTitle()){ renderTitle(); show('s-title') }
+    else { renderTitle(); show('s-title') } },
+  // 「结束本轮学习」= 主动放弃并回主页。刻意**不**走 endRun(false)：
+  // 那是战败结算，会把这一轮记成「失败」并盖上失败标签，而玩家明明是自己收手的。
+  onQuit:()=>{ if(confirm('结束本轮学习？这次远征的进度会被清掉（已学会的词和掌握记录会保留）。'))
+    { progress.abandonRun(); renderTitle(); show('s-title'); toast('已结束本轮学习'); } }});
 /* 暂停 → 冻结 + 存快照 + 切到暂停屏。
  * 冻结由 progress 控制器按入口逐个挡住（不是 CSS 遮罩）：暂停期间
  * 输入、道具、提示、跳过、逃跑、地图节点、事件选项、领奖、推进全部无效。 */
@@ -1048,6 +1085,9 @@ function resumeFromPause(){
 function restoreScreen(from){
   if(from==='s-map'){ show('s-map'); renderMap() }
   else if(from==='s-fight'){ show('s-fight'); renderFight() }
+  // 词汇完成检查点：同页暂停/回主页再回来，必须回**同一个**检查点，
+  // 而不是掉到地图或生成一张已经答完的字母盘。
+  else if(from==='s-learning-complete'){ show('s-learning-complete'); learningCompleteScreen.render() }
   else if(from==='s-pick'){ show('s-pick') }
   else if(from==='s-rest'||from==='s-event'||from==='s-pick') show(from)   // 原样回来
   else { show('s-map'); renderMap() }
@@ -1075,6 +1115,8 @@ const progress=createProgressController({state,api:{
   getEncounter:()=>ENCOUNTER, setEncounter:d=>{ ENCOUNTER=d },
   setRun:r=>{ G=r }, setBattle:b=>{ B=b },
   show, screen:()=>currentScreen(), toast, renderMap, renderFight, renderTitle,
+  // 词汇完成检查点：恢复与同页返回都走这一个入口，保证是同一块屏。
+  showLearningComplete:()=>showLearningComplete(),
   lifecycle,
   // 结算的内存侧（改 DB / 画结算屏）；落盘由控制器用同一次写完成。
   settleRun:w=>settleRun(w),

@@ -16,6 +16,7 @@
  * 本模块不碰 DOM（界面由 runtime 接线），只通过注入的 api 与 state 协作。
  */
 import { encodeSnapshot, PHASE } from '../domain/run-snapshot.js';
+import { isPoolComplete } from '../domain/word-selection.js';
 
 /* 失败原因必须说人话，而且不能张冠李戴：
  *   unavailable —— 这台设备根本没有存储（隐私模式 / 被 CSP 挡）
@@ -33,6 +34,8 @@ const SAVE_MESSAGES = {
 const saveMessage = reason => SAVE_MESSAGES[reason] || SAVE_MESSAGES.failed;
 const CLEAR_FAILED = '结算结果没能写进本机存档（存储可能已满），刷新后这次结算会消失';
 const NO_BATTLE_PHASES = new Set([PHASE.MAP, PHASE.ENCOUNTER, PHASE.ENCOUNTER_DONE]);
+// 词汇完成检查点带着战斗（真实未打完的血量），所以不在 NO_BATTLE_PHASES 里。
+const LEARNING_COMPLETE = PHASE.LEARNING_COMPLETE || 'learning-complete';
 // 结算相位（已打完、只差一次收尾）。编解码由 domain 定义，这里兜一个同名常量，
 // 免得两处各写一份字面量、日后改一处忘了另一处。
 const ENDING = PHASE.ENDING || 'ending';
@@ -167,6 +170,25 @@ export function createProgressController({ state, api, store, now = Date.now }) 
       api.setPhase(ENDING);
       api.setEncounter(null);
       endRunNow(snapshot.outcome === true);
+      return;
+    }
+    if (snapshot.phase === LEARNING_COMPLETE) {
+      // 本单元词汇已全部完成，但战斗还没打完。
+      // ★ 恢复只重建这个检查点屏：绝不重发奖励、绝不重新抽词、绝不重算 counts。
+      //   battle 原样带回（怪物还剩多少血是必须如实说出的事实），但战斗屏不再显示。
+      // ★ 存档是外部输入：run.done 其实没答完时**不许**显示「已全部完成」——
+      //   那会让玩家凭空多出一个假检查点。fail closed 回到真实相位。
+      if (!isPoolComplete(run)) {
+        api.setPhase(PHASE.BATTLE);
+        api.setEncounter(null);
+        api.show('s-fight');
+        api.renderFight();
+        return;
+      }
+      api.setPhase(LEARNING_COMPLETE);
+      api.setEncounter(null);
+      if (api.showLearningComplete) api.showLearningComplete();
+      else { api.show('s-learning-complete'); if (api.renderLearningComplete) api.renderLearningComplete(); }
       return;
     }
     if (snapshot.phase === PHASE.BATTLE) {

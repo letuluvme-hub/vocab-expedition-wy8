@@ -214,6 +214,37 @@ test('词池按原顺序与原词条往返，删掉自定义词也不影响当�
   assert.equal(dbCustom.length, 0);
 });
 
+test('词池里有完全相同的重复词条时，战斗快照仍必须能往返（只认第一条）', () => {
+  // 真实成因：玩家把同一行 'cat 猫' 导入两次 → DB.custom 两行一模一样 →
+  // 词池里两条 w/u/d/z 全同。旧判据是 pool.length !== 1 → 整份快照 fail closed，
+  // 于是自定义单元的暂停/保存/刷新**每次**都报「存档损坏」。
+  // 抽词侧只出第一条（唯一身份），所以引用校验也只该认第一条。
+  const run = seededRun();
+  const dup = { u: 0, d: 2, w: 'cat', z: '猫', th: 'custom' };
+  run.pool = [dup, { u: 0, d: 2, w: 'cat', z: '猫', th: 'custom' }, { u: 0, d: 2, w: 'dog', z: '狗', th: 'custom' }];
+  const battle = battleFor(run, { word: run.pool[0], letters: ['c', 'a', 't'], used: [false, false, false],
+    bad: [false, false, false], input: ['c'], sel: 1 });
+  const out = roundTrip({ phase: PHASE.BATTLE, run, battle });
+  assert.equal(out.ok, true, '重复自定义词条不许让快照判 invalid：' + out.reason);
+  assert.equal(out.value.battle.word.w, 'cat');
+  assert.equal(out.value.battle.word.z, '猫');
+  // 词池两条重复条目都原样保留（不删 DB.custom / pool 的任何一条）
+  assert.equal(out.value.run.pool.length, 3);
+  assert.deepEqual(out.value.run.pool.map(w => w.w), ['cat', 'cat', 'dog']);
+  // 但引用校验仍然只认**正版来源**：u/d/z/th 改一个就非法。
+  for (const [name, bad] of [['u', { u: 3 }], ['d', { d: 3 }], ['z', { z: '别的释义' }], ['th', { th: 'other' }]]) {
+    const tampered = battleFor(run, { word: { ...run.pool[0], ...bad }, letters: ['c', 'a', 't'],
+      used: [false, false, false], bad: [false, false, false], input: [], sel: 0 });
+    const raw = JSON.parse(JSON.stringify(encodeSnapshot({ phase: PHASE.BATTLE, run, battle: tampered })));
+    assert.equal(decodeSnapshot(raw).ok, false, '词条字段 ' + name + ' 被改必须被拒');
+  }
+  // 词压根不在词池里（凭空造的词）仍然 fail closed
+  const alien = battleFor(run, { word: { u: 0, d: 2, w: 'zzz', z: '不存在', th: 'custom' },
+    letters: ['z', 'z', 'z'], used: [false, false, false], bad: [false, false, false], input: [], sel: 0 });
+  assert.equal(decodeSnapshot(JSON.parse(JSON.stringify(
+    encodeSnapshot({ phase: PHASE.BATTLE, run, battle: alien })))).ok, false, '词池外的词必须被拒');
+});
+
 /* ---------------- 4. 档案外壳 ---------------- */
 
 test('外壳带 schemaVersion / savedAt / phase，decode 不修改输入对象', () => {
