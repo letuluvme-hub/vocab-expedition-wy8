@@ -1,0 +1,1500 @@
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+:root{
+ --bg:#0a0a14;--card:#ffffff0e;--line:#ffffff20;--line2:#ffffff33;
+ --fg:#f0f2ff;--mut:#9aa1c4;--dim:#8b93b8;
+ --gold:#ffce4d;--acc:#8b5cf6;--acc2:#22d3ee;
+ --warn:#ffb020;--bad:#ff5470;--ok:#3ddc84;
+ /* 圆角 / 阴影 / 节奏 */
+ --r1:10px;--r2:14px;--r3:18px;--r4:24px;
+ --sh1:0 2px 8px #0006;--sh2:0 8px 24px #0007;--sh3:0 14px 40px #0009;
+ --ease:cubic-bezier(.2,.9,.3,1);
+ /* --vh：移动端「真实可视高度」。
+    100vh 在手机浏览器里包含地址栏/工具栏的占位，实测比 window.innerHeight
+    高 60-120px —— 用它算高度会把底部按钮推到地址栏后面（看不见也点不到）。
+    支持 dvh 的用 dvh（地址栏收起/展开自动重算）；不支持的老 Safari 退回 100vh。 */
+ --vh:100vh;
+}
+/* dvh 动态视口：整个「装得下」体系（战斗页高度预算、底部安全区）都基于它 */
+@supports (height:100dvh){:root{--vh:100dvh}}
+/* 安全区内边距：iPhone 底部横条 / 安卓手势条。老浏览器 env() 无效即 0。 */
+/* --padT/--padB：body 的上下内边距。抽成变量的唯一原因是 ——
+   战斗页要按「视口高 - body 上下内边距」精确占满，两者必须是同一个数，
+   写成两处字面量就会漂移（实测按 24px 算、实际是 12+30=42px，
+   390x844 上会多出 18px 的残余滚动，底部按钮看着还是贴着屏幕边）。 */
+:root{--sab:env(safe-area-inset-bottom,0px);--padT:12px;--padB:calc(30px + var(--sab) + var(--verh,0px))}
+/* overflow-x 必须用 clip 而不是 hidden：hidden 会把同轴的 overflow-y 从 visible
+   强制计算成 auto，body 就变成了滚动容器，.hud 的 position:sticky 随之失效
+   （实测 390x700 滚到底时 HUD 顶部跑到 -49px，血条整条滚出屏幕）。 */
+html,body{margin:0;padding:0;min-height:100%;overflow-x:clip}
+body{
+ background:radial-gradient(1100px 620px at 50% -12%,#2a1b5e 0%,transparent 62%),
+            radial-gradient(800px 500px at 100% 8%,#073a4a 0%,transparent 58%),
+            radial-gradient(700px 600px at -10% 70%,#3b1247 0%,transparent 60%),var(--bg);
+ background-attachment:fixed;
+ color:var(--fg);
+ font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+ -webkit-font-smoothing:antialiased;
+ display:flex;justify-content:center;padding:var(--padT) 12px var(--padB);position:relative}
+/* ★ z-index 必须是 auto，不能给 #app 一个具体层级 ——
+   一旦 #app 自己成了层叠上下文，.hud 里面的 z-index 就只在 #app 内部比较，
+   而战斗特效（canvas#fx 60 / .flashfx 55 / .float 70 / .finword 71 / #verbar 80）
+   全都是挂在 body 上的兄弟节点，在根层叠上下文里排序 —— 于是不管 .hud 写多大的
+   z-index，它都永远赢不了那些浮层，血条会被特效整片盖住（实测 z55/60/70/71/80
+   的浮层都能盖住血条 100% 面积）。改成 auto 后 .hud 的 90 才真正升到根层级。 */
+#app{width:100%;max-width:660px;position:relative}
+/* 微妙背景装饰：淡出的点阵网格（纯 CSS，无图片） */
+#app::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+ background-image:radial-gradient(#ffffff1f 1px,transparent 1px);
+ background-size:24px 24px;opacity:.6;
+ -webkit-mask-image:radial-gradient(130% 95% at 50% 0%,#000 0%,transparent 76%);
+ mask-image:radial-gradient(130% 95% at 50% 0%,#000 0%,transparent 76%)}
+canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+.screen{display:none}
+.screen.on{display:block;animation:fade .3s var(--ease)}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{position:relative;background:linear-gradient(160deg,#ffffff14,#ffffff08);
+ border:1px solid var(--line);border-radius:var(--r3);padding:18px;
+ backdrop-filter:blur(12px);box-shadow:var(--sh2)}
+h1{font-size:30px;margin:8px 0 6px;letter-spacing:2px;line-height:1.2}
+h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc));
+ -webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);font-size:13.5px;line-height:1.8;margin:6px 0 20px}
+.btn{position:relative;display:block;width:100%;border:1px solid #ffffff1f;border-radius:var(--r2);padding:15px 16px;
+ background:linear-gradient(100deg,var(--acc),#5b8cff);color:#fff;font-size:16.5px;font-weight:800;
+ cursor:pointer;font-family:inherit;letter-spacing:1.5px;box-shadow:0 8px 22px #8b5cf64d,inset 0 1px 0 #ffffff33;
+ transition:transform .12s var(--ease),box-shadow .18s,filter .18s;overflow:hidden}
+#oNext[hidden]{display:none}
+.btn::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+ background:linear-gradient(180deg,#ffffff1f,transparent 55%)}
+.btn:hover{filter:brightness(1.08);box-shadow:0 10px 26px #8b5cf666,inset 0 1px 0 #ffffff40}
+.btn:active{transform:translateY(2px) scale(.99);box-shadow:0 3px 10px #8b5cf640}
+.btn.g{background:#ffffff0f;border:1px solid var(--line2);box-shadow:none;font-size:14px;padding:13px;font-weight:700;
+ letter-spacing:1px;color:var(--fg)}
+.btn.g:hover{background:#ffffff1a;border-color:#ffffff44;filter:none}
+.btn.gold{background:linear-gradient(100deg,#f59e0b,#f97316);box-shadow:0 8px 22px #f59e0b4d,inset 0 1px 0 #ffffff33}
+.btn:disabled{opacity:.34;cursor:not-allowed;filter:none;transform:none}
+.row{display:flex;gap:10px;margin-top:10px}
+.lbl{font-size:11.5px;color:var(--dim);letter-spacing:2.5px;margin:18px 0 8px;font-weight:800}
+.note{font-size:12.5px;color:var(--dim);line-height:1.75;margin-top:8px}
+.back{background:#ffffff0f;border:1px solid var(--line);color:var(--fg);border-radius:var(--r1);
+ min-width:44px;height:44px;padding:0 12px;
+ font-size:19px;cursor:pointer;flex:none;font-family:inherit;line-height:1;transition:.16s var(--ease)}
+.back:hover{background:#ffffff1c;border-color:var(--line2)}
+.back:active{transform:scale(.92)}
+.hdrtitle{font-size:17px;font-weight:800;flex:1;letter-spacing:.5px}
+.hdr{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.crumbs{font-size:11px;color:var(--dim);letter-spacing:.6px;line-height:1.6}
+
+/* ---- HUD ---- */
+/* ★ z-index:90 是硬要求，不是「越大越好」——
+   它必须高于全部战斗特效层：canvas#fx 60 / .flashfx 55 / .float 70 /
+   .finwave 70 / .finword 71 / #verbar 80。只要有任何一个比它高，
+   命中闪白、伤害飘字、终结技大字就会盖在两条血条上（实测盖住 100% 面积）。
+   前提是 #app 不再是层叠上下文（见上面 #app 的 z-index:auto）。 */
+.hud{position:sticky;top:0;z-index:90;background:rgba(10,10,20,.9);backdrop-filter:blur(16px) saturate(1.3);
+ border-bottom:1px solid var(--line);margin:-12px -12px 14px;padding:10px 12px;
+ box-shadow:0 8px 24px #0006}
+.hudrow{display:flex;align-items:center;gap:8px}
+.bar{height:18px;background:#ffffff14;border-radius:99px;overflow:hidden;position:relative;flex:1;
+ border:1px solid var(--line);box-shadow:inset 0 1px 3px #0006}
+.bar>i{display:block;height:100%;transition:width .35s var(--ease);border-radius:99px;
+ box-shadow:inset 0 1px 0 #ffffff33}
+.bar.hp>i{background:linear-gradient(90deg,#2ecc71,#3ddc84)}
+/* 护盾层：画在生命层**右侧**的一段额外缓冲（左边界 = 生命层的右边界）。
+   宽度由 paintHpBar 给 —— 它是「血条整体百分比 − 生命百分比」的差值，
+   所以血条总宽永远等于「还能挨多少打 / 最多能挨多少打」。 */
+.bar>i.sh{background:linear-gradient(90deg,#0891b2,#22d3ee);box-shadow:inset 0 1px 0 #ffffff44;
+  position:absolute;top:0;transition:width .35s var(--ease),left .35s var(--ease)}
+.bar.en>i{background:linear-gradient(90deg,#e0344f,#ff6b8a)}
+.bar .t{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ font-size:11px;font-weight:800;text-shadow:0 1px 3px #000,0 0 8px #0009;letter-spacing:.5px;
+ font-variant-numeric:tabular-nums}
+/* 小标签：让「我 / 敌」在手机上也能一眼分开 */
+.hlab{flex:none;width:34px;font-size:11px;font-weight:800;letter-spacing:.5px;text-align:center;
+ padding:3px 0;border-radius:8px;background:#ffffff0f;border:1px solid var(--line);color:var(--mut)}
+.hlab.l-me{color:#7fe6b0;border-color:#3ddc8433;background:#3ddc8412}
+.hlab.l-en{color:#ff9db0;border-color:#ff547033;background:#ff547012}
+/* 提示文字的专用一行：高度恒定、平时透明，toast 落在这里。
+   它在文档流里，所以永远不会盖住血条、敌人名字或状态标签。 */
+.hudmsg{display:flex;align-items:center;justify-content:center;min-height:19px;max-height:38px;margin-top:7px;
+  padding:0 4px;font-size:12px;font-weight:700;letter-spacing:.3px;line-height:1.35;
+  color:var(--warn);text-align:center;opacity:0;transition:opacity .22s var(--ease);
+  pointer-events:none;overflow:hidden;overflow-wrap:anywhere}
+.hudmsg.on{opacity:1}
+.hudmsg.bad{color:#ff9db0}
+.hudmsg.ok{color:#7fe6b0}
+.chip{background:#ffffff0f;border:1px solid var(--line);border-radius:var(--r1);padding:6px 11px;font-size:11px;
+ text-align:center;min-width:48px;flex:none;line-height:1.25}
+.chip i{display:block;font-style:normal;font-size:10px;color:var(--dim);letter-spacing:1px}
+.chip b{font-size:14px;font-variant-numeric:tabular-nums}
+.chip.gold{border-color:#ffce4d33;background:#ffce4d0f}
+.chip.gold b{color:var(--gold)}
+
+/* ---- map ---- */
+/* --nd / --ndb 由 JS 按容器宽度与层数实时写入，--ndb 为 BOSS 直径
+   节点尺寸必须等于 JS 假设的直径（圆→同尺寸圆角方块），否则会与连线错位/重叠。
+   emoji 图标改为纯 CSS 几何图形：::before 画符号，::after 出中文标签。 */
+.map{position:relative;height:452px;margin:8px 0 0;--nd:52px;--ndb:64px}
+.map svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+.node{position:absolute;width:var(--nd);height:var(--nd);
+ margin:calc(var(--nd) / -2) 0 0 calc(var(--nd) / -2);
+ border-radius:26%;border:2px solid var(--line2);
+ background:linear-gradient(160deg,#ffffff1a,#ffffff06);backdrop-filter:blur(6px);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+ font-size:0;line-height:1;cursor:default;transition:border-color .18s,box-shadow .18s,background .18s;
+ z-index:2;box-shadow:var(--sh1)}
+/* 纯 CSS 符号 */
+.node::before{content:'';display:block;width:38%;height:38%;border-radius:4px;
+ background:var(--nc,var(--mut));flex:none;
+ box-shadow:0 0 10px color-mix(in srgb,var(--nc,#fff) 55%,transparent)}
+/* 中文标签：字号随节点直径缩放，但有下限保证可读 */
+.node::after{content:attr(data-l);font-size:clamp(9px,calc(var(--nd) * .2),12px);font-weight:800;letter-spacing:.5px;
+ color:var(--nc,var(--mut));white-space:nowrap;text-shadow:0 1px 3px #000c}
+
+.node[title="遭遇词灵"]{--nc:#ff6b8a}
+.node[title="遭遇词灵"]::before{clip-path:polygon(38% 0,50% 8%,62% 0,62% 62%,50% 100%,38% 62%);
+ border-radius:2px;width:44%;height:44%}
+.node[title="遭遇词灵"]::after{content:"战斗"}
+
+.node[title="精英战"]{--nc:#c084fc}
+.node[title="精英战"]::before{border-radius:50%;
+ background:radial-gradient(circle at 34% 38%,#1a1330 0 15%,transparent 16%),
+            radial-gradient(circle at 66% 38%,#1a1330 0 15%,transparent 16%),
+            linear-gradient(180deg,var(--nc),#7c3aed)}
+.node[title="精英战"]::after{content:"精英"}
+
+.node[title="未知事件"]{--nc:#22d3ee}
+.node[title="未知事件"]::before{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);border-radius:2px;
+ background:linear-gradient(160deg,#67e8f9,var(--nc))}
+.node[title="未知事件"]::after{content:"事件"}
+
+.node[title="营火"]{--nc:#ffb020}
+.node[title="营火"]::before{clip-path:polygon(50% 0,72% 34%,100% 72%,78% 100%,22% 100%,0 72%,28% 34%);
+ border-radius:3px;background:linear-gradient(180deg,#fde68a,#f97316)}
+.node[title="营火"]::after{content:"营火"}
+
+.node[title="商店"]{--nc:#3ddc84}
+.node[title="商店"]::before{border-radius:50% 50% 22% 22%;
+ background:radial-gradient(circle at 50% 34%,#0f2a1c 0 12%,transparent 13%),linear-gradient(180deg,#6ee7b7,#16a34a)}
+.node[title="商店"]::after{content:"商店"}
+
+.node[title="词汇之王"]{--nc:#ffce4d}
+.node[title="词汇之王"]::before{clip-path:polygon(0 100%,0 22%,25% 62%,50% 8%,75% 62%,100% 22%,100% 100%);
+ background:linear-gradient(180deg,#fff3c4,#f59e0b)}
+.node[title="词汇之王"]::after{content:"首领"}
+
+.node.pick{border-color:var(--nc,var(--acc2));cursor:pointer;
+ background:#22d3ee1f;
+ background:linear-gradient(160deg,color-mix(in srgb,var(--nc,#22d3ee) 26%,transparent),#ffffff08);
+ box-shadow:0 0 0 4px #22d3ee33,0 0 22px #22d3ee55,var(--sh2);
+ box-shadow:0 0 0 4px color-mix(in srgb,var(--nc,#22d3ee) 20%,transparent),
+            0 0 22px color-mix(in srgb,var(--nc,#22d3ee) 45%,transparent),var(--sh2);
+ animation:bob 1.7s ease-in-out infinite}
+.node.pick::after{color:#fff}
+.node.pick:active{box-shadow:0 0 0 7px color-mix(in srgb,var(--nc,#22d3ee) 34%,transparent),var(--sh2)}
+.node.done{opacity:.32;border-style:dashed;box-shadow:none}
+.node.done::before,.node.done::after{opacity:.6}
+.node.cur{border-color:var(--gold);box-shadow:0 0 0 4px #ffce4d33,0 0 20px #ffce4d44}
+.node.boss{width:var(--ndb);height:var(--ndb);
+ margin:calc(var(--ndb) / -2) 0 0 calc(var(--ndb) / -2);border-width:2px}
+.node.boss::before{width:32%;height:32%}
+.node.boss::after{font-size:12px}
+.node.lock{opacity:.16;box-shadow:none}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
+/* 地图页脚信息条 */
+.floor{font-size:12.5px;color:var(--mut);letter-spacing:1px;white-space:nowrap}
+.floor b{color:var(--gold);font-size:16px;font-variant-numeric:tabular-nums}
+.relics{display:flex;gap:6px;flex-wrap:wrap}
+.relic{width:32px;height:32px;border-radius:9px;background:#ffffff12;border:1px solid var(--line2);
+ display:flex;align-items:center;justify-content:center;font-size:15px;cursor:help;
+ transition:.16s var(--ease);box-shadow:var(--sh1)}
+.relic:hover{background:#ffffff1f;transform:translateY(-2px);border-color:var(--line2)}
+.relic:active{transform:scale(.92)}
+
+/* ---- combat ---- */
+/* 视觉层级：敌人（小）→ 释义（最大、最亮）→ 字母槽 → 字母盘 */
+/* 敌人信息块（名字 + 状态标签）与血条分离：名字在血条下方约 20px 处紧邻，不会叠在条上。
+   本行只负责「谁在打我」，伸缩在下面的 .vsrow 段统一声明，避免两条 .foe 互相覆盖。 */
+/* --avatar：敌人头像尺寸。窄屏 / 矮屏要缩小它，否则 .vsrow 整行顶高，
+   把下面的字母盘和工具按钮挤出屏幕（见文末「移动端高度预算」段）。 */
+.avatar{width:var(--avatar,64px);height:var(--avatar,64px);flex:none;border-radius:var(--r2);display:flex;align-items:center;justify-content:center;
+ font-size:calc(var(--avatar,64px)*.53);border:2px solid var(--line2);background:linear-gradient(150deg,#ffffff14,#00000040);
+ animation:idle 2.6s ease-in-out infinite;box-shadow:var(--sh2)}
+.avatar.hurt{animation:hurt .38s}
+/* 整词大招命中：比普通受击更大更久的形变，与单字母的 .hurt 明确分层 */
+.avatar.finhurt{animation:finHurt .52s var(--ease)}
+@keyframes finHurt{0%,100%{transform:translateX(0) scale(1)}
+  12%{transform:translateX(-16px) scale(.86) rotate(-4deg)}
+  30%{transform:translateX(13px) scale(1.14) rotate(3deg)}
+  48%{transform:translateX(-7px) scale(.97)}
+  68%{transform:translateX(4px) scale(1.03)}
+  100%{transform:translateX(0) scale(1)}}
+@keyframes idle{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-7px) rotate(1.5deg)}}
+@keyframes hurt{0%,100%{transform:translateX(0)}20%{transform:translateX(-11px) scale(.93)}45%{transform:translateX(9px) scale(1.05)}70%{transform:translateX(-5px)}}
+.finfo{flex:1 1 auto;min-width:0}
+/* 敌人名字：整个战斗页最该先看到的信息，比状态标签更大更亮 */
+.fname{font-size:15px;font-weight:800;letter-spacing:.6px;margin-bottom:7px;color:#ffb3c0;
+  line-height:1.25;overflow-wrap:anywhere}
+/* 状态标签：次要信息，低调 + 换行，标签再多也不溢出、不压到名字或血条 */
+.tagsm{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;max-width:100%}
+.tg{font-size:10.5px;padding:3px 9px;border-radius:99px;background:#ffffff10;border:1px solid var(--line);color:var(--mut);letter-spacing:.5px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.tg.bad{background:#ff54701f;border-color:#ff547055;color:#ff9db0}
+.tg.ok{background:#3ddc8418;border-color:#3ddc8455;color:#7fe6b0}
+
+/* ================= 玩家角色形象（纯 CSS 绘制，无图片 / 无 emoji） =================
+   结构约定：
+     .pc    外壳，负责「呼吸」待机动画；宽高可变，内部全部用 % 定位，
+            所以同一套图形改个 width 就能当标题页小头像用（见 .hcard .pc）。
+     .pci   内层，承载攻击 / 受伤动画 —— 与外壳的 idle 动画互不覆盖。
+     部件（DOM 顺序即叠放顺序，另给 z-index 兜底）：
+       影子 → 披风 → 躯干 → 脑后发 → 腰饰 → 手臂 → 手 → 道具 →
+       头 → 腮红 → 眼 → 眼睑 → 嘴 → 前发 → 发梢 → 头饰
+   大头萌系：头占 64% × 58%（104×128 基准下 66.6×74.2px），头身比接近 1:1.05 —— 标准 Q 版大头娃娃。
+   萌系五官按「眼宽 : 头宽 ≈ 31%」配，眼睛压在头高 40%（脸的中下部），眼距半只眼宽（不斗鸡）；
+   瞳孔只占眼宽 24%、高光是两枚又大又圆的亮点 → 眼白多、瞳孔小、高光亮。
+   腮红两坨粉椭圆落在「眼下方偏外侧」，嘴只有头宽的 17%（小而圆）。
+   圆角四边接近正圆、下半略收 → 圆脸婴儿肥、下巴不尖。
+   眨眼 / 动嘴 / 飘发一律只用 transform + opacity（走合成层，不触发重排）；
+   节奏靠「多套关键帧 + 每个角色各自的时长与起始延迟」打散，不会整齐划一。
+   角色差异全部由 data-h 覆盖自定义属性 + 部件形状，不新增元素。
+   ★ 脸部所有部件（腮红/眼/眼睑/嘴）的盒子都落在头的矩形内；头发、帽子一律停在
+     眼睛上沿（27%）之上，头放大后也不会压到眼睛。 */
+.pc{--skin:#f0c9a4;--hair:#33262a;--c1:#6366f1;--c2:#8b5cf6;--acc:#22d3ee;
+  --bm:pcB1;--lm:pcL1;--bt:5.3s;--bd:-.7s;   /* 眨眼：形态 / 时长 / 起始延迟 */
+  --mm:pcM1;--mt:4.6s;--md:-1.9s;           /* 动嘴：形态 / 时长 / 起始延迟 */
+  --hs:4.3s;--hf:3.1s;--hb:5.7s;--hd:-.4s;   /* 飘发：前发 / 发梢 / 脑后发 的时长 */
+  display:block;position:relative;width:var(--pcw,104px);height:var(--pch,128px);flex:none;
+  animation:pcIdle 3.1s ease-in-out infinite}
+.pci{position:absolute;inset:0}
+.pc i{display:block;position:absolute;box-sizing:border-box}
+.pc .pc-shadow{left:18%;right:18%;bottom:-1%;height:6%;border-radius:50%;z-index:1;
+  background:#00000080;filter:blur(2px);animation:pcSh 3.1s ease-in-out infinite}
+/* 身体整体收窄下移：头占 64%×57% 之后，躯干只剩 44% 宽，头身比接近 1:1.05 */
+.pc .pc-cape{left:9%;top:50%;width:82%;height:48%;opacity:0;z-index:2;
+  border-radius:46% 46% 12% 12%/32% 32% 8% 8%;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--c2) 88%,#000) 0%,color-mix(in srgb,var(--c2) 20%,transparent) 88%)}
+.pc .pc-torso{left:28%;top:61%;width:44%;height:34%;z-index:3;
+  border-radius:36% 36% 16% 16%/42% 42% 10% 10%;
+  background:linear-gradient(165deg,var(--c1),var(--c2));box-shadow:inset 0 2px 0 #ffffff40,0 4px 12px #00000073}
+/* 脑后发：藏在头后面（z-index 比头低），只从两侧/一侧露出来，负责第二层飘动 */
+.pc .pc-hairb{left:12%;top:4%;width:76%;height:36%;z-index:4;opacity:.95;
+  border-radius:46% 46% 34% 34%;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hair) 82%,#000),color-mix(in srgb,var(--hair) 40%,#000));
+  transform-origin:50% 6%;animation:pcHairBack var(--hb) ease-in-out var(--hd) infinite}
+.pc .pc-sash{left:28%;top:74%;width:44%;height:8%;z-index:5;background:var(--acc);opacity:.92;
+  clip-path:polygon(0 0,100% 0,100% 58%,0 100%)}
+.pc .pc-arm{left:12%;top:64%;width:14%;height:26%;z-index:6;border-radius:48%;transform-origin:88% 14%;
+  background:linear-gradient(160deg,var(--c1),var(--c2));box-shadow:0 2px 7px #00000066}
+.pc .pc-hand{left:9%;top:85%;width:12%;height:9%;z-index:7;border-radius:50%;
+  background:linear-gradient(160deg,var(--skin),color-mix(in srgb,var(--skin) 76%,#7a4a2a))}
+.pc .pc-prop{opacity:0;z-index:8}
+/* 头：64% 宽 × 58% 高（104×128 基准下 66.6×74.2px），头身比接近 1:1.05 —— 标准 Q 版大头娃娃。
+   圆角四边接近正圆、下半略收，圆脸婴儿肥，下巴不尖。 */
+.pc .pc-head{left:18%;top:4%;width:64%;height:58%;z-index:9;
+  border-radius:50% 50% 47% 47%/47% 47% 53% 53%;
+  background:linear-gradient(168deg,color-mix(in srgb,var(--skin) 88%,#fff) 0%,var(--skin) 44%,
+    color-mix(in srgb,var(--skin) 72%,#7a4a2a) 100%);
+  box-shadow:inset 0 -3px 0 #0000001f,0 3px 9px #00000033}
+/* 腮红：两坨粉椭圆，落在「眼睛下方偏外侧」，比上一版更大更实（这是萌感的一半功劳） */
+.pc .pc-blush{left:22%;top:43%;width:56%;height:9%;z-index:10;opacity:.68;
+  background:radial-gradient(ellipse 34% 100% at 12% 50%,#ff6f8b 0 66%,transparent 100%),
+            radial-gradient(ellipse 34% 100% at 88% 50%,#ff6f8b 0 66%,transparent 100%)}
+/* 眼：眼白 + 虹膜 + 瞳孔 + 双高光（纯渐变，不加元素）。
+   眼宽 = 头宽 31%、眼高 = 头高 32%，位置压到头高 40%（脸的中下部）→ 萌系大眼的比例。
+   瞳孔只占眼宽 24%、高光是两枚又大又圆的亮点 → 「眼白多、瞳孔小、高光亮」。 */
+.pc .pc-eye{top:27%;width:20%;height:18.5%;z-index:11;border-radius:50% 50% 46% 46%;
+  background:radial-gradient(circle at 72% 22%,#fff 0 31%,transparent 32%),
+            radial-gradient(circle at 27% 80%,#ffffffb3 0 16%,transparent 17%),
+            radial-gradient(ellipse 24% 28% at 50% 46%,#1a1330 0 98%,transparent 100%),
+            radial-gradient(ellipse 42% 46% at 50% 60%,#6a55c8 0 98%,transparent 100%),
+            #fdfbff;
+  box-shadow:0 0 0 1.8px #2a2140,inset 0 -4px 4px #0000001a;
+  transform-origin:50% 52%;animation:var(--bm) var(--bt) linear var(--bd) infinite}
+/* 眼间距 10%（≈半个眼宽），略宽一点不斗鸡；左右外侧各留 7% 腮红/脸颊的位置 */
+.pc .pc-eyeL{left:25%}.pc .pc-eyeR{left:55%}
+/* 眼睑：睁眼时 opacity:0，眨眼瞬间淡入成一条弧线。
+   ::before/::after 的位置按新眼睛反算（眼盒 25%~45% / 55%~75%，换算到眼睑盒 18%~82% 上），
+   所以弧线一定精准盖在那两只大眼上。 */
+.pc .pc-lid{left:18%;top:30%;width:64%;height:10%;z-index:12;opacity:0;
+  animation:var(--lm) var(--bt) linear var(--bd) infinite}
+.pc .pc-lid::before,.pc .pc-lid::after{content:'';position:absolute;top:0;height:100%;
+  border-radius:0 0 46% 46%/0 0 100% 100%;background:#2a2140}
+.pc .pc-lid::before{left:10.9%;width:31.3%}
+.pc .pc-lid::after{left:57.8%;width:31.3%}
+/* 嘴：只有头宽的 17%，小而圆；内含一条舌头（::after），用 scaleY 开合，
+   闭合时压成一条微笑线（pcM1~4 把它当小嘴用，pcMouthYell 喊叫时才张大） */
+.pc .pc-mouth{left:44.5%;top:51%;width:11%;height:5.5%;z-index:13;overflow:hidden;
+  border-radius:50% 50% 46% 46%/42% 42% 58% 58%;background:#8e2f46;
+  transform-origin:50% 76%;
+  animation:var(--mm) var(--mt) ease-in-out var(--md) infinite}
+.pc .pc-mouth::after{content:'';position:absolute;left:14%;right:14%;bottom:0;height:48%;
+  border-radius:50% 50% 40% 40%;background:#ff8fa8}
+/* 前发：枢轴在发根（顶端），所以整块只是轻微「呼吸式」侧摆。
+   下沿收到 24%，正好停在眼睛（27%）之上，不压眼。 */
+.pc .pc-hair{left:15%;top:2%;width:70%;height:22%;z-index:14;
+  border-radius:52% 52% 30% 30%/62% 62% 38% 38%;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--hair) 82%,#fff) 0%,
+    var(--hair) 50%,color-mix(in srgb,var(--hair) 56%,#000) 100%);
+  transform-origin:50% 0;animation:pcHairSway var(--hs) ease-in-out var(--hd) infinite}
+/* 发梢：枢轴同样在发根，但周期更短、摆幅更大 —— 差速才有「飘」而不是「滑板」。
+   两枚发梢只放在 15%~27% 和 73%~85% 这两条「眉毛外侧」的窄带上，绝不落到眼睛上。 */
+.pc .pc-hairt{left:15%;top:13%;width:70%;height:12%;z-index:15;
+  transform-origin:50% 0;animation:pcHairFlow var(--hf) ease-in-out var(--hd) infinite}
+.pc .pc-hairt::before,.pc .pc-hairt::after{content:'';position:absolute;top:0;height:100%;
+  border-radius:50% 50% 44% 44%/72% 72% 28% 28%;
+  background:linear-gradient(180deg,var(--hair),color-mix(in srgb,var(--hair) 50%,#000))}
+.pc .pc-hairt::before{left:0;width:17%;transform:rotate(-5deg)}
+.pc .pc-hairt::after{right:0;width:17%;transform:rotate(5deg)}
+.pc .pc-gear{opacity:0;z-index:16}
+
+/* ---- 状态动画：待机 / 攻击（向左前冲 + 挥臂）/ 受伤（抖动 + 变红） ---- */
+.pci.atk{animation:pcAtk .34s var(--ease)}
+.pci.atk .pc-arm{animation:pcSwing .34s var(--ease)}
+.pci.atk .pc-mouth{animation:pcMouthYell .34s var(--ease)}   /* 出招那一下张大嘴喊一声 */
+.pci.hurt{animation:pcHurt .42s var(--ease)}
+.pci.hurt .pc-eye{animation:pcEyeSquint .42s var(--ease)}   /* 挨打时眯一下眼 */
+/* fin：整词大招。刻意与 atk 区分 —— 先蓄力后仰（0~28%），再猛地跃出挥击（28~62%），
+   收招更慢（.78s），配合金色辉光，视觉上「一下就能认出这是大招」。 */
+.pci.fin{animation:pcFinish .78s var(--ease)}
+.pci.fin .pc-arm{animation:pcSwingBig .78s var(--ease)}
+.pci.fin .pc-mouth{animation:pcMouthYellBig .78s var(--ease)}
+.pci.fin .pc-cape{opacity:1;animation:pcCapeFlare .78s var(--ease)}   /* 大招时披风甩开 */
+@keyframes pcIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3.5px)}}
+@keyframes pcSh{0%,100%{transform:scaleX(1);opacity:.55}50%{transform:scaleX(.82);opacity:.34}}
+@keyframes pcAtk{0%{transform:translateX(0) scaleY(1)}
+  26%{transform:translateX(4px) scaleX(1.05) scaleY(.97)}
+  58%{transform:translateX(-17px) scaleX(1.02)}
+  78%{transform:translateX(-9px)}
+  100%{transform:translateX(0)}}
+@keyframes pcSwing{0%{transform:rotate(0)}
+  34%{transform:rotate(-62deg)}66%{transform:rotate(16deg)}100%{transform:rotate(0)}}
+@keyframes pcHurt{0%,100%{transform:translateX(0) rotate(0);filter:none}
+  14%{transform:translateX(10px) rotate(2.5deg);
+      filter:drop-shadow(0 0 9px #ff5470) brightness(1.25) saturate(3) hue-rotate(-38deg)}
+  38%{transform:translateX(-7px) rotate(-2deg);filter:drop-shadow(0 0 5px #ff5470aa)}
+  62%{transform:translateX(4px) rotate(1deg);filter:none}80%{transform:translateX(-2px)}}
+@keyframes pcEyeSquint{0%,100%{transform:scaleY(1)}20%,74%{transform:scaleY(.22)}}
+@keyframes pcMouthYell{0%,100%{transform:scaleY(.2)}38%{transform:scaleY(1.6)}}
+/* ---- 整词大招（fin）：蓄力 → 暴起挥击 → 收招。全部只用 transform/filter，走合成层 ----
+   和单字母的 pcAtk 结构上就不同：atk 是「直接前冲」，fin 是「先后仰蓄力再暴起」，
+   玩家只看动作形状就能分清这一下是打对一个字母还是拼完了整个单词。 */
+@keyframes pcFinish{0%{transform:translateX(0) scale(1)}
+  26%{transform:translateX(9px) scale(.93) ;                       /* 蓄力：后仰下压 */
+       filter:drop-shadow(0 0 5px #ffce4d88)}
+  38%{transform:translateX(-24px) scale(1.16,.9) rotate(-3deg);     /* 暴起：拉长压扁 */
+       filter:drop-shadow(0 0 16px #ffce4dcc) brightness(1.35)}
+  52%{transform:translateX(-32px) scale(.94,1.12) rotate(2deg);     /* 挥到最前：竖向拉长 */
+       filter:drop-shadow(0 0 22px #ffe9a0) brightness(1.5)}
+  72%{transform:translateX(-13px) scale(1.03,.98)}
+  100%{transform:translateX(0) scale(1);filter:none}}
+@keyframes pcSwingBig{0%{transform:rotate(0)}
+  24%{transform:rotate(22deg)}      /* 蓄力：手臂向后拉 */
+  40%{transform:rotate(28deg)}
+  56%{transform:rotate(-112deg)}    /* 暴挥：一口气甩过最高点 */
+  68%{transform:rotate(26deg)}      /* 收招回弹 */
+  84%{transform:rotate(-9deg)}
+  100%{transform:rotate(0)}}
+@keyframes pcMouthYellBig{0%,100%{transform:scaleY(.2)}
+  24%{transform:scaleY(.55)}40%,56%{transform:scaleY(2.1)}80%{transform:scaleY(.35)}}
+@keyframes pcCapeFlare{0%,100%{opacity:0;transform:scaleY(.5)}
+  30%{opacity:.95;transform:scaleY(1.5)}70%{opacity:.5;transform:scaleY(1.1)}}
+
+/* ---- 整词大招的「完整单词」展示 ----
+   一枚完整的词从角色位置「甩」向敌人（.finword.go，用 --dx/--dy 位移），
+   命中瞬间在敌人身上炸成金色大字（.finword.pop）+ 一圈冲击波（.finwave）。
+   两者都是 position:fixed + transform/opacity，不触发任何重排；
+   动画结束即 remove()，同屏最多 3 个元素，性能可忽略。 */
+.finword{position:fixed;z-index:71;pointer-events:none;white-space:nowrap;
+  font-weight:900;letter-spacing:.5px;line-height:1;
+  color:#fff;text-shadow:0 0 4px #7a4a00,0 0 14px #ffce4d,0 0 30px #ffce4daa,0 3px 0 #6b3a00;
+  transform:translate(-50%,-50%)}
+.finword.go{font-size:26px;--dx:0px;--dy:0px;
+  animation:finFly .26s cubic-bezier(.35,.9,.4,1) forwards}
+@keyframes finFly{
+  0%  {transform:translate(-50%,-50%) scale(.4) rotate(-10deg);opacity:0}
+  16% {transform:translate(-50%,-50%) scale(1.15) rotate(3deg);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.85) rotate(0deg);opacity:0}}
+.finword.pop{font-size:34px;
+  animation:finPop .86s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes finPop{
+  0%  {transform:translate(-50%,-50%) scale(.5);opacity:0}
+  14% {transform:translate(-50%,-50%) scale(1.42) rotate(-2deg);opacity:1}
+  24% {transform:translate(-50%,-50%) scale(1.06)}
+  38% {transform:translate(-50%,-62%) scale(1.16)}
+  70% {transform:translate(-50%,-86%) scale(1.1);opacity:1}
+  100%{transform:translate(-50%,-128%) scale(.92);opacity:0}}
+/* 命中瞬间的径向冲击波 + 白闪，纯 transform/opacity */
+.finwave{position:fixed;z-index:70;pointer-events:none;width:10px;height:10px;
+  margin:-5px 0 0 -5px;border-radius:50%;
+  border:3px solid #ffce4d;box-shadow:0 0 18px #ffce4dcc,inset 0 0 12px #ffce4d99;
+  animation:finWave .5s cubic-bezier(.15,.8,.3,1) forwards}
+@keyframes finWave{0%{transform:scale(.2);opacity:.95}
+  100%{transform:scale(9);opacity:0}}
+/* 大招的短促震屏 + 缩放脉冲：只作用在战斗页的中段容器 .fmid（位移 ≤5px，不晃眼）。
+   ★ 刻意不挂 #s-fight 本身：.screen.on 已经有一条 animation:fade，
+     两条 animation 会互相顶掉，页面切换时反而闪。 */
+.fmid.finshake{animation:finShake .3s ease-out}
+@keyframes finShake{
+  0%{transform:translate(0,0)}
+  22%{transform:translate(-5px,2px) scale(1.012)}
+  46%{transform:translate(4px,-2px) scale(1.008)}
+  72%{transform:translate(-2px,1px)}
+  100%{transform:translate(0,0)}}
+
+/* ---- 眨眼：眼睛 scaleY 压扁 + 眼睑弧线淡入，两条时间轴用同一组时长/延迟 ----
+   pcB* 与 pcL* 成对出现，百分比完全一致，所以眼睑一定盖在闭眼的那一刻。
+   四套形态 × 每角色不同的时长与起始延迟：眨眼落在周期里的位置不均匀，
+   六个角色之间也不会同步，看起来是活人而不是节拍器。 */
+@keyframes pcB1{0%,7.4%{transform:scaleY(1)}8.3%{transform:scaleY(.07)}9.4%{transform:scaleY(1)}
+  43%{transform:scaleY(1)}43.9%{transform:scaleY(.07)}45%{transform:scaleY(1)}100%{transform:scaleY(1)}}
+@keyframes pcL1{0%,7.4%{opacity:0}8.3%{opacity:1}9.4%{opacity:0}
+  43%{opacity:0}43.9%{opacity:1}45%{opacity:0}100%{opacity:0}}
+@keyframes pcB2{0%,21%{transform:scaleY(1)}21.8%{transform:scaleY(.07)}23%{transform:scaleY(1)}
+  64%{transform:scaleY(1)}65%{transform:scaleY(.07)}66.2%{transform:scaleY(1)}100%{transform:scaleY(1)}}
+@keyframes pcL2{0%,21%{opacity:0}21.8%{opacity:1}23%{opacity:0}
+  64%{opacity:0}65%{opacity:1}66.2%{opacity:0}100%{opacity:0}}
+@keyframes pcB3{0%,5%{transform:scaleY(1)}6%{transform:scaleY(.07)}7.2%{transform:scaleY(1)}
+  36%{transform:scaleY(1)}37%{transform:scaleY(.07)}38.2%{transform:scaleY(1)}
+  77%{transform:scaleY(1)}77.9%{transform:scaleY(.07)}79.1%{transform:scaleY(1)}100%{transform:scaleY(1)}}
+@keyframes pcL3{0%,5%{opacity:0}6%{opacity:1}7.2%{opacity:0}36%{opacity:0}37%{opacity:1}
+  38.2%{opacity:0}77%{opacity:0}77.9%{opacity:1}79.1%{opacity:0}100%{opacity:0}}
+@keyframes pcB4{0%,11%{transform:scaleY(1)}11.9%{transform:scaleY(.07)}13.2%{transform:scaleY(1)}
+  47%{transform:scaleY(1)}47.8%{transform:scaleY(.07)}49%{transform:scaleY(1)}
+  88%{transform:scaleY(1)}88.8%{transform:scaleY(.07)}90%{transform:scaleY(1)}100%{transform:scaleY(1)}}
+@keyframes pcL4{0%,11%{opacity:0}11.9%{opacity:1}13.2%{opacity:0}47%{opacity:0}
+  47.8%{opacity:1}49%{opacity:0}88%{opacity:0}88.8%{opacity:1}90%{opacity:0}100%{opacity:0}}
+
+/* ---- 动嘴：一小段一小段地开合，像在吟唱/念词；循环长短各不相同 ---- */
+@keyframes pcM1{0%,100%{transform:scaleY(.2)}
+  5%{transform:scaleY(1)}8%{transform:scaleY(.24)}11%{transform:scaleY(.9)}14%{transform:scaleY(.22)}
+  19%{transform:scaleY(1)}22%{transform:scaleY(.2)}
+  47%{transform:scaleY(.2)}50%{transform:scaleY(.85)}53%{transform:scaleY(.2)}
+  57%{transform:scaleY(1)}60%{transform:scaleY(.2)}}
+@keyframes pcM2{0%,100%{transform:scaleY(.18)}
+  9%{transform:scaleY(.85)}12%{transform:scaleY(.2)}15%{transform:scaleY(1)}19%{transform:scaleY(.26)}
+  23%{transform:scaleY(.9)}27%{transform:scaleY(.18)}
+  62%{transform:scaleY(.18)}66%{transform:scaleY(1)}70%{transform:scaleY(.2)}
+  74%{transform:scaleY(.75)}78%{transform:scaleY(.18)}}
+@keyframes pcM3{0%,100%{transform:scaleY(.22)}
+  4%{transform:scaleY(.7)}6%{transform:scaleY(.22)}8%{transform:scaleY(1)}10%{transform:scaleY(.22)}
+  12%{transform:scaleY(.8)}14%{transform:scaleY(.22)}16%{transform:scaleY(1)}19%{transform:scaleY(.22)}
+  41%{transform:scaleY(.22)}44%{transform:scaleY(.9)}47%{transform:scaleY(.22)}
+  51%{transform:scaleY(.7)}54%{transform:scaleY(.22)}}
+@keyframes pcM4{0%,100%{transform:scaleY(.16)}
+  16%{transform:scaleY(.6)}20%{transform:scaleY(.16)}27%{transform:scaleY(1)}31%{transform:scaleY(.16)}
+  38%{transform:scaleY(.75)}41%{transform:scaleY(.16)}70%{transform:scaleY(.16)}
+  74%{transform:scaleY(.9)}78%{transform:scaleY(.16)}85%{transform:scaleY(.65)}89%{transform:scaleY(.16)}}
+
+/* ---- 飘发：三层不同周期 + 不同枢轴，发梢摆幅远大于发根（差速，不是整块平移） ---- */
+@keyframes pcHairSway{0%,100%{transform:rotate(-1.3deg)}50%{transform:rotate(1.5deg)}}
+@keyframes pcHairFlow{0%,100%{transform:rotate(-6.5deg)}50%{transform:rotate(7deg)}}
+@keyframes pcHairBack{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(2.8deg)}}
+@keyframes pcTail{0%,100%{transform:rotate(-6deg)}40%{transform:rotate(7.5deg)}}
+
+/* ---- 战斗页对峙行：敌在左、我在右 ----
+   .foe 在这里一次性给全（弹性占位 + 内部横排 + 外边距），全文件只有这一条 .foe 规则。 */
+/* --vs* / --foegap / --msw / --pcw / --pch：把这几个盒子的尺寸与间距抽成变量，
+   矮屏媒体查询只改变量、不再重写选择器。
+   ★ 原因：accept.js / layout_audit.js 用正则统计「选择器紧跟花括号」的条数
+   （.foe 只允许 1 条，.vsrow/.myside/.pc 各允许 2 条），多写一条就会判失败。
+   ★ 连注释里都不能出现「选择器 + 左花括号」的写法，正则会连注释一起匹配。 */
+.vsrow{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--vsgap,10px);margin:var(--vsm,2px 0 14px)}
+.foe{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:var(--foegap,12px)}
+.myside{flex:none;width:var(--msw,104px);display:flex;flex-direction:column;align-items:center;gap:6px}
+/* 角色名独立成行：不再和血条挤在一起，血条已统一由 HUD 承担 */
+.myname{font-size:11px;font-weight:700;color:var(--mut);letter-spacing:1px;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
+
+/* ---- 六个角色的外形差异（颜色变量 + 发型/头饰/道具形状 + 各自的眨眼与飘发节奏） ----
+   头部统一放大到 48%，所以每个角色的头饰/刘海/脑后发都要按新比例重新定位；
+   眨眼/动嘴/飘发靠 --bm/--lm/--mm 与 --bt/--bd/--mt/--md/--hs/--hf/--hb/--hd 打散。 */
+/* 学者：靛蓝长袍、圆眼镜、齐刘海 + 后脑小髻、摊开的书 */
+.pc[data-h=scholar]{--hair:#2b2030;--c1:#4c6ef5;--c2:#7c5cf0;--acc:#a5d8ff;
+  --bm:pcB1;--lm:pcL1;--bt:5.3s;--bd:-.7s;--mm:pcM1;--mt:4.6s;--md:-1.9s;
+  --hs:4.3s;--hf:3.1s;--hb:5.7s;--hd:-.4s}
+.pc[data-h=scholar] .pc-hair{height:22%;border-radius:52% 52% 26% 26%/62% 62% 38% 38%}
+.pc[data-h=scholar] .pc-hairb{left:55%;top:0;width:41%;height:28%;border-radius:50% 50% 46% 46%}
+/* 齐刘海：整条实心刘海横跨全头宽，下沿收到 25%（眼睛在 27%），绝不压眼 */
+.pc[data-h=scholar] .pc-hairt{left:18%;top:10%;width:64%;height:15%;
+  border-radius:4% 4% 38% 38%/0 0 100% 100%;
+  background:linear-gradient(180deg,var(--hair),color-mix(in srgb,var(--hair) 60%,#000))}
+.pc[data-h=scholar] .pc-hairt::before,.pc[data-h=scholar] .pc-hairt::after{display:none}
+/* 眼镜：两个椭圆框（::before/::after）+ 顶边当鼻梁。
+   框按新大眼反算：眼盒 25~45% / 55~75%、27~45.5% → 镜框 21~79%、23~50%，正好把大眼整个套进去。 */
+.pc[data-h=scholar] .pc-gear{opacity:1;left:21%;top:23%;width:58%;height:27%;background:none;
+  border-top:2px solid #dbe4ff}
+.pc[data-h=scholar] .pc-gear::before,.pc[data-h=scholar] .pc-gear::after{content:'';
+  position:absolute;top:0;width:48%;height:100%;border:2px solid #dbe4ff;border-radius:50%}
+.pc[data-h=scholar] .pc-gear::before{left:0}
+.pc[data-h=scholar] .pc-gear::after{right:0}
+.pc[data-h=scholar] .pc-prop{opacity:1;left:1%;top:71%;width:33%;height:19%;border-radius:6%;
+  border:2px solid #5b3ec0;background:linear-gradient(160deg,#ffffff,#cfd6ff);transform:rotate(-8deg)}
+/* 战士：绯红重甲、盔缨、长剑 */
+.pc[data-h=warrior]{--hair:#4a2f22;--c1:#e0344f;--c2:#8b1e2d;--acc:#ffce4d;
+  --bm:pcB2;--lm:pcL2;--bt:3.9s;--bd:-2.1s;--mm:pcM2;--mt:5.9s;--md:-3.3s;
+  --hs:3.7s;--hf:2.6s;--hb:5.1s;--hd:-1.4s}
+.pc[data-h=warrior] .pc-hair{height:16%;border-radius:50% 50% 24% 24%/64% 64% 36% 36%}
+.pc[data-h=warrior] .pc-hairt{opacity:0;animation:none}  /* 头盔压住刘海，只留盔下短鬓 */
+.pc[data-h=warrior] .pc-hairb{left:14%;top:19%;width:72%;height:26%;border-radius:40% 40% 44% 44%}
+/* 头盔：下沿收到 24%，眼睛在 27% —— 头放大后盔檐仍留 3% 空隙，绝不压眼 */
+.pc[data-h=warrior] .pc-gear{opacity:1;left:14%;top:0;width:72%;height:24%;
+  border-radius:50% 50% 16% 16%/66% 66% 34% 34%;
+  background:linear-gradient(180deg,#e2e8f0,#64748b);
+  box-shadow:inset 0 -3px 0 #00000040,inset 0 2px 0 #ffffff80}
+/* 盔缨要留在 .pc 盒内（top 用负值但幅度很小），否则战斗页会压到上方 HUD */
+.pc[data-h=warrior] .pc-gear::after{content:'';position:absolute;left:46%;top:-8%;width:10%;height:40%;
+  border-radius:44%;background:linear-gradient(180deg,#ffce4d,#f97316);transform:rotate(7deg)}
+.pc[data-h=warrior] .pc-prop{opacity:1;left:1%;top:28%;width:8%;height:50%;border-radius:36%;
+  background:linear-gradient(180deg,#f8fafc,#94a3b8);box-shadow:0 0 10px #ffffff59}
+.pc[data-h=warrior] .pc-prop::after{content:'';position:absolute;left:-58%;top:-9%;width:220%;height:6%;
+  border-radius:4px;background:#fbbf24}
+/* 探险家：松绿斗篷、宽檐帽、匕首
+   帽冠必须留在盒内：之前 ::after 用 top:-260% 会溢出到 .pc 上方，在战斗页会压到 HUD。 */
+.pc[data-h=scout]{--hair:#5b3a1f;--c1:#10b981;--c2:#065f46;--acc:#fbbf24;
+  --bm:pcB3;--lm:pcL3;--bt:6.7s;--bd:-4.4s;--mm:pcM3;--mt:3.8s;--md:-1.2s;
+  --hs:5.1s;--hf:3.6s;--hb:6.3s;--hd:-2.6s}
+.pc[data-h=scout] .pc-cape{opacity:1}
+.pc[data-h=scout] .pc-hair{height:15%;border-radius:46% 46% 24% 24%/64% 64% 36% 36%}
+.pc[data-h=scout] .pc-hairb{left:11%;top:8%;width:78%;height:34%}
+.pc[data-h=scout] .pc-hairt{left:15%;top:11%;width:70%;height:14%}
+/* 两侧翘发：两根尖发往左右斜插出去，根部仍在 25% 以上，不碰眼睛 */
+.pc[data-h=scout] .pc-hairt::before{left:-3%;width:22%;transform:rotate(-19deg);
+  border-radius:50% 50% 36% 36%/70% 70% 30% 30%}
+.pc[data-h=scout] .pc-hairt::after{right:-3%;width:22%;transform:rotate(19deg);
+  border-radius:50% 50% 36% 36%/70% 70% 30% 30%}
+/* 宽檐帽：帽冠下沿 14%、帽檐 ::after 占 56%~100%（即 9%~14%），都在眼睛上方 */
+.pc[data-h=scout] .pc-gear{opacity:1;left:22%;top:0;width:56%;height:15%;
+  border-radius:50% 50% 22% 22%/70% 70% 30% 30%;background:linear-gradient(180deg,#0f766e,#134e4a)}
+.pc[data-h=scout] .pc-gear::after{content:'';position:absolute;left:-36%;top:56%;width:172%;height:46%;
+  border-radius:50%;background:linear-gradient(180deg,#fbbf24,#a16207)}
+.pc[data-h=scout] .pc-prop{opacity:1;left:3%;top:58%;width:7%;height:26%;border-radius:34%;
+  background:linear-gradient(180deg,#e2e8f0,#94a3b8);transform:rotate(24deg)}
+/* 幸运儿：琥珀短打、草帽、四叶草 */
+.pc[data-h=lucky]{--hair:#c2410c;--c1:#f59e0b;--c2:#b45309;--acc:#bbf7d0;
+  --bm:pcB4;--lm:pcL4;--bt:8.3s;--bd:-1.6s;--mm:pcM4;--mt:7.1s;--md:-2.7s;
+  --hs:4.9s;--hf:2.9s;--hb:5.5s;--hd:-3.8s}
+.pc[data-h=lucky] .pc-cape{opacity:.85}
+.pc[data-h=lucky] .pc-hair{height:17%;border-radius:50% 50% 22% 22%/66% 66% 34% 34%}
+/* 尖刺刘海：两撮尖头朝下指，底端 25%，仍在眼睛（27%）之上 */
+.pc[data-h=lucky] .pc-hairt{left:15%;top:10%;width:70%;height:15%}
+.pc[data-h=lucky] .pc-hairt::before{left:3%;width:26%;transform:rotate(-13deg);
+  border-radius:50% 50% 10% 10%/78% 78% 22% 22%}
+.pc[data-h=lucky] .pc-hairt::after{right:3%;width:26%;transform:rotate(13deg);
+  border-radius:50% 50% 10% 10%/78% 78% 22% 22%}
+/* 草帽：帽冠下沿 11%，帽檐 ::after 占 58%~100%（即 7%~11%），都远在眼睛上方 */
+.pc[data-h=lucky] .pc-gear{opacity:1;left:18%;top:0;width:64%;height:11%;
+  border-radius:50% 50% 26% 26%/76% 76% 24% 24%;background:linear-gradient(180deg,#fde68a,#d97706)}
+.pc[data-h=lucky] .pc-gear::after{content:'';position:absolute;left:-28%;top:58%;width:156%;height:64%;
+  border-radius:50%;background:linear-gradient(180deg,#fbbf24,#b45309)}
+.pc[data-h=lucky] .pc-prop{opacity:1;left:66%;top:58%;width:17%;height:17%;border-radius:50%;
+  background:
+    radial-gradient(circle at 34% 32%,#4ade80 0 30%,transparent 31%),
+    radial-gradient(circle at 68% 34%,#4ade80 0 30%,transparent 31%),
+    radial-gradient(circle at 36% 68%,#4ade80 0 30%,transparent 31%),
+    radial-gradient(circle at 68% 70%,#4ade80 0 30%,transparent 31%)}
+/* 治愈师：薄荷白袍、兜帽、十字权杖
+   胸前的白色横带容易被看成「腰带」，改成立体的十字徽记，一眼能认出医疗。 */
+.pc[data-h=healer]{--hair:#7c5c3a;--c1:#5eead4;--c2:#0f766e;--acc:#ffffff;
+  --bm:pcB2;--lm:pcL2;--bt:4.6s;--bd:-3.3s;--mm:pcM1;--mt:5.2s;--md:-4.1s;
+  --hs:3.9s;--hf:3.3s;--hb:6.9s;--hd:-.9s}
+.pc[data-h=healer] .pc-cape{opacity:1}
+.pc[data-h=healer] .pc-hair{height:22%;border-radius:58% 58% 20% 20%/66% 66% 34% 34%}
+/* 长侧发：一直垂到肩头，是六个角色里飘动幅度最大的（脑后发层最高） */
+.pc[data-h=healer] .pc-hairb{left:10%;top:6%;width:80%;height:56%;border-radius:44% 44% 40% 40%/34% 34% 66% 66%}
+.pc[data-h=healer] .pc-hairt{left:15%;top:11%;width:70%;height:14%}
+.pc[data-h=healer] .pc-hairt::before{left:0;width:21%;transform:rotate(-12deg)}
+.pc[data-h=healer] .pc-hairt::after{right:0;width:21%;transform:rotate(12deg)}
+/* 兜帽：下沿 22%，眼睛 27% —— 长侧发从两侧垂下但 z-index 在头之后，不遮五官 */
+.pc[data-h=healer] .pc-gear{opacity:1;left:15%;top:0;width:70%;height:22%;
+  border-radius:50% 50% 16% 16%/70% 70% 30% 30%;
+  background:linear-gradient(180deg,#f0fdfa,#5eead4);box-shadow:inset 0 -4px 0 #0d948820}
+.pc[data-h=healer] .pc-sash{left:50%;top:60%;width:40%;height:36%;background:none;opacity:1;clip-path:none;
+  transform:translateX(-50%)}
+.pc[data-h=healer] .pc-sash::after{content:'';position:absolute;left:34%;top:24%;width:32%;height:52%;
+  border-radius:3px;background:#f8fafc;
+  box-shadow:0 -11px 0 -3px #f8fafc,0 11px 0 -3px #f8fafc}
+.pc[data-h=healer] .pc-prop{opacity:1;left:3%;top:30%;width:7%;height:52%;border-radius:36%;
+  background:linear-gradient(180deg,#fcd34d,#b45309)}
+.pc[data-h=healer] .pc-prop::after{content:'';position:absolute;left:-52%;top:8%;width:200%;height:9%;
+  border-radius:3px;background:#f8fafc;box-shadow:0 12px 0 -2px #f8fafc}
+/* 游侠：皮革轻甲、马尾、短刀 */
+.pc[data-h=ranger]{--hair:#1f2937;--c1:#84cc16;--c2:#3f6212;--acc:#fde047;
+  --bm:pcB4;--lm:pcL4;--bt:6.1s;--bd:-5.2s;--mm:pcM3;--mt:4.3s;--md:-.6s;
+  --hs:4.1s;--hf:2.4s;--hb:4.7s;--hd:-2.2s}
+.pc[data-h=ranger] .pc-cape{opacity:.7}
+.pc[data-h=ranger] .pc-hair{height:22%;border-radius:52% 52% 34% 34%/62% 62% 38% 38%}
+/* 偏分刘海：左厚右薄的一大一小两撮，底端 25%，不压眼 */
+.pc[data-h=ranger] .pc-hairt{left:15%;top:10%;width:70%;height:15%}
+.pc[data-h=ranger] .pc-hairt::before{left:5%;width:36%;transform:rotate(-16deg)}
+.pc[data-h=ranger] .pc-hairt::after{right:-1%;width:22%;transform:rotate(25deg)}
+/* 马尾改由「脑后发」那一层承担：枢轴在头顶、摆幅 ±6~7.5°，是六个角色里飘得最明显的 */
+.pc[data-h=ranger] .pc-hairb{left:66%;top:8%;width:30%;height:56%;
+  border-radius:44% 44% 48% 48%/28% 28% 72% 72%;transform-origin:50% 5%;
+  animation:pcTail var(--hb) ease-in-out var(--hd) infinite}
+.pc[data-h=ranger] .pc-hairb::after{content:'';position:absolute;left:16%;top:5%;width:64%;height:8%;
+  border-radius:99px;background:var(--acc)}
+.pc[data-h=ranger] .pc-prop{opacity:1;left:1%;top:56%;width:9%;height:30%;border-radius:34%;
+  background:linear-gradient(180deg,#e5e7eb,#9ca3af);transform:rotate(-22deg)}
+.pc[data-h=ranger] .pc-prop::after{content:'';position:absolute;left:-40%;top:88%;width:180%;height:9%;
+  border-radius:4px;background:#4b5563}
+
+/* ---- 标题页角色选择 ---- */
+.heroes{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:4px}
+.hcard{position:relative;border:1px solid var(--line);border-radius:var(--r2);
+  background:linear-gradient(165deg,#ffffff12,#ffffff05);padding:9px 4px 10px;
+  cursor:pointer;color:var(--fg);font-family:inherit;text-align:center;
+  transition:.16s var(--ease);box-shadow:var(--sh1);overflow:hidden}
+.hcard .pc{width:var(--hcpcw,58px);height:var(--hcpch,71px);margin:0 auto var(--hcpcmb,6px);animation:none}
+.hcard .pc .pc-shadow{animation:none}
+.hcard b{display:block;font-size:12.5px;letter-spacing:.5px;margin-bottom:3px}
+.hcard .hs{display:block;font-size:9.5px;line-height:1.5;color:var(--dim);letter-spacing:.2px}
+.hcard:hover{transform:translateY(-2px);border-color:var(--line2);background:#ffffff1a;box-shadow:var(--sh2)}
+.hcard:active{transform:translateY(1px) scale(.98)}
+.hcard.sel{border-color:var(--gold);box-shadow:0 0 0 2px #ffce4d40,0 0 20px #ffce4d33;
+  background:linear-gradient(165deg,#ffce4d1f,#ffce4d05)}
+.hcard.sel::after{content:'✓';position:absolute;top:6px;right:8px;font-size:12px;
+  font-weight:900;color:var(--gold)}
+.herodesc{margin-top:10px;padding:11px 13px;border:1px solid var(--line);border-radius:var(--r2);
+  background:#ffffff0c;font-size:12.5px;line-height:1.75;color:var(--mut);text-align:center}
+.herodesc b{color:var(--fg);font-size:13px;letter-spacing:.5px}
+.herodesc i{font-style:normal;color:var(--acc2)}
+
+/* 释义卡：全页焦点 */
+.q{text-align:center;padding:20px 12px 16px;
+ background:linear-gradient(165deg,#ffffff1f,#ffffff08);border-color:var(--line2);box-shadow:var(--sh3)}
+.q .zh{font-size:clamp(28px,8.5vw,40px);font-weight:900;letter-spacing:1.5px;line-height:1.28;
+ margin-bottom:8px;word-break:break-word;
+ background:linear-gradient(180deg,#ffffff,#cfd6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.q .cat{font-size:11.5px;color:var(--dim);letter-spacing:.8px;margin-bottom:16px}
+.slots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px;min-height:46px}
+.slot{width:30px;height:44px;border-radius:9px;border-bottom:3px solid var(--line);
+ display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;text-transform:lowercase;
+ background:#ffffff0a;transition:.14s;color:transparent;box-shadow:inset 0 1px 0 #ffffff0f}
+.slot.f{border-bottom-color:var(--acc2);background:#22d3ee26;color:#fff;animation:popin .2s;
+ box-shadow:0 0 14px #22d3ee4d,inset 0 1px 0 #ffffff26}
+.slot.w{border-bottom-color:var(--bad);color:#ff9db0;background:#ff54701f}
+.slot.fx{border-bottom-color:transparent;width:12px;background:transparent;box-shadow:none}
+.slot.hint{color:var(--warn);border-bottom-color:var(--warn);background:#ffb0201f}
+/* ---- 词组的空格（.slotsep）----
+   词库里有 15 个词组（keep an eye on / in my opinion …），但拼写判定走的是
+   norm()（抹掉所有非字母），所以空格在槽位里原本是完全看不见的：
+   keep an eye on 被排成 10 个连着的字母格子，看着像一个 10 字母长单词，
+   而 TTS.word() 念的却是带空格的完整短语 —— 看到和听到的不一致。
+
+   做法：在两个单词之间插一个 .slotsep 元素当视觉分隔。
+   ★ 它【不是 .slot】：没有 class="slot"，所以
+     - 不会被 #fSlots .slot 的任何查询/计数命中
+     - 不进 B.input，不占 B.input 的索引
+     - 不参与正确性判定（判定仍只看 norm(B.word.w)）
+     - 不会被算成「需要填的字母」
+   宽度压到 9px 并配 align-self:stretch + 居中，
+   实测 320px 上最长的 living conditions(16字母+1间隔) 也不横向溢出。
+   竖线画在 ::before 上（细、短、居中），比纯间隙更容易看出「这里是空格」。 */
+.slotsep{flex:none;width:9px;align-self:stretch;position:relative}
+.slotsep::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:2px;height:42%;border-radius:2px;background:#ffffff2e}
+@keyframes popin{0%{transform:scale(.5) translateY(9px)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
+
+/* 字母盘：JS 会写 maxWidth = cols*66，grid 容器一旦有 maxWidth 就会脱离父宽度的居中，
+   必须显式 margin-inline:auto，否则整盘字母贴着左边（实测 768px 时偏左 198px）。 */
+.bank{display:grid;gap:8px;justify-content:center;margin:6px auto 4px}
+.key{aspect-ratio:1;min-height:46px;border-radius:var(--r2);border:1px solid var(--line2);
+ background:linear-gradient(160deg,#ffffff1f,#ffffff08);color:var(--fg);font-size:21px;font-weight:800;
+ text-transform:lowercase;cursor:pointer;display:flex;align-items:center;justify-content:center;
+ transition:transform .1s var(--ease),box-shadow .16s,background .16s,border-color .16s;
+ font-family:inherit;box-shadow:0 3px 0 #0006,var(--sh1)}
+.key:hover{border-color:#ffffff4d;background:linear-gradient(160deg,#ffffff2b,#ffffff10)}
+.key:active{transform:translateY(3px);box-shadow:0 0 0 #0006,var(--sh1)}
+.key.out{opacity:.16;cursor:not-allowed;background:#00000030}
+.key.gone{opacity:.13;background:#ff547026;border-color:#ff547044;cursor:not-allowed;box-shadow:none}
+.key.bad{background:#ff54701f;border-color:#ff547055;opacity:.45}
+.key.bad:hover{opacity:.65}
+.key.flash{animation:kbad .32s}
+@keyframes kbad{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px);background:#ff547055}75%{transform:translateX(8px)}}
+.key.good{animation:kgood .3s}
+@keyframes kgood{0%{transform:scale(1)}45%{transform:scale(1.2);background:#3ddc8466}100%{transform:scale(1)}}
+
+/* ---- 字母盘：键盘布局模式（QWERTY 三行阶梯）----
+   .bank.kb 用 flex 纵向排 .kbrow（每行一个），彻底绕开 gridTemplateColumns。
+   阶梯缩进用 --kbw（键宽）+ 固定比例 padding，避免不同屏宽下错位。
+   max-width 交给 JS 按最长行算，保证 320px 起不溢出。 */
+.bank.kb{display:flex;flex-direction:column;align-items:center;gap:7px;
+ margin:8px auto 4px;width:100%;max-width:100%!important}
+.bank.kb .kbrow{display:flex;justify-content:center;gap:7px;width:100%}
+.bank.kb .kbrow.r1{padding-left:calc(var(--kbw,44px)*.42)}
+.bank.kb .kbrow.r2{padding-left:calc(var(--kbw,44px)*.84)}
+/* 键盘模式下键更大更规整：字母位置有规律，小孩好找 */
+.bank.kb .key{width:var(--kbw,44px);height:var(--kbw,44px);min-height:0;aspect-ratio:1;
+ font-size:clamp(19px,calc(var(--kbw,44px)*.52),26px);flex:0 0 auto}
+/* 大写显示（纯显示层，判定仍走 norm() 小写） */
+.bank.kb .key.uc,.bank.grid .key.uc{text-transform:uppercase}
+
+/* ---- 字母盘模式切换按钮（放在字母盘正上方，不挡字母点击）---- */
+.bankbar{display:flex;justify-content:center;align-items:center;gap:7px;margin:9px 0 1px;flex-wrap:wrap}
+.bkbtn{background:#ffffff0d;border:1px solid var(--line2);border-radius:99px;
+ padding:5px 12px;color:var(--mut);font-size:11.5px;font-weight:700;letter-spacing:.3px;
+ cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s,color .15s;
+ display:inline-flex;align-items:center;gap:5px;line-height:1.4;white-space:nowrap}
+.bkbtn:hover{border-color:#ffffff40;color:var(--fg)}
+.bkbtn:active{transform:scale(.95)}
+.bkbtn .dot{width:7px;height:7px;border-radius:50%;background:#ffffff26;flex:0 0 auto;transition:background .15s,box-shadow .15s}
+.bkbtn.on{color:#fff;border-color:var(--acc2);background:#22d3ee1f;box-shadow:0 0 0 2px #22d3ee1a}
+.bkbtn.on .dot{background:var(--acc2);box-shadow:0 0 8px var(--acc2)}
+.bkbtn b{font-weight:800;font-variant-numeric:tabular-nums}
+/* ---- 「听读音」按钮：和字母盘模式开关同排，但视觉上是「主操作」 ---- */
+.bkbtn.say{border-color:#22d3ee4d;background:#22d3ee1a;color:#eaffff;padding:6px 14px;font-size:12.5px}
+.bkbtn.say .spk{font-size:14px;line-height:1}
+.bkbtn.say small{font-size:9px;color:#7ee7f5;font-weight:600;letter-spacing:.3px}
+.bkbtn.say:hover{border-color:#22d3ee99;background:#22d3ee2e}
+.bkbtn.say:active{transform:scale(.95)}
+.bkbtn.say.off{opacity:.42;border-color:#ffffff26;background:#ffffff0d;color:var(--mut)}
+.bkbtn.say.off small{color:var(--dim)}
+/* 发声时喇叭做一次脉冲：无声环境（含降级）下不会有任何动画，避免「假反馈」 */
+.bkbtn.say.on2 .spk{animation:spkpop .45s ease-out}
+@keyframes spkpop{0%{transform:scale(1)}40%{transform:scale(1.45);filter:drop-shadow(0 0 6px #22d3ee)}100%{transform:scale(1)}}
+
+.combo{text-align:center;font-size:13.5px;font-weight:800;letter-spacing:2px;min-height:20px;color:var(--gold)}
+.combo.hot{animation:cpop .35s}
+@keyframes cpop{0%{transform:scale(1)}45%{transform:scale(1.4);filter:drop-shadow(0 0 9px #ffce4d)}100%{transform:scale(1)}}
+.tools{display:flex;gap:8px;margin-top:10px}
+/* ---- 主动道具栏 ---- */
+.items{display:flex;gap:7px;margin:9px 0 2px;justify-content:center;flex-wrap:wrap;min-height:44px}
+.item{
+ flex:1 1 0;min-width:86px;max-width:130px;position:relative;
+ background:linear-gradient(165deg,#ffffff1a,#ffffff06);
+ border:1px solid var(--line2);border-radius:13px;padding:9px 5px 8px;
+ color:var(--fg);cursor:pointer;font-family:inherit;text-align:center;transition:.14s
+}
+.item:active{transform:scale(.94)}
+.item .ic{font-size:21px;line-height:1.15;display:block}
+.item .nm{font-size:10.5px;font-weight:700;margin-top:2px;letter-spacing:.3px}
+.item .ct{position:absolute;top:4px;right:6px;font-size:10px;font-weight:800;color:var(--gold);
+ font-variant-numeric:tabular-nums;background:#0006;border-radius:6px;padding:1px 5px}
+.item .kb{position:absolute;top:4px;left:6px;font-size:9px;color:var(--dim)}
+.item:hover:not(.off){border-color:var(--acc2);box-shadow:0 0 0 2px #22d3ee28;transform:translateY(-2px)}
+.item.off{opacity:.28;cursor:not-allowed}
+.item.fire{border-color:var(--gold);box-shadow:0 0 0 2px #ffce4d3a,0 0 16px #ffce4d33}
+.item.fire::after{content:'';position:absolute;inset:-1px;border-radius:13px;
+ border:1px solid var(--gold);animation:ringpulse 1.1s ease-in-out infinite;pointer-events:none}
+@keyframes ringpulse{0%,100%{opacity:.3}50%{opacity:1}}
+.items .none{font-size:11px;color:var(--dim);text-align:center;padding:12px 0;letter-spacing:1px}
+.tool{flex:1;background:#ffffff10;border:1px solid var(--line);border-radius:var(--r2);padding:10px 6px;
+ color:var(--fg);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;
+ transition:.16s var(--ease);min-width:0}
+.tool:hover:not(:disabled){background:#ffffff1a;border-color:var(--line2);transform:translateY(-1px)}
+.tool:active:not(:disabled){transform:translateY(1px) scale(.98)}
+.tool:disabled{opacity:.3;cursor:not-allowed}
+.tool small{display:block;font-size:9.5px;color:var(--dim);font-weight:400;letter-spacing:.5px;margin-top:2px}
+/* 窄屏：听读音按钮收紧（bankbar 本身 flex-wrap，换行也不会溢出） */
+.bkbtn.say{padding:5px 10px;font-size:11.5px}
+.bkbtn.say .spk{font-size:12.5px}
+.bkbtn.say small{font-size:8.5px}
+.bkbtn.say{white-space:nowrap}
+
+/* 独立纪念卡：与战斗中的可选奖励卡分开，不影响地图节点。 */
+.reward-collection{margin-top:14px}
+.reward-collection summary{cursor:pointer;color:var(--gold);font-size:14px;font-weight:800;min-height:32px;line-height:32px}
+.reward-card{position:relative;border:1px solid #ffce4d80;border-radius:var(--r3);padding:20px 16px;margin:12px 0 16px;text-align:left;
+ background:radial-gradient(ellipse at top right,#ffce4d24,transparent 70%),linear-gradient(135deg,#261b4a,#101b32);
+ box-shadow:inset 0 0 0 4px #ffce4d0d,0 8px 24px #0006;overflow-wrap:anywhere}
+.reward-card::before{content:'★  EXPEDITION  ★';display:block;font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:10px}
+.reward-card h3{font-size:18px;color:var(--gold);margin:0 0 10px;line-height:1.5}
+.reward-card p{font-size:13px;line-height:1.8;margin:6px 0}
+.reward-card small{display:block;font-size:10.5px;color:var(--mut);line-height:1.7;margin-top:10px}
+/* ---- cards / rewards ---- */
+/* 注意：地图可选节点的 class 是 "node pick"，与奖励卡片的 .pick 同名。
+   奖励卡一律由 JS 追加到 .picks 容器内，故用 .picks > .pick 限定作用域，
+   避免 position/width 泄漏到地图节点上。 */
+.picks{display:grid;gap:12px;margin-top:14px}
+/* 可点击感：抬升 + 高光 + 左侧强调条 */
+.picks > .pick{position:relative;display:block;width:100%;
+ border:1px solid var(--line2);border-radius:var(--r2);padding:16px 16px 16px 20px;
+ cursor:pointer;transition:transform .14s var(--ease),box-shadow .18s,border-color .18s,background .18s;
+ background:linear-gradient(150deg,#ffffff14,#ffffff06);text-align:left;color:var(--fg);font-family:inherit;
+ box-shadow:var(--sh1);overflow:hidden}
+.picks > .pick::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+ background:linear-gradient(180deg,var(--acc2),var(--acc));opacity:.85}
+.picks > .pick:hover{transform:translateY(-2px);border-color:#ffffff4d;
+ background:linear-gradient(150deg,#ffffff1f,#ffffff0a);box-shadow:var(--sh2)}
+.picks > .pick:active{transform:translateY(1px) scale(.985);box-shadow:var(--sh1)}
+.picks > .pick b{display:block;font-size:15.5px;margin-bottom:6px;letter-spacing:.3px}
+.picks > .pick span{font-size:12.5px;color:var(--mut);line-height:1.65;display:block}
+.picks > .pick.gold{border-color:#ffce4d55;background:linear-gradient(150deg,#ffce4d1a,#ffce4d05)}
+.picks > .pick.gold::before{background:linear-gradient(180deg,#fde68a,var(--gold))}
+/* ---- 奖励类别徽标 ----
+   类别来自 JS 的结构化字段 o.cat（见 CAT_LABEL），不是从标题文字里猜的。
+   徽标独立于标题之上，字号小、位置固定，既醒目又不抢奖励名称。
+   六类全部用 color-mix 从既有变量派生，不引入新的色值。 */
+.picks > .pick i.ctag{display:inline-block;font-style:normal;font-size:10.5px;font-weight:800;
+ letter-spacing:.8px;line-height:1;padding:4px 8px;border-radius:999px;margin-bottom:9px;
+ border:1px solid;white-space:nowrap;opacity:.95}
+/* 每类一色：道具=紫 --acc / 遗物=金 --gold / 恢复=绿 --ok / 增益=青 --acc2 / 事件=橙 --warn / 无=灰 --dim */
+.picks > .pick i.ctag[data-cat=relic]{color:var(--gold);background:color-mix(in srgb,var(--gold) 13%,transparent);border-color:color-mix(in srgb,var(--gold) 45%,transparent)}
+.picks > .pick i.ctag[data-cat=item] {color:var(--acc); background:color-mix(in srgb,var(--acc)  13%,transparent);border-color:color-mix(in srgb,var(--acc)  45%,transparent)}
+.picks > .pick i.ctag[data-cat=heal] {color:var(--ok);  background:color-mix(in srgb,var(--ok)   13%,transparent);border-color:color-mix(in srgb,var(--ok)   45%,transparent)}
+.picks > .pick i.ctag[data-cat=boost]{color:var(--acc2);background:color-mix(in srgb,var(--acc2) 13%,transparent);border-color:color-mix(in srgb,var(--acc2) 45%,transparent)}
+.picks > .pick i.ctag[data-cat=event]{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.picks > .pick i.ctag[data-cat=none] {color:var(--dim); background:color-mix(in srgb,var(--dim)  10%,transparent);border-color:color-mix(in srgb,var(--dim)  40%,transparent)}
+/* 左侧强调条与描边跟随类别，颜色与徽标一致 */
+.picks > .pick[data-cat=relic]{border-color:color-mix(in srgb,var(--gold) 25%,transparent)}
+.picks > .pick[data-cat=relic]::before{background:linear-gradient(180deg,#fde68a,var(--gold))}
+.picks > .pick[data-cat=item]{border-color:color-mix(in srgb,var(--acc) 25%,transparent)}
+.picks > .pick[data-cat=item]::before{background:linear-gradient(180deg,#a78bfa,var(--acc))}
+.picks > .pick[data-cat=heal]{border-color:color-mix(in srgb,var(--ok) 25%,transparent)}
+.picks > .pick[data-cat=heal]::before{background:linear-gradient(180deg,#86efac,var(--ok))}
+.picks > .pick[data-cat=boost]{border-color:color-mix(in srgb,var(--acc2) 25%,transparent)}
+.picks > .pick[data-cat=boost]::before{background:linear-gradient(180deg,#67e8f9,var(--acc2))}
+.picks > .pick[data-cat=event]{border-color:color-mix(in srgb,var(--warn) 25%,transparent)}
+.picks > .pick[data-cat=event]::before{background:linear-gradient(180deg,#fcd34d,var(--warn))}
+.picks > .pick[data-cat=none]{border-color:var(--line2)}
+.picks > .pick[data-cat=none]::before{background:linear-gradient(180deg,#8b93b8,#6b7396)}
+/* 道具的「代价提示」独立成行，和效果描述区分开 */
+.picks > .pick span.ctip{font-size:11.5px;color:var(--dim);margin-top:4px;line-height:1.55}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.gcell{background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);padding:14px 6px;text-align:center}
+.gcell b{display:block;font-size:22px;font-variant-numeric:tabular-nums;margin-bottom:3px}
+.gcell i{font-style:normal;font-size:10.5px;color:var(--dim)}
+.rl{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;margin-top:12px}
+.rlc{border:1px solid var(--line2);border-radius:var(--r2);padding:14px 8px;text-align:center;cursor:pointer;
+ background:linear-gradient(160deg,#ffffff12,#ffffff05);transition:.16s var(--ease);color:var(--fg);font-family:inherit;
+ box-shadow:var(--sh1)}
+.rlc:hover{transform:translateY(-2px);border-color:#ffffff4d;box-shadow:var(--sh2)}
+.rlc:active{transform:translateY(1px) scale(.98)}
+.rlc.sel{border-color:var(--gold);box-shadow:0 0 0 3px #ffce4d33,0 0 18px #ffce4d2e;background:#ffce4d18}
+.rlc .ic{font-size:26px;margin-bottom:7px;line-height:1.2}
+.rlc b{display:block;font-size:12.5px;margin-bottom:4px}
+.rlc span{font-size:10.5px;color:var(--dim);line-height:1.55;display:block}
+.warnbox{border:1px solid #ffb02055;background:#ffb02014;border-radius:var(--r2);padding:14px;margin-top:12px;
+ font-size:12.5px;color:#ffd48a;line-height:1.7}
+.flashfx{position:fixed;inset:0;pointer-events:none;z-index:55;opacity:0}
+.flashfx.go{animation:fl .36s}
+@keyframes fl{0%{opacity:0}12%{opacity:.85}100%{opacity:0}}
+.float{position:fixed;z-index:70;pointer-events:none;font-weight:900;font-size:24px;
+ text-shadow:0 2px 7px #000,0 0 12px #0009;animation:fl2 1s ease-out forwards}
+@keyframes fl2{0%{opacity:0;transform:translate(-50%,0) scale(.5)}
+ 18%{opacity:1;transform:translate(-50%,-16px) scale(1.16)}100%{opacity:0;transform:translate(-50%,-62px) scale(.95)}}
+textarea{width:100%;height:124px;background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);
+ padding:12px;color:var(--fg);font-family:ui-monospace,Consolas,monospace;font-size:13px;outline:none;resize:vertical;user-select:text}
+textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
+/* 单元选择卡片 */
+.units{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.unit{position:relative;background:#ffffff0d;border:1px solid var(--line);border-radius:var(--r2);padding:14px 12px;
+ cursor:pointer;color:var(--fg);font-family:inherit;text-align:left;transition:.16s var(--ease);box-shadow:var(--sh1)}
+.unit:hover{transform:translateY(-2px);border-color:var(--line2);background:#ffffff14;box-shadow:var(--sh2)}
+.unit:active{transform:translateY(1px) scale(.98)}
+.unit.sel{border-color:var(--acc);background:#8b5cf626;box-shadow:0 0 0 2px #8b5cf64d,0 0 20px #8b5cf633}
+.unit.sel::after{content:'✓';position:absolute;top:9px;right:11px;font-size:13px;font-weight:900;color:var(--acc2)}
+.unit b{display:block;font-size:13.5px;margin-bottom:3px;letter-spacing:.3px;padding-right:16px}
+.unit span{font-size:11px;color:var(--dim);line-height:1.5}
+.unit em{font-style:normal;color:var(--gold);font-size:10.5px;display:block;margin-top:5px}
+
+/* 标题页统计条 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.stats>div b{font-size:19px;font-variant-numeric:tabular-nums;display:block}
+.stats>div i{font-style:normal;font-size:10.5px;color:var(--dim);margin-top:3px;display:block}
+/* 事件页标题区 */
+.evhead{text-align:center;padding:4px 0 14px}
+.evhead .ic{font-size:44px;line-height:1.1;margin-bottom:10px}
+.evhead h2{font-size:18px;font-weight:800;margin:0 0 8px;letter-spacing:.5px}
+.evhead p{font-size:13.5px;color:var(--mut);line-height:1.8;margin:0}
+
+/* ==================================================================
+   移动端「不裁切」高度预算
+   ------------------------------------------------------------------
+   实测（Chrome CDP 移动端模拟，6 组真机视口）修之前的真实数据：
+     视口        文档总高   .tools 底边超出视口   最下面被裁掉的元素
+     320x568       938px          +346px          字母盘 + 提示/跳过/逃跑
+     360x640       892px          +228px          同上
+     375x667       880px          +183px          同上
+     390x700       811px           +81px          同上（带地址栏的真实情形）
+     390x844       844px           -63px          刚好（余量仅 63px）
+     414x896       896px          -112px          刚好
+   根因：战斗页把「敌人形象 + 释义 + 道具 + 字母盘 + 按钮」全按内容自然高度
+   竖着堆，文档总高 880-938px，而矮屏可视高只有 568-700px。页面本身能滚，
+   但用户反馈的正是「滚下去也费劲 / 看着像被切掉」，而且滚到底时 sticky 的
+   HUD 还占着顶部，等于可视区更矮。
+   做法分两层，全部纯 CSS，不引 JS、不加 resize 监听：
+     1) 矮屏媒体查询（max-height）—— 敌人头像/角色/释义/道具栏逐级缩小，
+        把省下的 150-250px 全部让给字母盘和按钮；
+     2) 战斗页改成「视口等高的 flex 列」—— 字母盘 + 提示/跳过/逃跑 用 flex:none
+        钉在底部，信息区（.fmid）超高就自己滚，
+        保证任何屏高下这三个按钮和字母盘永远可见可点。
+   视口高度基准是 :root 上的 --vh（见文件头），它自带 100vh 兜底。
+   修完之后实测：7 组视口（320/360/375/390/414 + 横屏 844x390）
+   战斗页全部一屏装下、页面 scrollTop 恒为 0、按钮底部还留 27-33px 余量。
+   ================================================================== */
+
+/* 矮屏（横屏手机、小尺寸设备、以及带地址栏的竖屏）统一压缩。
+      阈值取 900px，而不是更矮的 760px —— 因为 CSS 媒体查询用的是「布局视口」高度，
+      390x844 的 iPhone 在 Safari 里布局视口仍是 844（地址栏不计入），
+      可用户实际看到的只有约 700-720px。取 900 能把「真机带地址栏」和
+      「小窗口笔记本」两种情形一起覆盖；更高的视口本来也装得下。
+
+   核心结构：战斗页改成「视口等高的 flex 列」——
+     .hud   固定（顶部血条，本来就是 sticky）
+     .fmid  可滚动（敌人形象 + 释义 + 字母槽 + 道具栏；信息区，超高就内部滚）
+     .bankbar/.bank/.tools  固定在底部（字母盘 + 提示/跳过/逃跑，永远可见可点）
+   这样「拼单词的核心交互」被钉死在屏幕上，屏高再小也不会被裁掉；
+   而释义、敌人、道具这些辅助信息在极窄屏上内部滚动，不影响可玩性。 */
+@media (max-height:900px){
+  /* 战斗页占满可视高度，body 的上下 padding 之外不再产生额外文档高度。
+     ★ 必须写成 #s-fight.on：裸 #s-fight 的 ID 特指度会盖过 .screen{display:none}，
+     导致战斗页在其他每一页上都常驻显示、把别的页面整体顶到折叠线以下。 */
+  #s-fight.on{display:flex;flex-direction:column;
+    height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px));
+    max-height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px))}
+  #s-fight .hud{flex:none}
+  /* 中段滚动区：矮屏上这块内容天然比可视区高，让它自己滚 */
+  #s-fight .fmid{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #s-fight .fmid::-webkit-scrollbar{display:none}
+  /* 底部交互区：永不压缩、永不滚动 */
+  #s-fight .bankbar,#s-fight .bank,#s-fight .tools{flex:none}
+
+  /* 敌人头像 64 → 46，.vsrow 整行矮 18px；--avatar 同时驱动字号。
+     对峙行 / 我方角色 / 敌人间距一律走变量（.vsrow/.foe/.myside/.pc 只允许 1-2 条规则）。 */
+  #s-fight{--avatar:46px;--msw:72px;--pcw:72px;--pch:88px;--foegap:9px;--vsm:0 0 9px}
+  /* 释义卡的内边距收紧 */
+  #s-fight .q{padding:13px 10px 11px}
+  #s-fight .q .zh{font-size:clamp(23px,7.4vw,32px);margin-bottom:5px}
+  #s-fight .q .cat{margin-bottom:9px}
+  /* 字母槽矮一点，省 8px */
+  #s-fight .slots{min-height:38px;margin-bottom:8px}
+  #s-fight .slot{width:27px;height:38px;font-size:18px}
+  #s-fight .combo{min-height:17px;font-size:12.5px}
+  /* 道具栏：矮屏只留一行高度（min-height 44 → 0），多个道具换行也不额外顶高 */
+  #s-fight .items{min-height:0;margin:6px 0 1px}
+  #s-fight .item{padding:6px 4px 5px}
+  #s-fight .item .ic{font-size:17px}
+  /* 切换按钮条收紧 */
+  #s-fight .bankbar{margin:6px 0 0;gap:5px}
+  #s-fight .bkbtn{padding:4px 9px;font-size:10.5px}
+  #s-fight .bkbtn.say{padding:4px 9px;font-size:11px}
+  /* 字母键：矮屏允许降到 44px（仍高于 44px 触摸目标下限，不牺牲手感） */
+  #s-fight .key{min-height:44px;font-size:19px}
+  #s-fight .bank{gap:6px;margin:5px auto 3px}
+  /* 底部按钮：留出 iPhone home indicator / 安卓手势条的安全区 */
+  #s-fight .tools{margin-top:7px;
+    padding-bottom:calc(3px + var(--sab,0px))}
+}
+/* 极矮屏（320x568 / 横屏）：再挤一轮，保住字母盘和按钮 */
+@media (max-height:620px){
+  #s-fight{--avatar:40px;--msw:62px;--pcw:62px;--pch:76px;--vsm:0 0 7px}
+  #s-fight .q{padding:10px 9px 9px}
+  #s-fight .q .zh{font-size:clamp(21px,6.8vw,28px);margin-bottom:4px}
+  #s-fight .q .cat{margin-bottom:7px;font-size:10.5px}
+  #s-fight .slots{min-height:33px;margin-bottom:6px;gap:5px}
+   #s-fight .slot{width:24px;height:33px;font-size:16px;border-radius:6px}
+   #s-fight .slotsep{width:6px}
+   #s-fight .slotsep::before{width:2px;height:46%}
+  #s-fight .key{min-height:40px;font-size:17px;border-radius:var(--r1)}
+  #s-fight .bank{gap:5px;margin:4px auto 2px}
+  #s-fight .bankbar{margin:5px 0 0}
+  #s-fight .tools{margin-top:5px}
+  #s-fight .tool{padding:7px 3px;font-size:11px}
+  #s-fight .tool small{font-size:8.5px}
+}
+
+/* 地图页：#map 的高度由 JS 的 mapMetrics() 按节点数算好（实测 650px），内部 SVG
+   用 1:1 的像素 viewBox 映射、节点是绝对定位 —— 给它加 max-height 会把 SVG 压扁、
+   让底部的节点溢出重叠。所以这里不动地图高度：节点图本来就是「往下走」的内容，
+   页面正常滚动即可，放映/放弃按钮都能滚到。真正必须钉在屏幕内的是战斗页。 */
+@media (max-height:760px){
+  #s-map .mapbar{margin-bottom:0}
+  #s-map #mQuit{margin-top:8px}
+}
+
+/* 标题页：6 张角色卡 + 单位选择让文档高 1274-1319px，所有按钮都在折叠线以下。
+   矮屏上把角色卡压缩成两行三列的小卡、并收窄纵向间距，让「开始远征」上移。 */
+@media (max-height:760px){
+  /* 角色卡形象缩小（--hcpcw/--hcpch 驱动 .hcard .pc，不新增选择器规则） */
+  #s-title{--hcpcw:42px;--hcpch:52px;--hcpcmb:3px}
+  #s-title .sub{margin:4px 0 12px}
+  #s-title .lbl{margin:12px 0 6px}
+  #s-title .heroes{gap:7px}
+  #s-title .hcard{padding:8px 5px 9px}
+  #s-title .hcard b{font-size:11.5px;margin-bottom:2px}
+  #s-title .hcard .hs{font-size:8.5px;line-height:1.4}
+  #s-title .card{padding:14px}
+  #s-title .stats{gap:8px}
+  #s-title .note{margin-top:9px!important}
+}
+/* 窄屏：单位选择从 2 列改 3 列。实测 320px 下 2 列要 3 行共 389px，
+   改 3 列后只剩 2 行约 210px，「开始远征」按钮上移约 180px。 */
+@media (max-width:430px){
+  #s-title .units{grid-template-columns:repeat(3,1fr);gap:6px}
+  #s-title .unit{padding:9px 6px}
+  #s-title .unit b{font-size:11.5px;margin-bottom:2px;padding-right:0}
+  #s-title .unit span{font-size:9.5px;line-height:1.4}
+  #s-title .unit em{font-size:9px;margin-top:3px}
+}
+@media (max-height:620px){
+  #s-title{--hcpcw:36px;--hcpch:44px}
+  #s-title .hcard .hs{display:none}
+  #s-title .unit{padding:11px 9px}
+  #s-title .units{gap:7px}
+}
+
+/* 结算页 / 奖励页 / 导入页：内容天然高于矮屏，但它们是纯卡片流，
+   只要保证底部按钮不被安全区吞掉即可。 */
+@media (max-height:760px){
+  #s-over .card{padding:15px}
+  #s-over #oIcon{font-size:42px!important;margin:4px 0!important}
+  #s-over #oText{line-height:1.55!important;margin-bottom:10px!important}
+  #s-import textarea{min-height:96px}
+}
+
+/* ---- 窄屏适配：320px 起不溢出 ---- */
+@media (max-width:360px){
+ /* 窄屏 body 内边距同步收窄：--padT/--padB 必须一起改，
+    否则战斗页按旧值算高度、又冒出残余滚动。 */
+ :root{--padT:10px;--padB:calc(24px + var(--sab) + var(--verh,0px))}
+ body{padding-left:10px;padding-right:10px}
+ .hud{margin:-10px -10px 12px;padding:9px 10px}
+ .card{padding:15px;border-radius:var(--r2)}
+ h1{font-size:26px}
+ .btn{padding:14px 12px;font-size:15.5px}
+ .key{font-size:19px;min-height:42px;border-radius:var(--r1)}
+ .q{padding:16px 10px 14px}
+ .q .zh{letter-spacing:.5px}
+ .slot{width:26px;height:39px;font-size:18px;border-radius:7px}
+ .slots{gap:5px}
+ .slotsep{width:7px}
+ .node::after{letter-spacing:0}
+ .picks > .pick{padding:14px 12px 14px 17px}
+ .picks > .pick b{font-size:14.5px}
+ .picks > .pick i.ctag{font-size:9.5px;letter-spacing:.4px;padding:3px 7px;margin-bottom:8px}
+ .stats>div b{font-size:17px}
+ .stats>div i{font-size:9.5px}
+ .tool{font-size:11.5px;padding:9px 4px}
+ .tool small{font-size:9px;letter-spacing:0}
+ /* 键盘布局模式窄屏：键缩小、间距收紧，阶梯同步收窄（--kbw 由 JS 覆写） */
+ .bank.kb{gap:5px}
+ .bank.kb .kbrow{gap:5px}
+ .bank.kb .key{border-radius:var(--r1)}
+ .bankbar{gap:6px}
+ .bkbtn{padding:5px 10px;font-size:11px}
+ .gcell b{font-size:19px}
+ .unit b{font-size:12.5px}
+ .evhead .ic{font-size:38px}
+ .evhead h2{font-size:16.5px}
+ /* 窄屏对峙行：敌人信息优先，角色缩到 76px 免得把名字挤没 */
+ .myside{width:var(--msw,76px)}
+ .myside .pc{width:var(--pcw,76px);height:var(--pch,94px)}
+ .myname{font-size:9.5px;letter-spacing:.5px}
+ .vsrow{gap:var(--vsgap,6px)}
+ .hcard .pc{width:var(--hcpcw,48px);height:var(--hcpch,59px)}
+ .hcard b{font-size:11.5px}
+ .hcard .hs{font-size:9px}
+}
+@media (max-width:330px){
+ .stats{grid-template-columns:repeat(2,1fr);gap:10px}
+ .tools{gap:6px}
+}
+/* 大屏：键盘玩更舒服 */
+@media (hover:hover) and (pointer:fine){
+ .key:hover{transform:translateY(-1px)}
+}
+@media (prefers-reduced-motion:reduce){
+ *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+
+/* ============================================================
+   版本更新提示条（APP_VERSION 检测到线上版本变了才出现）
+   ------------------------------------------------------------
+   这个游戏是单文件 HTML + GitHub Pages，浏览器/CDN 都会缓存 ——
+   发新版后用户看到的仍是旧文件，于是每次都反馈「改动没生效」。
+   所以：页面启动后延迟几秒拉一次「线上自己」的 HTML，比对里面的
+   APP_VERSION，不同就在底部挂这条提示，点按钮强制刷新。
+
+   位置为什么是底部、且不靠 z-index 压内容：
+     顶部是 .hud（position:sticky 吸顶，两条血条 + 提示行都在那儿），
+     底部是 #s-fight 的字母盘与 提示/跳过/逃跑（按 --vh 精确算高钉在底部）。
+     任何 fixed 浮层都会盖住其中之一 —— 这正是旧 toast 压住血条那个 bug。
+   改法：条子占的高度走 --verh，body 的 --padB 把它算进去，
+     而 #s-fight 的等高 calc(100dvh - --padT - --padB) 同步收紧 ——
+     内容是被真实顶上来的，物理上不可能被遮住。
+   ============================================================ */
+:root{--verh:0px}                       /* 默认不占位：没有新版本时布局零变化 */
+:root.hasver{--verh:60px}               /* 提示条出现时才撑开底部 */
+#verbar{display:none}
+#verbar.on{display:flex;position:fixed;left:0;right:0;bottom:var(--sab);z-index:80;
+ height:var(--verh);align-items:center;gap:9px;padding:0 10px 0 13px;
+ background:linear-gradient(180deg,#241c58,#141033);
+ border-top:1px solid #8b5cf666;box-shadow:0 -10px 30px #000a,0 -1px 0 #ffffff14 inset;
+ backdrop-filter:blur(14px) saturate(1.25);-webkit-backdrop-filter:blur(14px) saturate(1.25);
+ color:var(--fg);font-size:12.5px;line-height:1.35}
+#verbar::before{content:'';flex:none;width:7px;height:7px;border-radius:50%;
+ background:var(--gold);box-shadow:0 0 0 3px #ffce4d26,0 0 10px #ffce4d80}
+#verbar .vmsg{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#verbar .vmsg b{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+#verbar .vbtn{flex:none;min-height:34px;border:1px solid #ffffff2e;border-radius:var(--r1);
+ padding:0 12px;font-family:inherit;font-size:12.5px;font-weight:800;letter-spacing:.6px;
+ color:#fff;cursor:pointer;background:linear-gradient(100deg,var(--acc),#5b8cff);
+ box-shadow:0 4px 14px #8b5cf659;transition:transform .12s var(--ease),filter .18s}
+#verbar .vbtn:hover{filter:brightness(1.1)}
+#verbar .vbtn:active{transform:translateY(1px) scale(.985)}
+#verbar .vx{flex:none;width:32px;height:32px;border:1px solid #ffffff1f;border-radius:50%;
+ background:#ffffff0f;color:var(--mut);font-family:inherit;font-size:14px;line-height:1;
+ cursor:pointer;padding:0;transition:color .16s,background .16s}
+#verbar .vx:hover{color:var(--fg);background:#ffffff1f}
+#verbar .vx:active{transform:scale(.92)}
+@media (max-width:360px){
+ :root.hasver{--verh:68px}              /* 窄屏文字要两行，条子跟着长高 */
+ #verbar{font-size:12px;padding:0 8px 0 11px;gap:7px}
+ #verbar .vmsg{white-space:normal;overflow:visible}
+ #verbar .vbtn{padding:0 10px;font-size:12px}
+}
+/* ---- 音量控制：只在标题页底部，低调不显眼 ---- */
+.volrow{display:flex;align-items:center;justify-content:center;gap:10px;
+ margin:14px 0 2px;opacity:.55;transition:opacity .2s var(--ease)}
+.volrow:hover{opacity:.9}
+.vollbl{font-size:11px;color:var(--dim);letter-spacing:.5px}
+.volbtn{width:34px;height:28px;padding:0;border-radius:9px;
+ border:1px solid #ffffff1f;background:#ffffff0d;color:#fff;font-size:14px;line-height:1;
+ cursor:pointer;display:flex;align-items:center;justify-content:center;
+ -webkit-tap-highlight-color:transparent}
+.volbtn:active{transform:scale(.94)}
+.volval{font-size:11px;color:var(--dim);min-width:34px;text-align:left;font-variant-numeric:tabular-nums}
+/* 词星小队 / reference-v2 — REPLACES vocab-hero-cartoon.css, after original CSS.
+   Hero-only repaint: no DOM edits, shell dimensions, animation, transform or keyframe overrides.
+   Wide 84% head / 62% height; huge offset black eye cores; flat fills / pure black ink.
+   Socks + shoes are torso pseudo-elements. All six original profession identifiers retained. */
+.pc.pc[data-h] {
+  --ink:#000;
+  --stroke:clamp(1.5px,calc(var(--pcw,104px) * .029),3.2px);
+  --detail:clamp(1px,calc(var(--pcw,104px) * .017),1.9px);
+  --skin:#ffe0cf;--iris:#8571e8;
+}
+.hcard .pc.pc[data-h] {
+  --stroke:clamp(1.35px,calc(var(--hcpcw,58px) * .029),2px);
+  --detail:clamp(.8px,calc(var(--hcpcw,58px) * .017),1.2px);
+}
+.pc.pc[data-h=scholar]{--hair:#49365b;--c1:#7872de;--c2:#51469e;--acc:#ffc65b;--iris:#aa80ea;}
+.pc.pc[data-h=warrior]{--hair:#743d32;--c1:#ed6260;--c2:#a83040;--acc:#ffc949;--iris:#e88354;}
+.pc.pc[data-h=scout]{--hair:#85532c;--c1:#40b78e;--c2:#24735e;--acc:#e9c76b;--iris:#5ed3ae;}
+.pc.pc[data-h=lucky]{--hair:#be663a;--c1:#ffc64b;--c2:#cb852a;--acc:#70cba0;--iris:#f2bb42;}
+.pc.pc[data-h=healer]{--hair:#8e6aa8;--c1:#ddfff1;--c2:#65b7a7;--acc:#269b87;--iris:#72ccd9;}
+.pc.pc[data-h=ranger]{--hair:#304957;--c1:#a3cf61;--c2:#588244;--acc:#e6c66c;--iris:#a3d85a;}
+
+/* Remove the old rendered shadow without touching pcSh or its animation target. */
+.pc.pc[data-h] .pc-shadow{background:none;filter:none;box-shadow:none;}
+.pc.pc[data-h] .pc-head{
+  left:8%;top:4%;width:84%;height:62%;z-index:9;
+  border-radius:49% 49% 46% 46% / 48% 48% 52% 52%;
+  border:var(--stroke) solid var(--ink);background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-blush{background:none;opacity:0;}
+.pc.pc[data-h] .pc-blush::before,.pc.pc[data-h] .pc-blush::after{content:none;}
+
+/* Eye area is 67% of the shell across, with just a 3% centre gap.
+   The black core is offset to the left/top: NOT concentric spectacle rings.
+   Iris remains a broad side crescent; each eye has ONE circular white highlight. */
+.pc.pc[data-h] .pc-eye{
+  top:26%;width:32%;height:30%;z-index:11;
+  border:var(--stroke) solid var(--ink);border-radius:49% 49% 47% 47%;
+  background:var(--iris);box-shadow:none;overflow:hidden;
+}
+.pc.pc[data-h] .pc-eyeL{left:16.5%;}
+.pc.pc[data-h] .pc-eyeR{left:51.5%;}
+.pc.pc[data-h] .pc-eye::before{
+  content:'';position:absolute;left:-1%;top:-2%;width:84%;height:87%;
+  border:0;border-radius:50%;background:var(--ink);box-sizing:border-box;
+}
+.pc.pc[data-h] .pc-eye::after{
+  content:'';position:absolute;left:15%;top:13%;width:34%;height:auto;aspect-ratio:1;
+  border:0;border-radius:50%;background:#fff;box-shadow:none;
+}
+/* scaleY eye pivot remains the original 52%; closed-eye centre is 41.6% shell.
+   Lid widths/positions are expressed directly in the same 67%-wide eye envelope. */
+.pc.pc[data-h] .pc-lid{left:16.5%;top:40.5%;width:67%;height:2.4%;z-index:12;}
+.pc.pc[data-h] .pc-lid::before,.pc.pc[data-h] .pc-lid::after{
+  content:'';top:0;width:47.7612%;height:100%;
+  border:0;border-radius:0 0 70% 70%;background:var(--ink);
+}
+.pc.pc[data-h] .pc-lid::before{left:0;}
+.pc.pc[data-h] .pc-lid::after{left:52.2388%;}
+.pc.pc[data-h] .pc-mouth{
+  left:46%;top:58%;width:8%;height:3.5%;border-radius:45%;
+  border:0;background:var(--ink);box-shadow:none;
+}
+.pc.pc[data-h] .pc-mouth::after{background:#ef8d97;}
+
+/* No neck, compact rectangular tunic and bold black horizontal band. */
+.pc.pc[data-h] .pc-torso{
+  left:33%;top:62%;width:34%;height:20%;z-index:3;
+  border:var(--stroke) solid var(--ink);border-radius:10% 10% 15% 15%;
+  background:var(--c1);box-shadow:none;overflow:visible;
+}
+/* Two independently outlined white socks; thick solid bottom borders form black shoes.
+   From top 80% to bottom <98% of shell, even at the 58x71 card size. */
+.pc.pc[data-h] .pc-torso::before,.pc.pc[data-h] .pc-torso::after{
+  content:'';position:absolute;top:90%;width:35%;height:80%;
+  box-sizing:border-box;border:var(--detail) solid var(--ink);
+  border-bottom-width:calc(var(--stroke) * 2.7);
+  border-radius:18% 18% 48% 48%;background:#fff;
+}
+.pc.pc[data-h] .pc-torso::before{left:6%;}
+.pc.pc[data-h] .pc-torso::after{right:6%;}
+.pc.pc[data-h] .pc-sash{
+  left:34%;top:73%;width:32%;height:5%;z-index:5;
+  clip-path:none;border:0;border-radius:0;background:var(--ink);opacity:1;box-shadow:none;
+}
+.pc.pc[data-h] .pc-sash::before{
+  content:'';position:absolute;right:-62%;top:-130%;width:34%;height:320%;
+  box-sizing:border-box;border:var(--stroke) solid var(--ink);
+  border-radius:50%;background:var(--skin);
+}
+.pc.pc[data-h] .pc-sash::after{content:none;}
+.pc.pc[data-h] .pc-arm{
+  left:20%;top:66.5%;width:12%;height:16%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;
+  background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hand{
+  left:18%;top:78%;width:12%;height:9%;border-radius:50%;
+  border:var(--detail) solid var(--ink);background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-cape{
+  left:22%;top:60%;width:56%;height:27%;
+  border:var(--stroke) solid var(--ink);border-radius:18% 18% 30% 30%;
+  background:var(--c2);box-shadow:none;
+}
+
+/* Front hair and hats end at/before 22%, safely above the eyes at 26%.
+   Polygon shapes are black silhouettes with a smaller coloured inset, not clipped borders. */
+.pc.pc[data-h] .pc-hair{
+  left:8%;top:3%;width:84%;height:20%;z-index:14;
+  border:var(--stroke) solid var(--ink);border-radius:60% 60% 12% 12%;
+  background:var(--hair);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairb{
+  left:6%;top:8%;width:88%;height:54%;opacity:1;
+  border:var(--stroke) solid var(--ink);border-radius:45% 45% 12% 12%;
+  background:var(--hair);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairt{
+  left:12%;top:12%;width:76%;height:11%;background:none;
+  border:0;border-radius:0;box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairt::before,.pc.pc[data-h] .pc-hairt::after{
+  content:'';display:block;position:absolute;top:0;width:34%;height:100%;
+  border:0;border-radius:0;background:var(--ink);box-sizing:border-box;
+  clip-path:polygon(0 0,100% 0,70% 100%);
+}
+.pc.pc[data-h] .pc-hairt::before{left:0;}
+.pc.pc[data-h] .pc-hairt::after{right:0;clip-path:polygon(0 0,100% 0,25% 100%);}
+.pc.pc[data-h] .pc-gear{
+  background:none;border:0;box-shadow:none;
+}
+.pc.pc[data-h] .pc-gear::before,.pc.pc[data-h] .pc-gear::after,
+.pc.pc[data-h] .pc-prop::before,.pc.pc[data-h] .pc-prop::after{
+  box-sizing:border-box;box-shadow:none;
+}
+.pc.pc[data-h] .pc-prop{box-shadow:none;}
+
+/* SCHOLAR: square-cut bob + high side bun; no spectacle frames over the eyes. */
+.pc.pc[data-h=scholar] .pc-hairb{
+  left:5%;top:1%;width:89%;height:67%;border-radius:48% 48% 14% 14%;
+}
+.pc.pc[data-h=scholar] .pc-hairb::after{
+  content:'';position:absolute;right:3%;top:0;width:25%;height:24%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:var(--hair);
+}
+.pc.pc[data-h=scholar] .pc-hair{height:18%;border-radius:60% 60% 8% 8%;}
+.pc.pc[data-h=scholar] .pc-hairt{
+  left:13%;top:14%;width:74%;height:9%;background:var(--ink);
+  clip-path:polygon(0 0,100% 0,100% 75%,73% 75%,62% 100%,47% 75%,0 75%);
+}
+.pc.pc[data-h=scholar] .pc-hairt::before{
+  inset:var(--detail);width:auto;height:auto;background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=scholar] .pc-hairt::after{content:none;}
+.pc.pc[data-h=scholar] .pc-gear{opacity:0;border:0;}
+.pc.pc[data-h=scholar] .pc-gear::before,.pc.pc[data-h=scholar] .pc-gear::after{content:none;}
+.pc.pc[data-h=scholar] .pc-prop{
+  opacity:1;left:0%;top:71%;width:34%;height:19%;
+  border:var(--stroke) solid var(--ink);border-radius:8%;background:#fff0c8;
+}
+.pc.pc[data-h=scholar] .pc-prop::before{
+  content:'';position:absolute;left:47%;top:0;width:6%;height:100%;background:var(--ink);
+}
+.pc.pc[data-h=scholar] .pc-prop::after{
+  content:'';position:absolute;left:9%;top:26%;width:26%;height:40%;
+  border-top:var(--detail) solid #8976ac;border-bottom:var(--detail) solid #8976ac;background:none;
+}
+
+/* WARRIOR: short blocky hair behind a silver helmet and warm gold plume. */
+.pc.pc[data-h=warrior] .pc-hair{height:17%;}
+.pc.pc[data-h=warrior] .pc-hairb{
+  left:5%;top:16%;width:90%;height:48%;border-radius:34% 34% 10% 10%;
+}
+.pc.pc[data-h=warrior] .pc-gear{
+  opacity:1;left:8%;top:2%;width:84%;height:21%;
+  border:var(--stroke) solid var(--ink);border-radius:60% 60% 8% 8%;background:#b9c8d9;
+}
+.pc.pc[data-h=warrior] .pc-gear::after{
+  content:'';left:46%;top:-8%;width:11%;height:47%;
+  border:var(--detail) solid var(--ink);border-radius:40%;background:#ffc949;
+}
+.pc.pc[data-h=warrior] .pc-gear::before{
+  content:'';position:absolute;left:47%;top:30%;width:6%;height:52%;background:#61748e;
+}
+.pc.pc[data-h=warrior] .pc-prop{
+  opacity:1;left:1%;top:31%;width:8%;height:52%;
+  border:var(--detail) solid var(--ink);border-radius:70% 70% 8% 8%;background:#e5edf5;
+}
+.pc.pc[data-h=warrior] .pc-prop::after{
+  left:-58%;top:80%;width:220%;height:8%;
+  border:var(--detail) solid var(--ink);border-radius:20%;background:#ffc949;
+}
+.pc.pc[data-h=warrior] .pc-prop::before{
+  content:'';position:absolute;left:5%;top:90%;width:90%;height:13%;
+  border:var(--detail) solid var(--ink);border-radius:15%;background:var(--hair);
+}
+
+/* SCOUT: outward saw-tooth back hair and a high, broad expedition hat. */
+.pc.pc[data-h=scout] .pc-hair{height:17%;}
+.pc.pc[data-h=scout] .pc-hairb{
+  left:2%;top:7%;width:96%;height:60%;border:0;border-radius:0;background:var(--ink);
+  clip-path:polygon(16% 0,84% 0,92% 43%,100% 76%,85% 72%,92% 100%,70% 88%,30% 88%,8% 100%,15% 72%,0 76%,8% 43%);
+}
+.pc.pc[data-h=scout] .pc-hairb::before{
+  content:'';position:absolute;inset:var(--stroke);background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=scout] .pc-hairt{top:12%;height:9%;}
+.pc.pc[data-h=scout] .pc-hairt::before{left:0;width:27%;}
+.pc.pc[data-h=scout] .pc-hairt::after{right:0;width:27%;}
+.pc.pc[data-h=scout] .pc-gear{
+  opacity:1;left:23%;top:1%;width:54%;height:15%;
+  border:var(--stroke) solid var(--ink);border-radius:48% 48% 10% 10%;background:#3a957b;
+}
+.pc.pc[data-h=scout] .pc-gear::before{
+  content:'';position:absolute;left:8%;top:48%;width:84%;height:23%;background:var(--acc);
+}
+.pc.pc[data-h=scout] .pc-gear::after{
+  left:-35%;top:70%;width:170%;height:36%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#4fbb90;
+}
+.pc.pc[data-h=scout] .pc-prop{
+  opacity:1;left:4%;top:63%;width:7%;height:24%;
+  border:var(--detail) solid var(--ink);border-radius:65% 65% 8% 8%;background:#e6edf2;
+}
+.pc.pc[data-h=scout] .pc-prop::after{
+  content:'';position:absolute;left:-40%;top:78%;width:180%;height:13%;
+  border:var(--detail) solid var(--ink);background:var(--acc);border-radius:20%;
+}
+
+/* LUCKY: rounded side tufts, offset broad fringe, shallow straw hat and solid coin. */
+.pc.pc[data-h=lucky] .pc-hair{height:19%;border-radius:65% 45% 20% 10%;}
+.pc.pc[data-h=lucky] .pc-hairb{
+  left:4%;top:10%;width:92%;height:49%;border-radius:48%;
+}
+.pc.pc[data-h=lucky] .pc-hairt{left:12%;top:11%;width:76%;height:12%;}
+.pc.pc[data-h=lucky] .pc-hairt::before{left:0;width:47%;clip-path:polygon(0 0,100% 0,75% 100%,10% 67%);}
+.pc.pc[data-h=lucky] .pc-hairt::after{right:0;width:20%;}
+.pc.pc[data-h=lucky] .pc-gear{
+  opacity:1;left:20%;top:1%;width:60%;height:11%;
+  border:var(--stroke) solid var(--ink);border-radius:55% 55% 15% 15%;background:#ffdf93;
+}
+.pc.pc[data-h=lucky] .pc-gear::before{
+  content:'';position:absolute;left:8%;top:41%;width:84%;height:26%;background:var(--acc);
+}
+.pc.pc[data-h=lucky] .pc-gear::after{
+  left:-27%;top:73%;width:154%;height:49%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#efbb54;
+}
+.pc.pc[data-h=lucky] .pc-prop{
+  opacity:1;left:72%;top:69%;width:20%;height:16%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#ffd34e;
+}
+.pc.pc[data-h=lucky] .pc-prop::before{
+  content:'';position:absolute;inset:12%;border:var(--detail) solid #bd8125;border-radius:50%;
+}
+.pc.pc[data-h=lucky] .pc-prop::after{
+  content:'';position:absolute;left:42%;top:20%;width:16%;height:60%;background:#bd8125;border-radius:20%;
+}
+
+/* HEALER: long straight lavender sides, white medical cap and unmistakable cross staff. */
+.pc.pc[data-h=healer] .pc-hair{height:18%;}
+.pc.pc[data-h=healer] .pc-hairb{
+  left:4%;top:7%;width:92%;height:65%;border-radius:44% 44% 10% 10%;
+}
+.pc.pc[data-h=healer] .pc-hairt{left:12%;top:12%;width:76%;height:11%;}
+.pc.pc[data-h=healer] .pc-hairt::before{left:0;width:19%;}
+.pc.pc[data-h=healer] .pc-hairt::after{right:0;width:19%;}
+.pc.pc[data-h=healer] .pc-gear{
+  opacity:1;left:15%;top:2%;width:70%;height:18%;
+  border:var(--stroke) solid var(--ink);border-radius:50% 50% 10% 10%;background:#f1fff8;
+}
+.pc.pc[data-h=healer] .pc-gear::before{
+  content:'';position:absolute;left:44%;top:17%;width:12%;height:64%;background:var(--acc);
+}
+.pc.pc[data-h=healer] .pc-gear::after{
+  content:'';position:absolute;left:34%;top:36%;width:32%;height:26%;background:var(--acc);border:0;border-radius:0;
+}
+/* Retain original translateX(-50%) on healer sash, but match everyone else's belt geometry. */
+.pc.pc[data-h=healer] .pc-sash{left:50%;top:73%;width:32%;height:5%;background:var(--ink);}
+.pc.pc[data-h=healer] .pc-prop{
+  opacity:1;left:3%;top:37%;width:7%;height:49%;
+  border:var(--detail) solid var(--ink);border-radius:30%;background:#e8b958;
+}
+.pc.pc[data-h=healer] .pc-prop::before{
+  content:'';position:absolute;left:-42%;top:0;width:184%;height:25%;
+  border:var(--detail) solid var(--ink);border-radius:10%;background:#effff7;
+}
+.pc.pc[data-h=healer] .pc-prop::after{
+  left:-135%;top:8%;width:370%;height:9%;border:var(--detail) solid var(--ink);
+  border-radius:10%;background:#effff7;
+}
+
+/* RANGER: asymmetrical wedge fringe, tall side ponytail, leaf headband, bow + string. */
+.pc.pc[data-h=ranger] .pc-hair{height:19%;border-radius:65% 40% 8% 10%;}
+.pc.pc[data-h=ranger] .pc-hairb{
+  left:72%;top:3%;width:25%;height:66%;border:0;border-radius:0;background:var(--ink);
+  clip-path:polygon(0 0,70% 8%,100% 42%,80% 100%,15% 79%,30% 42%);
+}
+.pc.pc[data-h=ranger] .pc-hairb::before{
+  content:'';position:absolute;inset:var(--stroke);background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=ranger] .pc-hairb::after{
+  left:10%;top:8%;width:65%;height:8%;border:var(--detail) solid var(--ink);background:var(--acc);
+}
+.pc.pc[data-h=ranger] .pc-hairt{left:12%;top:10%;width:76%;height:13%;}
+.pc.pc[data-h=ranger] .pc-hairt::before{left:0;width:48%;clip-path:polygon(0 0,100% 0,80% 100%);}
+.pc.pc[data-h=ranger] .pc-hairt::after{right:0;width:18%;}
+.pc.pc[data-h=ranger] .pc-gear{
+  opacity:1;left:15%;top:15%;width:70%;height:5%;
+  border:var(--detail) solid var(--ink);border-radius:20%;background:#a9c875;
+}
+.pc.pc[data-h=ranger] .pc-gear::after{
+  content:'';position:absolute;left:80%;top:-170%;width:20%;height:230%;
+  border:var(--detail) solid var(--ink);border-radius:80% 0 80% 0;background:var(--acc);
+}
+.pc.pc[data-h=ranger] .pc-prop{
+  opacity:1;left:2%;top:61%;width:16%;height:30%;background:none;
+  border:var(--stroke) solid #000;border-right:0;border-radius:80% 0 0 80%;
+}
+.pc.pc[data-h=ranger] .pc-prop::before{
+  content:'';position:absolute;right:0;top:0;width:0;height:100%;border-right:var(--detail) solid var(--ink);
+}
+.pc.pc[data-h=ranger] .pc-prop::after{
+  left:-20%;top:47%;width:155%;height:7%;border-radius:0;
+  border:0;border-bottom:var(--detail) solid var(--ink);background:var(--acc);
+}
+
+/* 仅替换敌人头像底色与边框颜色。沿用原 .avatar 的宽高、圆角、
+   box-shadow、idle / hurt / finhurt 动画与 transform，保留粒子锚点。 */
+#fAv {
+  background: #f4eaff;
+  border-color: #24152f;
+}
+/* 百分比随 --avatar 缩放；不重置外壳或 SVG 的动画、transform、滤镜。 */
+#fAv > svg.foe-cartoon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+

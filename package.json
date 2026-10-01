@@ -1,0 +1,25 @@
+{
+  "name": "vocab-expedition-wy8",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build && node scripts/export-single-html.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/unit/*.test.js",
+    "test:e2e": "playwright test",
+    "test:baseline": "playwright test --project=legacy",
+    "check:data": "node scripts/validate-word-data.mjs",
+    "check": "npm run check:data && npm test && npm run build && npm run test:build && npm run test:e2e && npm run test:release",
+    "test:build": "node --test tests/build/*.test.js",
+    "test:release": "playwright test --config=playwright.release.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "vite": "8.3.1"
+  }
+}

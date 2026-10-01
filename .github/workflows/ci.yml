@@ -1,0 +1,40 @@
+name: Verify modular game
+on:
+  pull_request:
+  push:
+    branches: [main, 'refactor/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check:data
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run test:release
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-evidence
+          path: |
+            playwright-report/
+            test-results/
+            tests/e2e/artifacts/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: static-game-dist
+          path: dist/
+          retention-days: 14
