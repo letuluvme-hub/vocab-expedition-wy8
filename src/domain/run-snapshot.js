@@ -76,10 +76,29 @@ function encodeRows(rows) {
 function encodeWord(w) {
   return { w: w.w, u: w.u, d: w.d, z: w.z, th: w.th };
 }
+/* campaign：单元解锁主线（docs/feature-campaign.md）。startedUnit = 这一轮从哪个
+ * 单元开始（跨单元过渡时不变），segments = 这一轮走过几段学习地图（不是次数）。
+ * 旧快照没有这个字段：解码时按 r.unit 保守回落，绝不凭空改成别的单元。 */
+function encodeCampaign(c, unit) {
+  if (!isObj(c)) return { startedUnit: unit, segments: 1 };
+  return {
+    startedUnit: isInt(c.startedUnit) && c.startedUnit > 0 ? c.startedUnit : unit,
+    segments: isInt(c.segments) && c.segments > 0 ? c.segments : 1,
+  };
+}
 function encodeRun(run) {
+  // rewardId（可缺）：本轮纪念卡的 id。没有它就无法跨刷新认出同一张卡。
+  //   旧内存态（卡在内存里但字段还没有）从 reward.id 取，绝不凭空造一个。
+  const rewardId = (typeof run.rewardId === 'string' && run.rewardId)
+    || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : '');
   return {
     unit: run.unit, id: run.id,
+    campaign: encodeCampaign(run.campaign, run.unit),
     countedStart: !!run.countedStart, clearedRun: !!run.clearedRun,
+    // clearedSegment（可缺）：旧 run 没有就按 clearedRun 保守回落 —— 宁可少结算一次，
+    //   也不因为缺字段给同一段发两次回血。新段重建后的 false 必须原样落盘。
+    clearedSegment: typeof run.clearedSegment === 'boolean' ? run.clearedSegment : !!run.clearedRun,
+    rewardId,
     hp: run.hp, maxhp: run.maxhp, shield: run.shield, gold: run.gold,
     floor: run.floor, maxFloor: run.maxFloor,
     relics: (run.relics || []).slice(), skipFree: !!run.skipFree, ghostUsed: !!run.ghostUsed,
@@ -196,6 +215,12 @@ function validRun(r) {
   if (![r.hm, r.hnoise, r.hregen, r.hleech, r.kills, r.att, r.attOk, r.deckHint].every(isNum)) return false;
   if (!num(r.hcombo, 0, 100) || r.attOk < 0 || r.attOk > r.att + 1e9) return false;
   if (!isBool(r.countedStart) || !isBool(r.clearedRun) || !isBool(r.shieldGiven)) return false;
+  // clearedSegment / rewardId 都是**可选**的新字段：缺失合法（旧快照），
+  // 但一旦出现就必须是合法形状 —— 出现 1 / 'yes' / 对象这类脏值时 fail closed，
+  // 绝不让「半恢复」的 run 去结算 BOSS 或发纪念卡。
+  if (r.clearedSegment !== undefined && r.clearedSegment !== null && !isBool(r.clearedSegment)) return false;
+  // 空串是编码侧的「还没有卡」表示，合法；非字符串（数字/对象/布尔）才是脏值。
+  if (r.rewardId !== undefined && r.rewardId !== null && typeof r.rewardId !== 'string') return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -233,6 +258,10 @@ function decodeRun(r, byId) {
   const run = {
     unit: r.unit, id: isStr(r.id) ? r.id : 'R-restored',
     countedStart: r.countedStart, clearedRun: r.clearedRun,
+    // clearedSegment：旧快照缺这个字段 → 保守按 clearedRun 回落（宁可少结算一次）。
+    clearedSegment: isBool(r.clearedSegment) ? r.clearedSegment : !!r.clearedRun,
+    // rewardId：空串等价于「还没有纪念卡」，不写 undefined（内存里用 undefined 判定）。
+    rewardId: isStr(r.rewardId) ? r.rewardId : undefined,
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,
@@ -261,7 +290,9 @@ function decodeRun(r, byId) {
     run.node = ref(r.node);
     if (run.node === undefined) return null;
   }
-  return run;
+  // campaign 是**可选**字段：旧快照没有它，脏数据也只回落成 {startedUnit: unit, segments: 1}。
+  // 它不参与任何引用校验，所以缺字段/脏值都不该把正在进行的一局判成损坏。
+  return Object.assign(run, { campaign: encodeCampaign(r.campaign, r.unit) });
 }
 function validBattle(b, run, byId) {
   if (!isObj(b)) return false;

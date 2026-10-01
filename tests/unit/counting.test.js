@@ -159,6 +159,51 @@ test('an ordinary node battle never counts as a clear', () => {
   assert.equal(db.runs, 1);
 });
 
+/* ================= 段结算 vs 轮结算（任务 7 补丁 A）=================
+ *   clearedRun     = 整轮通关（DB.wins 的唯一依据，终身 +1）
+ *   clearedSegment = 当前这一段地图的 BOSS 是否已结算（换段归 false）
+ * 旧版只有 clearedRun，于是第二段/第二个单元的 BOSS 永远拿不到结算。
+ * 同段重复结算依旧必须 ignored —— 这里把两条口径分别钉死。 */
+test('a second segment of the same run settles its own BOSS while DB.wins stays at one', () => {
+  const db = mkDb(), run = createRun(1, HERO, WORDS);
+  registerRunStart(db, run);
+  assert.equal(run.clearedSegment, false, 'fresh run: segment BOSS not settled');
+  assert.equal(finishBattleNode(run, bossBattle(run), db), 'boss-win');
+  assert.deepEqual([run.clearedSegment, run.clearedRun, db.wins], [true, true, 1]);
+
+  // 同段内 distinct BOSS 战斗对象：旧不变量原样保留。
+  const hpAfter = run.hp;
+  const other = { ...bossNode(run), done: false };
+  assert.equal(finishBattleNode(run, { node: other, myHp: 12, shield: 3, boss: true, elite: false, won: true }, db), 'ignored');
+  assert.equal(run.hp, hpAfter, '同段重复不许再回血');
+  assert.equal(other.done, false);
+
+  // 换段：段标记归 false，run 级通关标记保持。新段的 BOSS 必须能真正结算。
+  run.clearedSegment = false;                 // == applyUnitSegment/rebuildSegment 的行为
+  run.hp = 20;
+  assert.equal(finishBattleNode(run, bossBattle(run), db), 'boss-win', 'the new segment must settle');
+  assert.ok(run.hp > 20, 'the new segment BOSS still heals');
+  assert.deepEqual([db.wins, db.runs], [1, 1], 'DB.wins stays at one across segments');
+});
+
+test('a legacy run missing clearedSegment falls back to clearedRun and never double-settles', () => {
+  const db = mkDb(), run = createRun(1, HERO, WORDS);
+  registerRunStart(db, run);
+  finishBattleNode(run, bossBattle(run), db);
+  delete run.clearedSegment;                   // 老存档 / 老内存态
+  assert.equal(finishBattleNode(run, bossBattle(run), db), 'ignored');
+  assert.deepEqual([db.wins, db.runs], [1, 1]);
+});
+
+test('an escaped BOSS leaves the segment open; a real win still settles', () => {
+  const db = mkDb(), run = createRun(1, HERO, WORDS);
+  registerRunStart(db, run);
+  assert.equal(finishBattleNode(run, { ...bossBattle(run), won: false }, db), 'boss-loss');
+  assert.equal(run.clearedSegment, false);
+  assert.equal(finishBattleNode(run, bossBattle(run), db), 'boss-win');
+  assert.deepEqual([db.wins, run.clearedSegment], [1, true]);
+});
+
 /* ================= 新开一轮的重复触发判据 ================= */
 
 test('isDuplicateRunStart rejects a start while an expedition is still in progress', () => {

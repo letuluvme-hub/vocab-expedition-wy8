@@ -9,9 +9,10 @@
  */
 import { learningCounts } from '../../domain/word-selection.js';
 
-export function createLearningCompleteScreen({ getRun, getBattle, onHome, onQuit } = {}) {
+export function createLearningCompleteScreen({ getRun, getBattle, db, getCampaign, onHome, onQuit, onNext } = {}) {
   const $ = id => document.getElementById(id);
   const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  const campaign = () => (getCampaign ? getCampaign() : null);
 
   function render() {
     const run = getRun ? getRun() : null;
@@ -59,8 +60,53 @@ export function createLearningCompleteScreen({ getRun, getBattle, onHome, onQuit
       quit.title = '结束这次学习并清掉这一局；已掌握的词与记录会保留，不算战败';
       quit.onclick = () => { if (onQuit) onQuit(); };
     }
-    return { counts: c };
+
+    /* 「继续下一单元」：解锁由**本单元全部目标词完整拼对**驱动（docs/feature-campaign.md），
+     * 与「这一场战斗打没打赢」无关。这里显示的是**教材解锁**这件事，
+     * 所以文案不许出现通关/击败/胜利 —— 那是 BOSS 的事实，两者在这一屏必须分开。 */
+    const prog = campaign();
+    const unit = run ? run.unit : 0;
+    const custom = unit === 0;   // 自定义词表没有「下一单元」这个概念
+    const uc = prog && prog.counts ? prog.counts(unit) : null;
+    // ★ 自定义单元**绝不给**「下一单元」入口：progress.next(0) 返回的是教材里的
+    //   Unit 2（自定义学完不解锁教材），照抄它会让玩家从自己的词表直接跳进课本。
+    const nextUnit = custom ? null : (prog && prog.next ? prog.next(unit) : null);
+    const complete = !!(uc && uc.complete);
+    const nextOpen = complete && nextUnit != null && prog.isUnlocked(nextUnit);
+    const nextBtn = $('lcBtnNext');
+    if (nextBtn) {
+      nextBtn.hidden = !nextOpen;
+      // ★ hidden 属性会被 .btn 的 display 规则盖掉（hidden 只在 UA 样式里生效），
+      //   所以显式写 display：否则「继续下一单元」在词没学完时也会**真的显示出来**。
+      nextBtn.style.display = nextOpen ? '' : 'none';
+      nextBtn.disabled = !nextOpen;
+      nextBtn.textContent = nextOpen ? ('继续 Unit ' + nextUnit) : '继续下一单元';
+      nextBtn.title = nextOpen
+        ? '带着当前的金币、道具和遗物进入 Unit ' + nextUnit + '（同一轮学习，不算新开一次远征）'
+        : '完成本单元全部词汇后解锁下一个单元';
+      nextBtn.onclick = nextOpen && onNext ? () => { onNext(); } : null;
+    }
+    setText('lcNext', nextLine({ runCounts: c, uc, complete, nextUnit, nextOpen, custom,
+      bookLast: complete && nextUnit == null }));
+    return { counts: c, unit: uc, nextOpen };
   }
 
   return { render };
+}
+
+/* 这一行只讲「词汇进度与解锁」，绝不讲战斗。
+ * 进度用**本局真实计数**（learningCounts，与检查点屏其它文案同源）；
+ * 是否解锁用 campaign（跨局的 DB.mastered 口径）。两者在真实玩法里同步，
+ * 但分开取值才不会在这一屏上出现两套互相矛盾的「已完成」。 */
+function nextLine({ runCounts, uc, complete, nextUnit, nextOpen, bookLast, custom }) {
+  const shown = runCounts && runCounts.total ? runCounts : uc;
+  const prog = shown && shown.total
+    ? ('本单元已完成 ' + shown.done + ' / ' + shown.total + ' 个词'
+      + (shown.remaining ? ('，还剩 ' + shown.remaining + ' 个') : ''))
+    : '本单元没有可练习的词';
+  if (custom) return prog + (uc && uc.complete ? '。' : '，还可以继续添加自己的词。');
+  if (bookLast) return prog + '。本册词汇已完成。';
+  if (nextOpen) return prog + '。Unit ' + nextUnit + ' 已解锁，可以带着现有物资继续下一段学习。';
+  if (complete) return prog + '。';
+  return prog + '。完成本单元全部词汇后才会解锁下一个单元。';
 }

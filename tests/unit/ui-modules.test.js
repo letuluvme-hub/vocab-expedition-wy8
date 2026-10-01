@@ -651,7 +651,12 @@ test('title screen renders heroes and units exactly like legacy', async () => {
   const helper = createTitleScreen({ getDB: () => DB, getUnit: () => 3, allWords, onHero: () => {}, onUnit: () => {} });
   withDocument(docOld, () => legacyFn('renderTitle', { $: $for(docOld), document: docOld, UNITS, HEROES, DB, allWords,
     curUnit: 3, renderHeroes: () => helper.renderHeroes(), renderRewardCard })());
-  assert.equal(snapDoc(mineDoc, TITLE_IDS), snapDoc(docOld, TITLE_IDS));
+  // 任务 7 的**有意漂移**：单元按钮多了 data-unit（给严格定位用）。它只是属性，
+  // 可见文案、class 与回调全都不变 —— 所以 units 逐元素比对时排除这个属性。
+  const unitSnap = doc => snapDoc(doc, TITLE_IDS.filter(id => id !== 'units'))
+    + '\nunits-text:' + doc.getElementById('units').children.map(u => u._html).join('|')
+    + '\nunits-class:' + doc.getElementById('units').children.map(u => u.className).join('|');
+  assert.equal(unitSnap(mineDoc), unitSnap(docOld));
 
   const heroes = mineDoc.getElementById('heroes').children;
   assert.equal(heroes.length, 6);
@@ -666,6 +671,8 @@ test('title screen renders heroes and units exactly like legacy', async () => {
   assert.equal(units[2].className, 'unit sel');
   assert.equal(units[2]._html, '<b>Unit 3 成长与发现</b><span>29 词</span><em>已掌握 1/29</em>');
   assert.equal(units[6]._html, '<b>我的词表</b><span>0 词（空）</span>');
+  // 任务 7：每个单元按钮都带 data-unit（脚本按它定位，不按文本）
+  assert.deepEqual(units.map(u => u.attrs['data-unit']), ['1', '2', '3', '4', '5', '6', '0']);
 
   withDocument(mineDoc, () => {
     heroes[0].onclick();
@@ -746,8 +753,11 @@ test('over.renderOver draws the win screen with the current run reward', async (
   assert.equal(doc.getElementById('oKill').textContent, '21');
   assert.equal(doc.getElementById('oAcc').textContent, '90%');
   assert.equal(doc.getElementById('oAgain').textContent, '复习本单元');
+  // 任务 7 的**有意漂移**：旧版在胜利屏上无条件预告「继续 Unit N+1」，那正是
+  // 「打完 BOSS 就算掌握了这个单元」的谎话。现在没有 campaign 视图就没有解锁依据，
+  // 于是这里退回本单元的诚实入口（真实运行期 runtime 一定传 campaign）。
+  // 没有 campaign 视图 → 没有解锁依据 → 退回旧行为：不预告下一个单元。
   assert.equal(doc.getElementById('oNext').hidden, true);
-  assert.equal(doc.getElementById('oNext').textContent, '继续下一 Unit');
   assert.equal(doc.getElementById('oReward').hidden, false);
   assert.match(snap(doc.getElementById('oReward').children[0]), /词王征服者 · 通关纪念卡/);
   assert.match(text(doc.getElementById('oReward')), /Unit 6 外星来客 · 学者/);
@@ -773,7 +783,9 @@ test('over.renderOver draws the loss screen, hides the reward box and offers the
   withDocument(docOld, () => legacyFn('endRun', { $: $for(docOld), document: docOld, DB: {}, G: structuredClone(run),
     clamp, UNITS, rewardScope, renderRewardCard, relicById,
     show: () => {}, renderTitle: () => {}, saveDB: () => {} })(false));
-  assert.equal(snapDoc(doc, OVER_IDS), snapDoc(docOld, OVER_IDS), 'loss screen matches legacy endRun');
+  // oNext 是任务 7 的有意漂移（战败一律无继续入口），逐元素比对时排除它。
+  const LOSS_IDS = OVER_IDS.filter(id => id !== 'oNext');
+  assert.equal(snapDoc(doc, LOSS_IDS), snapDoc(docOld, LOSS_IDS), 'loss screen matches legacy endRun');
 
   assert.equal(doc.getElementById('oIcon').textContent, '💀');
   assert.equal(doc.getElementById('oTitle').textContent, '远征结束');
@@ -791,6 +803,6 @@ test('over.renderOver draws the loss screen, hides the reward box and offers the
     renderOver({ run: r2, db: {}, win: true, onTitle: () => {}, show: () => {} });
     return d;
   });
-  assert.equal(mid.getElementById('oNext').hidden, false);
-  assert.equal(mid.getElementById('oNext').textContent, '继续 Unit 4');
+  // 同样没有 campaign 视图 → 同样不预告下一个单元（口径一致，不是巧合）。
+  assert.equal(mid.getElementById('oNext').hidden, true);
 });

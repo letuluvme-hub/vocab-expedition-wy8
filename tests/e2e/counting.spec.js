@@ -26,18 +26,23 @@ test('double-clicking start counts one expedition, not two', async ({ game, page
   expect((await game.state()).DB.runs).toBe(1);
 });
 
-test('double-clicking next unit starts one expedition, not two', async ({ game, page }, testInfo) => {
+test('double-clicking the settlement continuation starts one expedition, not two', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Counting invariant is a new regression guard');
   await game.open();
   await game.start();
   await clearBoss(game, page);
   expect((await game.state()).DB.runs).toBe(1);
+  // 任务 7 之后 oNext 是「继续本单元词汇」（本单元词汇还没学完）：同一轮换一段地图，
+  // 连点两次也不许变成两次远征、更不许跳到 Unit 2。
+  await expect(page.locator('#oNext')).toHaveText('继续本单元词汇');
   await page.locator('#oNext').evaluate(el => { el.click(); el.click(); });
   await expect(page.locator('#s-map')).toBeVisible();
   const next = await game.state();
-  expect(next.DB.runs).toBe(2);
-  expect(next.G.unit).toBe(2);
+  expect(next.DB.runs).toBe(1);
+  expect(next.DB.wins).toBe(1);
+  expect(next.G.unit).toBe(1);
   expect(next.G.floor).toBe(1);
+  expect(await page.evaluate(() => window.__gameTest.G.campaign.segments)).toBe(2);
 });
 
 test('double-clicking replay after a loss counts one expedition, not two', async ({ game, page }, testInfo) => {
