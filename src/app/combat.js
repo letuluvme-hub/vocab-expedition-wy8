@@ -367,21 +367,25 @@ export function createCombatController({ state, ports }) {
     return true;
   }
 
-  // 跳过 = 一次有代价的撤退。影分身（每场一次）仍然免费；否则固定损失
-  // SKIP_HP_COST 点生命 —— 不走 hurtPlayer，所以护盾不吸收、幸运草不免伤。
+  // 跳过 = 一次有代价的撤退。影分身额度是 **run 级**（G.ghostUsed），一轮远征只免费一次；
+  // 用完之后回落到普通跳过（固定损失 SKIP_HP_COST 点生命），而不是拒绝、也不是永久禁用。
   // ★ 扣的是 B.myHp —— 扣 G.hhp 会被 finishNode 的结转覆盖掉。
   // ★ 固定点数而不是本场生命的百分比：百分比在低血时只会扣掉一点点，
   //   玩家可以反复撤退而不真正承担风险，跳过就变成了比打完更优的策略。
   function skipFight() {
     const B = state.B, G = state.G;
     if (!B || B.over) return false;
-    if (hasR('ghost') && !B.ghostUsed) {
-      B.ghostUsed = true;
-      toast('👻 影分身：免费撤退，不计失败');
+    // 额度判据只看 run 上的 G.ghostUsed —— 不看 B，所以换战斗、重复拿到影分身都不重置。
+    // 缺字段（老存档/旧快照）按 falsy 处理，即仍可用一次。
+    if (G && hasR('ghost') && !G.ghostUsed) {
+      G.ghostUsed = true;
+      // ★ 先置 B.over 再 finishNode：连点时第二次调用被开头的 `if (B.over) return` 挡住，
+      //   不会重复结算。免费撤退也必须走 finishNode（BOSS 仍然是失败，只是免费）。
+      B.over = true;
+      toast('👻 影分身：免费撤退（本轮唯一一次），不计失败');
       finishNode();
       return true;
     }
-    if (hasR('ghost')) { toast('本场影分身已用完'); return false; }
     B.myHp -= SKIP_HP_COST;
     if (B.myHp <= 0) {
       // 付不起代价就是战败。★ 不要在这里先置 B.over：loseFight 开头就是
@@ -394,7 +398,8 @@ export function createCombatController({ state, ports }) {
       return true;
     }
     B.over = true;
-    toast('跳过：损失 ' + SKIP_HP_COST + ' 点生命');
+    toast('跳过：损失 ' + SKIP_HP_COST + ' 点生命'
+      + (hasR('ghost') ? '（影分身本轮已用完）' : ''));
     finishNode();
     return true;
   }

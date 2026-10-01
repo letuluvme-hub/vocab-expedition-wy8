@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { SKIP_HP_COST } from '../../src/data/balance.js';
 
 /* ============================================================
  * 普通跳过的代价：固定 50 点生命（B.myHp），不经护盾 / 免伤。
@@ -42,7 +43,7 @@ function battleFixture(over = {}) {
     word: { w: 'keep', z: '保持', u: 1, d: 1 }, letters: ['k', 'e', 'e', 'p', 'x'],
     used: [false, false, false, false, false], bad: [false, false, false, false, false],
     input: [], sel: 0, hints: 3, hintUsed: 0, hintTotal: 0, combo: 0, maxCombo: 0,
-    dmgBonus: 0, firstWrong: true, lethUsed: 0, ghostUsed: false, wordsDone: 0, over: false,
+    dmgBonus: 0, firstWrong: true, lethUsed: 0, wordsDone: 0, over: false,
     boss: false, elite: false, won: false, finished: false, myHp: 50, enHp: 200, enMax: 200,
     shield: 0, rageLeft: 0, freezeWord: false, chainNext: false, goldMult: 1,
     usedThisFight: {}, wordStreak: 0, mistaken: [], foe: { n: '词灵', ic: '👾', tint: '#fff' },
@@ -211,27 +212,39 @@ test('BOSS 跳过成功后不能因迟到的胜利回调再补一次通关', asy
   assert.equal(h.DB.wins, 0);
 });
 
-/* ---------------- 影分身免费路径保持原样（任务 3 另改） ---------------- */
+/* ---------------- 影分身免费路径：额度是 run 级（任务 3） ---------------- */
 
-test('影分身免费撤退不受本次改动影响：不扣血、照常推进', async () => {
+test('影分身免费撤退不扣血、照常推进，并把额度记在 run 上', async () => {
   const h = await harness({ B: { myHp: 60 }, G: { relics: ['ghost'] } });
   assert.equal(h.ctrl.skipFight(), true);
   assert.equal(h.B.myHp, 60, '影分身仍然免费');
-  assert.equal(h.B.ghostUsed, true);
+  assert.equal(h.G.ghostUsed, true, '额度挂在 run 上');
+  assert.ok(!('ghostUsed' in h.B), '战斗对象不再持有 ghost 状态');
   assert.deepEqual(h.calls, ['finishNode:advance']);
 });
 
-test('本场影分身已用完 → 仍然按旧逻辑拒绝（免费额度不重置）', async () => {
-  const h = await harness({ B: { myHp: 60, ghostUsed: true }, G: { relics: ['ghost'] } });
-  assert.equal(h.ctrl.skipFight(), false);
-  assert.equal(h.B.myHp, 60, '拒绝时不扣血');
-  assert.deepEqual(h.calls, []);
+// 本轮已用完 → **不再拒绝**，而是回普通跳过（固定 50）。
+// 这是任务 3 的核心语义变化：旧行为是「拒绝 + 不扣血」，等于免费撤退还有第二次。
+test('本轮影分身已用完 → 回普通跳过（固定 50），不再是拒绝', async () => {
+  const h = await harness({ B: { myHp: 90 }, G: { relics: ['ghost'], ghostUsed: true } });
+  assert.equal(h.ctrl.skipFight(), true, '必须执行，而不是返回 false 拒绝');
+  assert.equal(h.B.myHp, 90 - SKIP_HP_COST, '与没有影分身时完全一致的代价');
+  assert.deepEqual(h.calls, ['finishNode:advance']);
+});
+
+test('本轮已用完 + 血不够付代价 → 仍然是战败，不会因为「有影分身」而免死', async () => {
+  const h = await harness({ B: { myHp: 40 }, G: { relics: ['ghost'], ghostUsed: true } });
+  assert.equal(h.ctrl.skipFight(), true);
+  assert.equal(h.B.myHp, 0);
+  assert.equal(h.B.over, true);
+  assert.ok(!h.calls.some(c => c.startsWith('finishNode')));
+  h.fire();
+  assert.equal(h.DB.wins, 0);
 });
 
 /* ---------------- 单一数值来源 ---------------- */
 
 test('SKIP_HP_COST 只有一个来源，且跳过按它结算', async () => {
-  const { SKIP_HP_COST } = await import('../../src/data/balance.js');
   assert.equal(SKIP_HP_COST, 50);
   const h = await harness({ B: { myHp: 120 } });
   h.ctrl.skipFight();
