@@ -234,7 +234,8 @@ test('a wrong word stays reviewable and never blocks the fresh words', async ({ 
     return { i, ch: B.letters[i] };
   }, target);
   expect(decoy, '需要一个词库里没有的干扰字母才能验错词').not.toBeNull();
-  await page.locator('#fBank .key').nth(decoy.i).click();
+  // QWERTY changes visual order; choose the actual decoy by its letter, not its data index.
+  await page.locator('#fBank .key').filter({ hasText: new RegExp('^' + decoy.ch + '$', 'i') }).first().click();
   const afterWrong = await words(page);
   expect(afterWrong.wrong).toContain(target);
   expect(afterWrong.done).not.toContain(target);

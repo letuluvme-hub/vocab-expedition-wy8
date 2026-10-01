@@ -72,11 +72,14 @@ test('title preserves six heroes and all six units plus custom range', async ({ 
   await expect(page.locator('#s-fight')).toBeHidden();
 });
 
-test('old save without newer preferences defaults safely and custom range remains playable', async ({ game, page }) => {
+test('old save without newer preferences defaults safely and custom range remains playable', async ({ game, page }, testInfo) => {
   await game.open({ saved: { runs: 2, wins: 0, best: 2, mastered: ['litre'], custom: [{ w: 'apple', z: '苹果' }] } });
+  // 任务14 起「没有 kbMode 字段」的新档默认 QWERTY 键盘；归档 legacy 页面保留它
+  // 自己的历史默认（网格）。同一条用例按目标分支，不 skip —— 两个默认都必须被钉住。
+  const kbDefault = testInfo.project.metadata.target === 'legacy' ? false : true;
   const db = (await game.state()).DB;
   expect(db.rewards).toEqual([]);
-  expect(db.kbMode).toBe(false);
+  expect(db.kbMode).toBe(kbDefault);
   expect(db.kbUpper).toBe(false);
   await expect(page.locator('#heroes .hcard.sel b')).toHaveText('学者');
   await game.start(0);
@@ -87,7 +90,8 @@ test('old save without newer preferences defaults safely and custom range remain
   });
   await expect(page.locator('#fZh')).toHaveText('苹果');
   expect((await game.state()).B.word).toBe('apple');
-  await expect(page.locator('#fBank')).not.toHaveClass(/kb/);
+  if (kbDefault) await expect(page.locator('#fBank')).toHaveClass(/kb/);
+  else await expect(page.locator('#fBank')).not.toHaveClass(/kb/);
 });
 
 test('normal browser session exposes no test-only runtime bridge', async ({ page }, testInfo) => {

@@ -1,0 +1,168 @@
+/* 战斗页「装备与能力」折叠面板：把本局**已持有**的全部装备摊开给玩家看。
+ *
+ * 契约（这几条是这个模块存在的全部理由，改动时逐条核对）：
+ *  1) **纯只读**。面板只是把快照画出来：不补提示次数、不重新施加遗物护盾、
+ *     不改 usedThisFight、不动 G.ghostUsed。战斗页的每次 renderFight 都会调它，
+ *     任何副作用都会变成「每敲一个字母就重复触发一次」的隐性数值 bug。
+ *  2) 角色被动读 **G.heroId**（本局远征选的英雄），不是 DB.hero（主页上次选的）。
+ *  3) G.relics 全部列出。以前战斗页只露出前三个，那不是设计，是没人写过完整清单 ——
+ *     玩家买了第四件遗物之后根本不知道自己有第四件。
+ *  4) 重复遗物合并成「×N」，但**只改计数不改效果**：同一件遗物叠两遍不会多给一次护盾，
+ *     所以文案不许出现第二遍。
+ *  5) 影分身额度是 run 级（G.ghostUsed），一轮远征只有一次，用掉就写明耗尽。
+ *  6) 战斗中护盾在 B.shield 上（本场可能已经被打掉），不在战斗才读 G.shield。
+ *  7) 认不出的 id 一律降级成安全的「未知装备」，并且**只经 textContent 落屏**：
+ *     存档里的 id 是用户可写字段，拼进 innerHTML 就是一个存储型 XSS。
+ *  8) 手机上没有 hover：所有效果文案都必须是展开后直接可见的文本，
+ *     不许只挂在 title 上。
+ *
+ * 与道具栏（#fItems）的分工：#fItems 是**操作**区（点一下就消耗道具），
+ * 这里是**只读**清单。两者共用同一份 G.bag / B.usedThisFight，不重复记账。
+ */
+import { ITEMS } from '../../data/items.js';
+import { RELICS } from '../../data/relics.js';
+import { HERO_DEFAULT, heroById, heroStatLines } from './hero.js';
+
+const itemById = id => ITEMS.filter(x => x.id === id)[0] || null;
+const relicById = id => RELICS.filter(x => x.id === id)[0] || null;
+
+/* 未知 id 的安全降级：文案里带上原始 id 是有意的 —— 玩家能看出「存档里有个我
+   不认识的编号」，但它只是 textContent，永远不会被解析成元素。 */
+function unknownRelic(id, count) {
+  return {
+    id, count, unknown: true, ic: '❔',
+    n: '未知装备（' + String(id) + '）',
+    d: '来自旧存档或未知版本的效果，无法识别；本面板只展示，不做任何结算。',
+  };
+}
+function unknownItem(id, owned) {
+  return {
+    id, owned, unknown: true, ic: '❔',
+    n: '未知道具（' + String(id) + '）',
+    d: '无法识别的道具，无法使用。',
+    usedThisFight: 0, max: 0, spent: false,
+  };
+}
+
+/* ---------------- 纯模型：不碰 DOM，规则全部在这里 ---------------- */
+export function equipmentModel(G, B) {
+  const run = G || {}, bat = B || null;
+
+  /* 英雄：只认本局的 G.heroId。认不出就回退默认，绝不让 undefined 渗进文案。 */
+  const hero = heroById(run.heroId || HERO_DEFAULT);
+
+  /* 遗物：按出现顺序去重并计数（不排序，保留获取顺序更像玩家的记忆）。 */
+  const tally = new Map();
+  (Array.isArray(run.relics) ? run.relics : []).forEach(id => {
+    const key = String(id);
+    tally.set(key, (tally.get(key) || 0) + 1);
+  });
+  const relics = [...tally.entries()].map(([id, count]) => {
+    const r = relicById(id);
+    return r
+      ? { id, count, unknown: false, ic: r.ic, n: r.n, d: r.d }
+      : unknownRelic(id, count);
+  });
+
+  /* 道具：背包持有数 + 本场已用/上限。held 口径与 #fItems 一致（持有 > 0）。 */
+  const used = (bat && bat.usedThisFight) || {};
+  const items = Object.keys(run.bag || {})
+    .filter(id => (run.bag[id] | 0) > 0)
+    .map(id => {
+      const it = itemById(id);
+      const owned = run.bag[id] | 0;
+      if (!it) return unknownItem(id, owned);
+      const usedThisFight = used[id] | 0;
+      return {
+        id, owned, unknown: false, ic: it.ic, n: it.n, d: it.d,
+        usedThisFight, max: it.max, spent: usedThisFight >= it.max,
+      };
+    });
+
+  /* 影分身：额度挂在 run 上（G.ghostUsed），不在 B 上 —— 所以换战斗不会重置。 */
+  const ghostOwned = tally.has('ghost');
+  const ghost = { owned: ghostOwned, left: ghostOwned && !run.ghostUsed ? 1 : 0 };
+
+  /* 护盾：战斗中是 B.shield（真实剩余，可能已被打掉）；不在战斗才读 G.shield。 */
+  const shield = { value: bat ? (bat.shield | 0) : (run.shield | 0), inFight: !!bat };
+
+  return { hero, heroLines: heroStatLines(hero), relics, items, ghost, shield, count: 1 + relics.length + items.length };
+}
+
+/* ---------------- 渲染：只读快照 → DOM ---------------- */
+export function createEquipmentPanel({ getRun, getBattle }) {
+  let host = null;   // 复用同一个 <details>：重建会把玩家刚展开的面板收起来
+
+  function build() {
+    const anchor = document.getElementById('fItems');
+    if (!anchor || !anchor.parentElement) return null;   // 不在战斗页就安静退出
+    const el = document.createElement('details');
+    el.id = 'fEquipment';
+    el.className = 'equip';
+    el.appendChild(document.createElement('summary'));
+    el.appendChild(document.createElement('div'));        // body
+    anchor.parentElement.insertBefore(el, anchor.nextSibling);
+    host = el;
+    return el;
+  }
+
+  /* 一行 = 一个 div，行内再分「标题」与「效果」。全部 textContent。 */
+  function line(body, cls, head, text) {
+    const row = document.createElement('div');
+    row.className = 'eq-row ' + (cls || '');
+    const h = document.createElement('span');
+    h.className = 'eq-h';
+    h.textContent = head;
+    const d = document.createElement('span');
+    d.className = 'eq-d';
+    d.textContent = text;
+    row.appendChild(h); row.appendChild(d);
+    body.appendChild(row);
+  }
+
+  function renderEquipmentPanel() {
+    const el = host && host.parentElement ? host : build();
+    if (!el) return null;
+    const m = equipmentModel(getRun(), getBattle());
+
+    el.children[0].className = 'eq-sum';
+    el.children[0].textContent = '装备与能力 · ' + m.count;
+    const body = el.children[1];
+    body.className = 'eq-body';
+    body.textContent = '';
+
+    /* 角色被动 */
+    const hs = m.heroLines.length ? ' · ' + m.heroLines.join(' · ') : '';
+    line(body, 'eq-hero', m.hero.n + ' · ' + m.hero.tag, m.hero.d + hs);
+
+    /* 护盾：战斗中与地图上是两个来源，文案要写清楚现在看的是哪一个 */
+    line(body, 'eq-shield', '当前护盾', m.shield.value + ' 点' + (m.shield.inFight ? '（本场实时剩余）' : '（未进入战斗）'));
+
+    /* 遗物 */
+    if (!m.relics.length) {
+      line(body, 'eq-empty', '遗物', '尚无遗物 —— 事件与精英战会掉落');
+    } else {
+      m.relics.forEach(r => line(body, 'eq-relic' + (r.unknown ? ' eq-unknown' : ''),
+        r.ic + ' ' + r.n + (r.count > 1 ? ' ×' + r.count : ''), r.d));
+    }
+
+    /* 影分身额度（只在本局持有该遗物时才有意义） */
+    if (m.ghost.owned) {
+      line(body, m.ghost.left ? 'eq-ghost' : 'eq-ghost eq-spent', '影分身额度',
+        m.ghost.left ? '本轮剩余 1 次（免费撤退）' : '本轮已耗尽（跳过需付代价）');
+    }
+
+    /* 道具：持有数 + 本场已用/上限 */
+    if (!m.items.length) {
+      line(body, 'eq-empty', '道具', '背包是空的 —— 商店和精英战会掉落道具');
+    } else {
+      m.items.forEach(i => line(body, 'eq-item' + (i.unknown ? ' eq-unknown' : '') + (i.spent ? ' eq-spent' : ''),
+        i.ic + ' ' + i.n + ' ×' + i.owned,
+        i.d + ' · 本场已用 ' + i.usedThisFight + '/' + i.max + (i.spent ? ' · 已用满' : '')));
+    }
+
+    return el;
+  }
+
+  return { renderEquipmentPanel };
+}

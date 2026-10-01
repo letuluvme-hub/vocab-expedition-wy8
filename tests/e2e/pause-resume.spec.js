@@ -854,11 +854,21 @@ test('toggling voice on the title is stored immediately and survives a reload', 
 test('toggling voice with an expedition running saves it together with the snapshot', async ({ game, page }, testInfo) => {
   newOnly(testInfo);
   await game.open(); await game.start();
+  const before = await game.state();
+  // 任务15 起语音开关只在主页的 #audioSettings 面板里（不再是挂在 body 上的浮动按钮），
+  // 所以从地图暂停回主页再切语音：中途会经过暂停屏并把快照落盘。
+  await page.locator('#mPause').click();
+  await expect(page.locator('#s-pause')).toBeVisible();
+  await page.locator('#pzHome').click();
+  await expect(page.locator('#s-title')).toBeVisible();
   await page.locator('#voiceBtn').click();
   const saved = await game.saved();
   expect(saved.voice).toBe(true);
   expect(saved.activeRun, '开着远征时切语音不能把快照弄丢').toBeTruthy();
   expect(saved.activeRun.phase).toBe('map');
+  // 绕一圈回来，地图资源必须原样还在（不能因为暂停→主页这一趟被重置或推进）
+  expect(saved.activeRun.run.gold).toBe(before.G.gold);
+  expect(saved.activeRun.run.floor).toBe(before.G.floor);
 });
 
 /* ---------------- 16. 恢复文本不重复转义（真实 Chrome）----------------

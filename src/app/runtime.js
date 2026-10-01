@@ -38,6 +38,7 @@ import { UNITS } from '../data/units.js';
 import { ENEMIES, BOSS } from '../data/enemies.js';
 import { VOICE_LINES, FOE_LINES, ELITE_LINES } from '../data/voice-lines.js';
 import { foeArtHTML } from '../ui/components/monster-art.js';
+import { createAudioSettings, nearestVolStep } from '../ui/components/audio-settings.js';
 
 // Transitional coordinator: preserve original event ordering during extraction.
 export function startGame() {
@@ -254,29 +255,11 @@ let volStep=0;
   let v=(typeof DB.vol==='number')?DB.vol:.55;
   if(DB.mute) v=0;
   v=clamp(v,0,1);
-  volStep=0; let best=1e9;
-  VOL_STEPS.forEach((s,i)=>{ const d=Math.abs(s-v); if(d<best){ best=d; volStep=i } });
+  volStep=nearestVolStep(v);
   if(DB.mute && v>0) volStep=0;
   AU.vol=VOL_STEPS[volStep]; AU.muted=v<=0;
 })();
 const saveVol=()=>{ DB.vol=AU.vol; DB.mute=AU.muted; saveDB(); commit(false) };
-/* 音量按钮：改为挂到「标题页」底部的 .volrow 里（不再是右上角浮层）。
-   音量逻辑与存档字段（AU.vol / AU.muted / DB.vol / DB.mute）保持不变。 */
-(function mountVolBtn(){
-  if(typeof document==='undefined'||!document.body) return;
-  const b=document.getElementById('volBtn'), v=document.getElementById('volVal');
-  if(!b) return;
-  const paint=()=>{
-    b.textContent=AU.muted?'🔇':(AU.vol>=.5?'🔊':'🔉');
-    if(v) v.textContent=AU.muted?'静音':(Math.round(AU.vol*100)+'%');
-    b.title='音量 '+(AU.muted?'静音':Math.round(AU.vol*100)+'%')+'（点击切换：55% → 30% → 12% → 静音）';
-  };
-  b.onclick=()=>{ volStep=(volStep+1)%VOL_STEPS.length; AU.setVol(VOL_STEPS[volStep]);
-    saveVol(); paint(); if(!AU.muted) sfx.ui() };
-  b.oncontextmenu=e=>{ e.preventDefault(); volStep=(volStep+VOL_STEPS.length-1)%VOL_STEPS.length;
-    AU.setVol(VOL_STEPS[volStep]); saveVol(); paint(); if(!AU.muted) sfx.ui() };
-  paint();
-})();
 /* UI 点击 / 悬停提示音（事件委托，只作用于主要按钮和地图节点） */
 if(typeof document!=='undefined'&&document.addEventListener){
   document.addEventListener('click',e=>{
@@ -691,7 +674,7 @@ function pulseSay(){
 function sayCurrentWord(times){
   if(!B||B.over||!B.word) { toast('还没有开始战斗'); return false }
   if(!TTS.supported){ toast('当前浏览器不支持语音朗读，不影响游戏'); return false }
-  if(!TTS.on){ TTS.setOn(true); paintSayBtn(); }        // 死结保护：先开回来再念
+  if(!TTS.on){ TTS.setOn(true); paintSayBtn(); audioSettings.paint(); }        // 死结保护：先开回来再念
   /* ★ 听读音 = 消耗「提示次数」B.hints，和「揭示下一个字母」是同一个资源池。
      玩家必须权衡：是花一次提示听发音，还是留到需要字母时再用。
      拼完整词的自动朗读走 TTS.word()，不消耗 hints —— 那是完成后的奖励。 */
@@ -726,54 +709,31 @@ function sayCurrentWord(times){
 if(TTS && TTS.supported && typeof addEventListener==='function'){
   try{ TTS.loadVoices() }catch(e){}
 }
-// 语音总开关（独立于音效音量，两者可分别静音）。
-// ★ 战斗页不显示这个按钮：它原本 position:fixed 钉在右上角（top:10px;right:60px），
-//   而战斗页的敌方血条也在 sticky HUD 的右上角，窄屏手机上两者直接重叠、挡住血量数字。
-//   战斗时改用字母盘上方的「🔊 听读音」按钮控制朗读，总开关只在标题/地图/奖励等界面出现。
-function syncVoiceBtn(){
-  const b=document.getElementById('voiceBtn');
-  if(!b) return;
-  const scr=document.querySelector('.screen.on');
-  b.style.display=(scr&&scr.id==='s-fight')?'none':'flex';
-}
-(function mountVoiceBtn(){
-  if(typeof document==='undefined'||!document.body||document.getElementById('voiceBtn')) return;
-  const b=document.createElement('button');
-  b.id='voiceBtn'; b.type='button';
-  b.style.cssText='position:fixed;top:10px;right:60px;z-index:75;width:42px;height:42px;padding:0;'+
-    'border-radius:12px;border:1px solid #ffffff26;background:rgba(16,16,30,.8);color:#fff;'+
-    'font-size:19px;line-height:1;cursor:pointer;backdrop-filter:blur(10px);'+
-    'box-shadow:0 6px 18px #0007;display:flex;align-items:center;justify-content:center;'+
-    '-webkit-tap-highlight-color:transparent';
-  // show() 里会直接调 syncVoiceBtn()；这里再挂一个 MutationObserver 兜底，
-  // 防止将来有绕过 show() 的界面切换方式导致按钮没跟着隐藏。
-  try{
-    if(typeof MutationObserver==='function' && document.body){
-      new MutationObserver(syncVoiceBtn).observe(document.body,
-        {attributes:true,attributeFilter:['class'],subtree:true});
-    }
-  }catch(e){}
-  try{ if(typeof window.addEventListener==='function') window.addEventListener('resize',syncVoiceBtn) }catch(e){}
-  const paint=()=>{
-    if(!TTS.supported){ b.textContent='🔇'; b.style.opacity=.3;
-      b.title='当前浏览器不支持语音朗读（不影响游戏）'; return }
-    b.textContent=TTS.on?'🗣':'🔇';
-    b.style.opacity=TTS.on?1:.45;
-    b.title=TTS.on?'语音朗读：开（点击关闭）':'语音朗读：关（点击开启）';
-  };
-  b.onclick=()=>{ TTS.unlock(); TTS.toggle(); paint(); paintSayBtn(); if(TTS.on) sfx.ui() };
-  b.oncontextmenu=e=>{ e.preventDefault(); TTS.unlock(); TTS.setOn(true); paint(); paintSayBtn() };
-  document.body.appendChild(b); paint(); syncVoiceBtn();
-  // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged
-  // 再重画一次按钮 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
-  try{
-    const sy=(typeof window!=='undefined')&&window.speechSynthesis;
-    if(sy){
-      if(typeof sy.addEventListener==='function') sy.addEventListener('voiceschanged',()=>{ paint(); paintSayBtn() });
-      else sy.onvoiceschanged=()=>{ paint(); paintSayBtn() };
-    }
-  }catch(e){}
-})();
+/* 兼容入口：show() 仍会调它。开关现在住在主页的 #audioSettings 面板里，
+   显隐由那一层的 .screen 机制天然完成（离开主页整块不渲染），
+   所以这里什么都不用做 —— 也不再需要 MutationObserver 兜底。
+   保留函数名只为不打乱既有调用顺序。 */
+function syncVoiceBtn(){ /* no-op：主页设置区不再是浮动层 */ }
+const audioSettings=createAudioSettings({
+  /* 音量与朗读是两个完全独立的 prefs，字段仍是 DB.vol / DB.mute / DB.voice。 */
+  audio:{ vol:()=>AU.vol, muted:()=>AU.muted },
+  tts:{ supported:()=>!!(TTS&&TTS.supported), on:()=>!!(TTS&&TTS.on) },
+  onVolumeStep:dir=>{ volStep=(volStep+dir+VOL_STEPS.length)%VOL_STEPS.length;
+    AU.setVol(VOL_STEPS[volStep]); saveVol(); audioSettings.paint(); if(!AU.muted) sfx.ui() },
+  onVoiceToggle:force=>{ TTS.unlock();
+    if(force===true) TTS.setOn(true); else TTS.toggle();
+    audioSettings.paint(); paintSayBtn(); if(TTS.on) sfx.ui() },
+}).mount();
+// 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged 再重画一次
+// 设置区 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
+try{
+  const sy=(typeof window!=='undefined')&&window.speechSynthesis;
+  if(sy){
+    const repaint=()=>{ try{ audioSettings.paint(); paintSayBtn() }catch(e){} };
+    if(typeof sy.addEventListener==='function') sy.addEventListener('voiceschanged',repaint);
+    else sy.onvoiceschanged=repaint;
+  }
+}catch(e){}
 // 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键
 function renderItems(){return fightScreen.renderItems()}
 // 使用道具

@@ -37,19 +37,17 @@ test('relic catalog differs from legacy only in the ghost description', async ()
   assert.match(RELICS.filter(r => r.id === 'ghost')[0].d, /每轮/);
 });
 
+// Each added sheet has its own UI scope; archived sheets remain unchanged.
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css'];
+
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
   const imports = [...entry.matchAll(/@import\s+['"](.+?)['"]/g)].map(match=>match[1]);
-  // pause.css 与 learning-complete.css 都是后续功能新增的唯一一张表，各自只作用于
-  // 自己的屏（#s-pause / #s-learning-complete）。归档里没有它们，所以这里排除之后
-  // 仍要求与归档逐字相同 —— 其余规则一个都不许漂。
-  const ADDED_CSS = new Set(['./pause.css', './learning-complete.css']);
-  const actual = imports.filter(p=>!ADDED_CSS.has(p))
+  const actual = imports.filter(p=>!ADDED_CSS.includes(p))
     .map(path=>readFileSync(new URL(`../../src/styles/${path}`,import.meta.url),'utf8')).join('');
   assert.equal(actual.replace(/\r\n/g,'\n'), expected.replace(/\r\n/g,'\n'));
-  // 新增样式必须追加在最后，且顺序固定（提取链不许被打乱）
-  assert.deepEqual(imports.slice(-2), ['./pause.css', './learning-complete.css'], '新增样式必须追加在最后');
+  assert.deepEqual(imports.slice(-ADDED_CSS.length), ADDED_CSS, '新增样式表的清单与顺序固定，且追加在最后');
 });
 
 // 本任务唯一有意偏离归档骨架的地方：跳过按钮的小字。旧版写「不掉血」，
@@ -87,17 +85,39 @@ const stripPause = html => {
   return out;
 };
 
+// 主页声音设置区：归档里是写在 HTML 里的 .volrow（音量一行），现在是
+// <div id="audioSettings"></div> 空容器，按钮由 audio-settings.js 画进去
+// （音效与朗读两个独立开关）。这是**同一位置**的替换，不是整段新增，
+// 所以归一化必须把新版容器原样还原成归档里的那一段（含注释，注释位置
+// 也不许挪），骨架其余部分仍要求逐字相同。
+const LEGACY_VOLROW = /<!-- 音量控制：[\s\S]*?<div class="volrow">[\s\S]*?<\/div>\n/;
+const NEW_AUDIO_BLOCK = /<!-- 声音设置：[\s\S]*?<div id="audioSettings"><\/div>\n/;
+const backToLegacyVolrow = html => {
+  // index.html 在 Windows 上是 CRLF：先归一化行尾，否则段尾的 \n 匹配不上
+  // （静默失配会让下面那条 notEqual 变成误报）。归档段也一并归一化。
+  const legacy = baseline.replace(/\r\n/g,'\n').match(LEGACY_VOLROW);
+  assert.ok(legacy, '归档里必须仍然找得到原来的 .volrow 段（否则归一化会假通过）');
+  const out = html.replace(/\r\n/g,'\n').replace(NEW_AUDIO_BLOCK, legacy[0]);
+  assert.notEqual(out, html, '新版必须真的包含被替换的声音设置段（否则归一化会假通过）');
+  return out;
+};
+
 test('page skeleton preserves approved character parts and all existing controls', () => {
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   // 两边都要走 stripPause：暂停新增是本任务允许的唯一偏离，其余必须逐字相同。
-  assert.equal(strip(stripPause(html).replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
+  // 主页声音设置区是同位置的替换：把新版容器还原成归档的 .volrow 段再比。
+  assert.equal(strip(stripPause(backToLegacyVolrow(html)).replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '$1跳过代价$2')));
   // 去掉跳过文案的归一化后，仍然必须完全对齐
-  assert.equal(strip(stripPause(html).replace(SKIP_COPY_DIFF, '')), strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '')));
+  assert.equal(strip(stripPause(backToLegacyVolrow(html)).replace(SKIP_COPY_DIFF, '')), strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '')));
   // 并且当前文案确实点明了 50 点生命
   assert.match(html, /id="tSkip">跳过<small>损失 50 生命<\/small>/);
   assert.match(html, /<script type="module" src="\/src\/main.js"><\/script>/);
+  // 声音设置：容器必须在标题页内（不能是 body 上的浮动层），旧的 .volrow 必须已经不存在。
+  const titleScreen = html.slice(html.indexOf('id="s-title"'), html.indexOf('<div class="screen" id="s-map"'));
+  assert.match(titleScreen, /<div id="audioSettings"><\/div>/, '声音设置容器必须落在主页 #s-title 内');
+  assert.doesNotMatch(html, /class="volrow"|id="volBtn"|id="volVal"|id="voiceBtn"/, '旧的浮动音量/语音控件必须从 HTML 里移除');
   // 暂停入口必须真的在页面上（否则上面的对齐会因为「都不存在」而假通过）
   assert.match(html, /id="mPause">暂停并保存/);
   assert.match(html, /id="tPause">暂停/);

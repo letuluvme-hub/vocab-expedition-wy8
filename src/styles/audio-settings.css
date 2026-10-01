@@ -1,0 +1,82 @@
+/* 主页声音设置区：追加在所有原有规则之后，只作用于 #audioSettings 及其子元素。
+ *
+ * 不改任何既有选择器 —— 旧版那七张样式表的规则与层叠顺序逐字不变。
+ * 关键是这块面板必须**留在文档流里**：旧版 .volbtn/.vollbl/.volval 那一组样式
+ * 曾经配在 position:fixed 的浮层上，现在换成一块低调的横排面板，
+ * 窄屏（320px）自动换行，绝不压住战斗页的 HUD。 */
+
+#audioSettings {
+  margin: 14px 0 2px;
+  opacity: .62;
+  transition: opacity .2s var(--ease);
+}
+#audioSettings:hover,
+#audioSettings:focus-within {
+  opacity: .95;
+}
+#audioSettings-root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  padding: 9px 12px;
+  border: 1px solid #ffffff1a;
+  border-radius: 12px;
+  background: #ffffff08;
+}
+#audioSettings .aset-hd {
+  font-size: 11px;
+  letter-spacing: .5px;
+  color: var(--dim);
+}
+#audioSettings .aset-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+#audioSettings .aset-lbl {
+  font-size: 11.5px;
+  color: var(--mut);
+  /* 320px 窄屏上「单词朗读」四个字不许被压断 */
+  white-space: nowrap;
+}
+#audioSettings .aset-btn {
+  width: 36px;
+  height: 30px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid #ffffff1f;
+  background: #ffffff0d;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+#audioSettings .aset-btn:active {
+  transform: scale(.94);
+}
+#audioSettings .aset-btn[disabled] {
+  opacity: .4;
+  cursor: not-allowed;
+}
+#audioSettings .aset-val {
+  font-size: 11px;
+  color: var(--dim);
+  min-width: 30px;
+  font-variant-numeric: tabular-nums;
+}
+#audioSettings .aset-note {
+  flex-basis: 100%;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--dim);
+  text-align: center;
+}
+#audioSettings .aset-note[hidden] {
+  display: none;
+}

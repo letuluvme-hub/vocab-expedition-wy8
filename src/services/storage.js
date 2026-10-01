@@ -6,7 +6,10 @@ export function initializeDB(db) {
   db.mastered = db.mastered || [];
   db.custom = db.custom || [];
   db.rewards = Array.isArray(db.rewards) ? db.rewards : [];
-  db.kbMode = !!db.kbMode;
+  // kbMode defaults to the QWERTY keyboard layout for new / field-less saves.
+  // An explicit boolean (including a player-chosen false) is kept as is, and
+  // legacy non-boolean values still go through the original !! coercion.
+  db.kbMode = db.kbMode === undefined ? true : !!db.kbMode;
   db.kbUpper = !!db.kbUpper;
   db.voice = db.voice === undefined ? true : !!db.voice;
   return db;
