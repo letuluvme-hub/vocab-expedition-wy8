@@ -234,10 +234,16 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
      部件（DOM 顺序即叠放顺序，另给 z-index 兜底）：
        影子 → 披风 → 躯干 → 脑后发 → 腰饰 → 手臂 → 手 → 道具 →
        头 → 腮红 → 眼 → 眼睑 → 嘴 → 前发 → 发梢 → 头饰
-   大头可爱风：头占 48% × 44%（旧版只有 27%，是写实比例），头身比接近 1:1.6。
+   大头萌系：头占 64% × 58%（104×128 基准下 66.6×74.2px），头身比接近 1:1.05 —— 标准 Q 版大头娃娃。
+   萌系五官按「眼宽 : 头宽 ≈ 31%」配，眼睛压在头高 40%（脸的中下部），眼距半只眼宽（不斗鸡）；
+   瞳孔只占眼宽 24%、高光是两枚又大又圆的亮点 → 眼白多、瞳孔小、高光亮。
+   腮红两坨粉椭圆落在「眼下方偏外侧」，嘴只有头宽的 17%（小而圆）。
+   圆角四边接近正圆、下半略收 → 圆脸婴儿肥、下巴不尖。
    眨眼 / 动嘴 / 飘发一律只用 transform + opacity（走合成层，不触发重排）；
    节奏靠「多套关键帧 + 每个角色各自的时长与起始延迟」打散，不会整齐划一。
-   角色差异全部由 data-h 覆盖自定义属性 + 部件形状，不新增元素。 */
+   角色差异全部由 data-h 覆盖自定义属性 + 部件形状，不新增元素。
+   ★ 脸部所有部件（腮红/眼/眼睑/嘴）的盒子都落在头的矩形内；头发、帽子一律停在
+     眼睛上沿（27%）之上，头放大后也不会压到眼睛。 */
 .pc{--skin:#f0c9a4;--hair:#33262a;--c1:#6366f1;--c2:#8b5cf6;--acc:#22d3ee;
   --bm:pcB1;--lm:pcL1;--bt:5.3s;--bd:-.7s;   /* 眨眼：形态 / 时长 / 起始延迟 */
   --mm:pcM1;--mt:4.6s;--md:-1.9s;           /* 动嘴：形态 / 时长 / 起始延迟 */
@@ -246,72 +252,84 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   animation:pcIdle 3.1s ease-in-out infinite}
 .pci{position:absolute;inset:0}
 .pc i{display:block;position:absolute;box-sizing:border-box}
-.pc .pc-shadow{left:15%;right:15%;bottom:-1%;height:7%;border-radius:50%;z-index:1;
+.pc .pc-shadow{left:18%;right:18%;bottom:-1%;height:6%;border-radius:50%;z-index:1;
   background:#00000080;filter:blur(2px);animation:pcSh 3.1s ease-in-out infinite}
-.pc .pc-cape{left:5%;top:38%;width:90%;height:60%;opacity:0;z-index:2;
+/* 身体整体收窄下移：头占 64%×57% 之后，躯干只剩 44% 宽，头身比接近 1:1.05 */
+.pc .pc-cape{left:9%;top:50%;width:82%;height:48%;opacity:0;z-index:2;
   border-radius:46% 46% 12% 12%/32% 32% 8% 8%;
   background:linear-gradient(180deg,color-mix(in srgb,var(--c2) 88%,#000) 0%,color-mix(in srgb,var(--c2) 20%,transparent) 88%)}
-.pc .pc-torso{left:24%;top:47%;width:52%;height:48%;z-index:3;
-  border-radius:34% 34% 14% 14%/38% 38% 10% 10%;
+.pc .pc-torso{left:28%;top:61%;width:44%;height:34%;z-index:3;
+  border-radius:36% 36% 16% 16%/42% 42% 10% 10%;
   background:linear-gradient(165deg,var(--c1),var(--c2));box-shadow:inset 0 2px 0 #ffffff40,0 4px 12px #00000073}
 /* 脑后发：藏在头后面（z-index 比头低），只从两侧/一侧露出来，负责第二层飘动 */
-.pc .pc-hairb{left:21%;top:12%;width:58%;height:36%;z-index:4;opacity:.95;
+.pc .pc-hairb{left:12%;top:4%;width:76%;height:36%;z-index:4;opacity:.95;
   border-radius:46% 46% 34% 34%;
   background:linear-gradient(180deg,color-mix(in srgb,var(--hair) 82%,#000),color-mix(in srgb,var(--hair) 40%,#000));
   transform-origin:50% 6%;animation:pcHairBack var(--hb) ease-in-out var(--hd) infinite}
-.pc .pc-sash{left:24%;top:57%;width:52%;height:10%;z-index:5;background:var(--acc);opacity:.92;
+.pc .pc-sash{left:28%;top:74%;width:44%;height:8%;z-index:5;background:var(--acc);opacity:.92;
   clip-path:polygon(0 0,100% 0,100% 58%,0 100%)}
-.pc .pc-arm{left:11%;top:55%;width:15%;height:30%;z-index:6;border-radius:48%;transform-origin:88% 14%;
+.pc .pc-arm{left:12%;top:64%;width:14%;height:26%;z-index:6;border-radius:48%;transform-origin:88% 14%;
   background:linear-gradient(160deg,var(--c1),var(--c2));box-shadow:0 2px 7px #00000066}
-.pc .pc-hand{left:8%;top:79%;width:12%;height:10%;z-index:7;border-radius:50%;
+.pc .pc-hand{left:9%;top:85%;width:12%;height:9%;z-index:7;border-radius:50%;
   background:linear-gradient(160deg,var(--skin),color-mix(in srgb,var(--skin) 76%,#7a4a2a))}
 .pc .pc-prop{opacity:0;z-index:8}
-.pc .pc-head{left:26%;top:7%;width:48%;height:44%;z-index:9;
-  border-radius:50% 50% 44% 44%/46% 46% 54% 54%;
-  background:linear-gradient(168deg,color-mix(in srgb,var(--skin) 86%,#fff) 0%,var(--skin) 44%,
-    color-mix(in srgb,var(--skin) 74%,#7a4a2a) 100%);
+/* 头：64% 宽 × 58% 高（104×128 基准下 66.6×74.2px），头身比接近 1:1.05 —— 标准 Q 版大头娃娃。
+   圆角四边接近正圆、下半略收，圆脸婴儿肥，下巴不尖。 */
+.pc .pc-head{left:18%;top:4%;width:64%;height:58%;z-index:9;
+  border-radius:50% 50% 47% 47%/47% 47% 53% 53%;
+  background:linear-gradient(168deg,color-mix(in srgb,var(--skin) 88%,#fff) 0%,var(--skin) 44%,
+    color-mix(in srgb,var(--skin) 72%,#7a4a2a) 100%);
   box-shadow:inset 0 -3px 0 #0000001f,0 3px 9px #00000033}
-.pc .pc-blush{left:30%;top:40%;width:40%;height:8%;z-index:10;opacity:.5;
-  background:radial-gradient(ellipse 38% 100% at 11% 50%,#ff7f95 0 62%,transparent 100%),
-            radial-gradient(ellipse 38% 100% at 89% 50%,#ff7f95 0 62%,transparent 100%)}
-/* 眼：眼白 + 虹膜 + 瞳孔 + 双高光（纯渐变，不加元素）。眨眼 = 整体 scaleY 压扁。 */
-.pc .pc-eye{top:28%;width:14%;height:15%;z-index:11;border-radius:50% 50% 46% 46%;
-  background:radial-gradient(circle at 73% 20%,#fff 0 27%,transparent 28%),
-            radial-gradient(circle at 27% 82%,#ffffffa6 0 15%,transparent 16%),
-            radial-gradient(ellipse 24% 27% at 50% 48%,#171129 0 98%,transparent 100%),
-            radial-gradient(ellipse 36% 40% at 50% 58%,#5b4a9e 0 98%,transparent 100%),
-            #fbfaff;
-  box-shadow:0 0 0 1.6px #2a2140,inset 0 -3px 3px #0000001a;
+/* 腮红：两坨粉椭圆，落在「眼睛下方偏外侧」，比上一版更大更实（这是萌感的一半功劳） */
+.pc .pc-blush{left:22%;top:43%;width:56%;height:9%;z-index:10;opacity:.68;
+  background:radial-gradient(ellipse 34% 100% at 12% 50%,#ff6f8b 0 66%,transparent 100%),
+            radial-gradient(ellipse 34% 100% at 88% 50%,#ff6f8b 0 66%,transparent 100%)}
+/* 眼：眼白 + 虹膜 + 瞳孔 + 双高光（纯渐变，不加元素）。
+   眼宽 = 头宽 31%、眼高 = 头高 32%，位置压到头高 40%（脸的中下部）→ 萌系大眼的比例。
+   瞳孔只占眼宽 24%、高光是两枚又大又圆的亮点 → 「眼白多、瞳孔小、高光亮」。 */
+.pc .pc-eye{top:27%;width:20%;height:18.5%;z-index:11;border-radius:50% 50% 46% 46%;
+  background:radial-gradient(circle at 72% 22%,#fff 0 31%,transparent 32%),
+            radial-gradient(circle at 27% 80%,#ffffffb3 0 16%,transparent 17%),
+            radial-gradient(ellipse 24% 28% at 50% 46%,#1a1330 0 98%,transparent 100%),
+            radial-gradient(ellipse 42% 46% at 50% 60%,#6a55c8 0 98%,transparent 100%),
+            #fdfbff;
+  box-shadow:0 0 0 1.8px #2a2140,inset 0 -4px 4px #0000001a;
   transform-origin:50% 52%;animation:var(--bm) var(--bt) linear var(--bd) infinite}
-.pc .pc-eyeL{left:33.5%}.pc .pc-eyeR{left:52.5%}
-/* 眼睑：睁眼时 opacity:0，眨眼瞬间淡入成一条弧线 —— 闭眼才有明确形状 */
-.pc .pc-lid{left:26%;top:33%;width:48%;height:5%;z-index:12;opacity:0;
+/* 眼间距 10%（≈半个眼宽），略宽一点不斗鸡；左右外侧各留 7% 腮红/脸颊的位置 */
+.pc .pc-eyeL{left:25%}.pc .pc-eyeR{left:55%}
+/* 眼睑：睁眼时 opacity:0，眨眼瞬间淡入成一条弧线。
+   ::before/::after 的位置按新眼睛反算（眼盒 25%~45% / 55%~75%，换算到眼睑盒 18%~82% 上），
+   所以弧线一定精准盖在那两只大眼上。 */
+.pc .pc-lid{left:18%;top:30%;width:64%;height:10%;z-index:12;opacity:0;
   animation:var(--lm) var(--bt) linear var(--bd) infinite}
 .pc .pc-lid::before,.pc .pc-lid::after{content:'';position:absolute;top:0;height:100%;
   border-radius:0 0 46% 46%/0 0 100% 100%;background:#2a2140}
-.pc .pc-lid::before{left:14%;width:32%}
-.pc .pc-lid::after{left:54%;width:32%}
-/* 嘴：内含一条舌头（::after），用 scaleY 开合；闭合时压成一条微笑线 */
-.pc .pc-mouth{left:41%;top:43%;width:18%;height:7%;z-index:13;overflow:hidden;
-  border-radius:46% 46% 54% 54%/40% 40% 62% 62%;background:#8e2f46;
+.pc .pc-lid::before{left:10.9%;width:31.3%}
+.pc .pc-lid::after{left:57.8%;width:31.3%}
+/* 嘴：只有头宽的 17%，小而圆；内含一条舌头（::after），用 scaleY 开合，
+   闭合时压成一条微笑线（pcM1~4 把它当小嘴用，pcMouthYell 喊叫时才张大） */
+.pc .pc-mouth{left:44.5%;top:51%;width:11%;height:5.5%;z-index:13;overflow:hidden;
+  border-radius:50% 50% 46% 46%/42% 42% 58% 58%;background:#8e2f46;
   transform-origin:50% 76%;
   animation:var(--mm) var(--mt) ease-in-out var(--md) infinite}
 .pc .pc-mouth::after{content:'';position:absolute;left:14%;right:14%;bottom:0;height:48%;
   border-radius:50% 50% 40% 40%;background:#ff8fa8}
-/* 前发：枢轴在发根（顶端），所以整块只是轻微「呼吸式」侧摆 */
-.pc .pc-hair{left:25%;top:2%;width:50%;height:21%;z-index:14;
+/* 前发：枢轴在发根（顶端），所以整块只是轻微「呼吸式」侧摆。
+   下沿收到 24%，正好停在眼睛（27%）之上，不压眼。 */
+.pc .pc-hair{left:15%;top:2%;width:70%;height:22%;z-index:14;
   border-radius:52% 52% 30% 30%/62% 62% 38% 38%;
   background:linear-gradient(180deg,color-mix(in srgb,var(--hair) 82%,#fff) 0%,
     var(--hair) 50%,color-mix(in srgb,var(--hair) 56%,#000) 100%);
   transform-origin:50% 0;animation:pcHairSway var(--hs) ease-in-out var(--hd) infinite}
-/* 发梢：枢轴同样在发根，但周期更短、摆幅更大 —— 差速才有「飘」而不是「滑板」 */
-.pc .pc-hairt{left:27%;top:13%;width:46%;height:15%;z-index:15;
+/* 发梢：枢轴同样在发根，但周期更短、摆幅更大 —— 差速才有「飘」而不是「滑板」。
+   两枚发梢只放在 15%~27% 和 73%~85% 这两条「眉毛外侧」的窄带上，绝不落到眼睛上。 */
+.pc .pc-hairt{left:15%;top:13%;width:70%;height:12%;z-index:15;
   transform-origin:50% 0;animation:pcHairFlow var(--hf) ease-in-out var(--hd) infinite}
 .pc .pc-hairt::before,.pc .pc-hairt::after{content:'';position:absolute;top:0;height:100%;
   border-radius:50% 50% 44% 44%/72% 72% 28% 28%;
   background:linear-gradient(180deg,var(--hair),color-mix(in srgb,var(--hair) 50%,#000))}
-.pc .pc-hairt::before{left:8%;width:30%;transform:rotate(-4deg)}
-.pc .pc-hairt::after{right:8%;width:30%;transform:rotate(4deg)}
+.pc .pc-hairt::before{left:0;width:17%;transform:rotate(-5deg)}
+.pc .pc-hairt::after{right:0;width:17%;transform:rotate(5deg)}
 .pc .pc-gear{opacity:0;z-index:16}
 
 /* ---- 状态动画：待机 / 攻击（向左前冲 + 挥臂）/ 受伤（抖动 + 变红） ---- */
@@ -409,37 +427,40 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   --bm:pcB1;--lm:pcL1;--bt:5.3s;--bd:-.7s;--mm:pcM1;--mt:4.6s;--md:-1.9s;
   --hs:4.3s;--hf:3.1s;--hb:5.7s;--hd:-.4s}
 .pc[data-h=scholar] .pc-hair{height:22%;border-radius:52% 52% 26% 26%/62% 62% 38% 38%}
-.pc[data-h=scholar] .pc-hairb{left:54%;top:0;width:31%;height:21%;border-radius:50% 50% 46% 46%}
-.pc[data-h=scholar] .pc-hairt{left:26%;top:12%;width:48%;height:13%;
+.pc[data-h=scholar] .pc-hairb{left:55%;top:0;width:41%;height:28%;border-radius:50% 50% 46% 46%}
+/* 齐刘海：整条实心刘海横跨全头宽，下沿收到 25%（眼睛在 27%），绝不压眼 */
+.pc[data-h=scholar] .pc-hairt{left:18%;top:10%;width:64%;height:15%;
   border-radius:4% 4% 38% 38%/0 0 100% 100%;
   background:linear-gradient(180deg,var(--hair),color-mix(in srgb,var(--hair) 60%,#000))}
 .pc[data-h=scholar] .pc-hairt::before,.pc[data-h=scholar] .pc-hairt::after{display:none}
-/* 眼镜：两个椭圆框（::before/::after）+ 顶边当鼻梁，正好套在大眼睛外圈 */
-.pc[data-h=scholar] .pc-gear{opacity:1;left:32%;top:26%;width:36%;height:19%;background:none;
+/* 眼镜：两个椭圆框（::before/::after）+ 顶边当鼻梁。
+   框按新大眼反算：眼盒 25~45% / 55~75%、27~45.5% → 镜框 21~79%、23~50%，正好把大眼整个套进去。 */
+.pc[data-h=scholar] .pc-gear{opacity:1;left:21%;top:23%;width:58%;height:27%;background:none;
   border-top:2px solid #dbe4ff}
 .pc[data-h=scholar] .pc-gear::before,.pc[data-h=scholar] .pc-gear::after{content:'';
   position:absolute;top:0;width:48%;height:100%;border:2px solid #dbe4ff;border-radius:50%}
 .pc[data-h=scholar] .pc-gear::before{left:0}
 .pc[data-h=scholar] .pc-gear::after{right:0}
-.pc[data-h=scholar] .pc-prop{opacity:1;left:0;top:68%;width:35%;height:20%;border-radius:6%;
+.pc[data-h=scholar] .pc-prop{opacity:1;left:1%;top:71%;width:33%;height:19%;border-radius:6%;
   border:2px solid #5b3ec0;background:linear-gradient(160deg,#ffffff,#cfd6ff);transform:rotate(-8deg)}
 /* 战士：绯红重甲、盔缨、长剑 */
 .pc[data-h=warrior]{--hair:#4a2f22;--c1:#e0344f;--c2:#8b1e2d;--acc:#ffce4d;
   --bm:pcB2;--lm:pcL2;--bt:3.9s;--bd:-2.1s;--mm:pcM2;--mt:5.9s;--md:-3.3s;
   --hs:3.7s;--hf:2.6s;--hb:5.1s;--hd:-1.4s}
-.pc[data-h=warrior] .pc-hair{height:14%;border-radius:50% 50% 24% 24%/64% 64% 36% 36%}
+.pc[data-h=warrior] .pc-hair{height:16%;border-radius:50% 50% 24% 24%/64% 64% 36% 36%}
 .pc[data-h=warrior] .pc-hairt{opacity:0;animation:none}  /* 头盔压住刘海，只留盔下短鬓 */
-.pc[data-h=warrior] .pc-hairb{left:23%;top:20%;width:54%;height:22%;border-radius:40% 40% 44% 44%}
-.pc[data-h=warrior] .pc-gear{opacity:1;left:24%;top:3%;width:52%;height:23%;
+.pc[data-h=warrior] .pc-hairb{left:14%;top:19%;width:72%;height:26%;border-radius:40% 40% 44% 44%}
+/* 头盔：下沿收到 24%，眼睛在 27% —— 头放大后盔檐仍留 3% 空隙，绝不压眼 */
+.pc[data-h=warrior] .pc-gear{opacity:1;left:14%;top:0;width:72%;height:24%;
   border-radius:50% 50% 16% 16%/66% 66% 34% 34%;
   background:linear-gradient(180deg,#e2e8f0,#64748b);
   box-shadow:inset 0 -3px 0 #00000040,inset 0 2px 0 #ffffff80}
 /* 盔缨要留在 .pc 盒内（top 用负值但幅度很小），否则战斗页会压到上方 HUD */
-.pc[data-h=warrior] .pc-gear::after{content:'';position:absolute;left:47%;top:-9%;width:11%;height:46%;
+.pc[data-h=warrior] .pc-gear::after{content:'';position:absolute;left:46%;top:-8%;width:10%;height:40%;
   border-radius:44%;background:linear-gradient(180deg,#ffce4d,#f97316);transform:rotate(7deg)}
-.pc[data-h=warrior] .pc-prop{opacity:1;left:3%;top:22%;width:7%;height:46%;border-radius:36%;
+.pc[data-h=warrior] .pc-prop{opacity:1;left:1%;top:28%;width:8%;height:50%;border-radius:36%;
   background:linear-gradient(180deg,#f8fafc,#94a3b8);box-shadow:0 0 10px #ffffff59}
-.pc[data-h=warrior] .pc-prop::after{content:'';position:absolute;left:-70%;top:-11%;width:240%;height:7%;
+.pc[data-h=warrior] .pc-prop::after{content:'';position:absolute;left:-58%;top:-9%;width:220%;height:6%;
   border-radius:4px;background:#fbbf24}
 /* 探险家：松绿斗篷、宽檐帽、匕首
    帽冠必须留在盒内：之前 ::after 用 top:-260% 会溢出到 .pc 上方，在战斗页会压到 HUD。 */
@@ -447,35 +468,39 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   --bm:pcB3;--lm:pcL3;--bt:6.7s;--bd:-4.4s;--mm:pcM3;--mt:3.8s;--md:-1.2s;
   --hs:5.1s;--hf:3.6s;--hb:6.3s;--hd:-2.6s}
 .pc[data-h=scout] .pc-cape{opacity:1}
-.pc[data-h=scout] .pc-hair{height:13%;border-radius:46% 46% 24% 24%/64% 64% 36% 36%}
-.pc[data-h=scout] .pc-hairb{left:22%;top:14%;width:56%;height:30%}
-.pc[data-h=scout] .pc-hairt{left:24%;top:11%;width:52%;height:15%}
-.pc[data-h=scout] .pc-hairt::before{left:-2%;width:27%;transform:rotate(-17deg);
+.pc[data-h=scout] .pc-hair{height:15%;border-radius:46% 46% 24% 24%/64% 64% 36% 36%}
+.pc[data-h=scout] .pc-hairb{left:11%;top:8%;width:78%;height:34%}
+.pc[data-h=scout] .pc-hairt{left:15%;top:11%;width:70%;height:14%}
+/* 两侧翘发：两根尖发往左右斜插出去，根部仍在 25% 以上，不碰眼睛 */
+.pc[data-h=scout] .pc-hairt::before{left:-3%;width:22%;transform:rotate(-19deg);
   border-radius:50% 50% 36% 36%/70% 70% 30% 30%}
-.pc[data-h=scout] .pc-hairt::after{right:-2%;width:27%;transform:rotate(17deg);
+.pc[data-h=scout] .pc-hairt::after{right:-3%;width:22%;transform:rotate(19deg);
   border-radius:50% 50% 36% 36%/70% 70% 30% 30%}
-.pc[data-h=scout] .pc-gear{opacity:1;left:28%;top:0;width:44%;height:16%;
+/* 宽檐帽：帽冠下沿 14%、帽檐 ::after 占 56%~100%（即 9%~14%），都在眼睛上方 */
+.pc[data-h=scout] .pc-gear{opacity:1;left:22%;top:0;width:56%;height:15%;
   border-radius:50% 50% 22% 22%/70% 70% 30% 30%;background:linear-gradient(180deg,#0f766e,#134e4a)}
-.pc[data-h=scout] .pc-gear::after{content:'';position:absolute;left:-40%;top:56%;width:180%;height:44%;
+.pc[data-h=scout] .pc-gear::after{content:'';position:absolute;left:-36%;top:56%;width:172%;height:46%;
   border-radius:50%;background:linear-gradient(180deg,#fbbf24,#a16207)}
-.pc[data-h=scout] .pc-prop{opacity:1;left:4%;top:54%;width:6%;height:25%;border-radius:34%;
+.pc[data-h=scout] .pc-prop{opacity:1;left:3%;top:58%;width:7%;height:26%;border-radius:34%;
   background:linear-gradient(180deg,#e2e8f0,#94a3b8);transform:rotate(24deg)}
 /* 幸运儿：琥珀短打、草帽、四叶草 */
 .pc[data-h=lucky]{--hair:#c2410c;--c1:#f59e0b;--c2:#b45309;--acc:#bbf7d0;
   --bm:pcB4;--lm:pcL4;--bt:8.3s;--bd:-1.6s;--mm:pcM4;--mt:7.1s;--md:-2.7s;
   --hs:4.9s;--hf:2.9s;--hb:5.5s;--hd:-3.8s}
 .pc[data-h=lucky] .pc-cape{opacity:.85}
-.pc[data-h=lucky] .pc-hair{height:15%;border-radius:50% 50% 22% 22%/66% 66% 34% 34%}
-.pc[data-h=lucky] .pc-hairt{left:25%;top:11%;width:50%;height:17%}
-.pc[data-h=lucky] .pc-hairt::before{left:2%;width:31%;transform:rotate(-12deg);
+.pc[data-h=lucky] .pc-hair{height:17%;border-radius:50% 50% 22% 22%/66% 66% 34% 34%}
+/* 尖刺刘海：两撮尖头朝下指，底端 25%，仍在眼睛（27%）之上 */
+.pc[data-h=lucky] .pc-hairt{left:15%;top:10%;width:70%;height:15%}
+.pc[data-h=lucky] .pc-hairt::before{left:3%;width:26%;transform:rotate(-13deg);
   border-radius:50% 50% 10% 10%/78% 78% 22% 22%}
-.pc[data-h=lucky] .pc-hairt::after{right:2%;width:31%;transform:rotate(12deg);
+.pc[data-h=lucky] .pc-hairt::after{right:3%;width:26%;transform:rotate(13deg);
   border-radius:50% 50% 10% 10%/78% 78% 22% 22%}
-.pc[data-h=lucky] .pc-gear{opacity:1;left:22%;top:0;width:56%;height:12%;
+/* 草帽：帽冠下沿 11%，帽檐 ::after 占 58%~100%（即 7%~11%），都远在眼睛上方 */
+.pc[data-h=lucky] .pc-gear{opacity:1;left:18%;top:0;width:64%;height:11%;
   border-radius:50% 50% 26% 26%/76% 76% 24% 24%;background:linear-gradient(180deg,#fde68a,#d97706)}
-.pc[data-h=lucky] .pc-gear::after{content:'';position:absolute;left:-30%;top:60%;width:160%;height:62%;
+.pc[data-h=lucky] .pc-gear::after{content:'';position:absolute;left:-28%;top:58%;width:156%;height:64%;
   border-radius:50%;background:linear-gradient(180deg,#fbbf24,#b45309)}
-.pc[data-h=lucky] .pc-prop{opacity:1;left:63%;top:53%;width:16%;height:16%;border-radius:50%;
+.pc[data-h=lucky] .pc-prop{opacity:1;left:66%;top:58%;width:17%;height:17%;border-radius:50%;
   background:
     radial-gradient(circle at 34% 32%,#4ade80 0 30%,transparent 31%),
     radial-gradient(circle at 68% 34%,#4ade80 0 30%,transparent 31%),
@@ -487,40 +512,42 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   --bm:pcB2;--lm:pcL2;--bt:4.6s;--bd:-3.3s;--mm:pcM1;--mt:5.2s;--md:-4.1s;
   --hs:3.9s;--hf:3.3s;--hb:6.9s;--hd:-.9s}
 .pc[data-h=healer] .pc-cape{opacity:1}
-.pc[data-h=healer] .pc-hair{height:20%;border-radius:58% 58% 20% 20%/66% 66% 34% 34%}
+.pc[data-h=healer] .pc-hair{height:22%;border-radius:58% 58% 20% 20%/66% 66% 34% 34%}
 /* 长侧发：一直垂到肩头，是六个角色里飘动幅度最大的（脑后发层最高） */
-.pc[data-h=healer] .pc-hairb{left:20%;top:10%;width:60%;height:50%;border-radius:44% 44% 40% 40%/34% 34% 66% 66%}
-.pc[data-h=healer] .pc-hairt{left:22%;top:14%;width:56%;height:18%}
-.pc[data-h=healer] .pc-hairt::before{left:0;width:25%;transform:rotate(-11deg)}
-.pc[data-h=healer] .pc-hairt::after{right:0;width:25%;transform:rotate(11deg)}
-.pc[data-h=healer] .pc-gear{opacity:1;left:24%;top:0;width:52%;height:23%;
+.pc[data-h=healer] .pc-hairb{left:10%;top:6%;width:80%;height:56%;border-radius:44% 44% 40% 40%/34% 34% 66% 66%}
+.pc[data-h=healer] .pc-hairt{left:15%;top:11%;width:70%;height:14%}
+.pc[data-h=healer] .pc-hairt::before{left:0;width:21%;transform:rotate(-12deg)}
+.pc[data-h=healer] .pc-hairt::after{right:0;width:21%;transform:rotate(12deg)}
+/* 兜帽：下沿 22%，眼睛 27% —— 长侧发从两侧垂下但 z-index 在头之后，不遮五官 */
+.pc[data-h=healer] .pc-gear{opacity:1;left:15%;top:0;width:70%;height:22%;
   border-radius:50% 50% 16% 16%/70% 70% 30% 30%;
   background:linear-gradient(180deg,#f0fdfa,#5eead4);box-shadow:inset 0 -4px 0 #0d948820}
-.pc[data-h=healer] .pc-sash{left:50%;top:47%;width:52%;height:48%;background:none;opacity:1;clip-path:none;
+.pc[data-h=healer] .pc-sash{left:50%;top:60%;width:40%;height:36%;background:none;opacity:1;clip-path:none;
   transform:translateX(-50%)}
 .pc[data-h=healer] .pc-sash::after{content:'';position:absolute;left:34%;top:24%;width:32%;height:52%;
   border-radius:3px;background:#f8fafc;
-  box-shadow:0 -13px 0 -3px #f8fafc,0 13px 0 -3px #f8fafc}
-.pc[data-h=healer] .pc-prop{opacity:1;left:5%;top:24%;width:6%;height:50%;border-radius:36%;
+  box-shadow:0 -11px 0 -3px #f8fafc,0 11px 0 -3px #f8fafc}
+.pc[data-h=healer] .pc-prop{opacity:1;left:3%;top:30%;width:7%;height:52%;border-radius:36%;
   background:linear-gradient(180deg,#fcd34d,#b45309)}
-.pc[data-h=healer] .pc-prop::after{content:'';position:absolute;left:-60%;top:8%;width:220%;height:9%;
-  border-radius:3px;background:#f8fafc;box-shadow:0 14px 0 -2px #f8fafc}
+.pc[data-h=healer] .pc-prop::after{content:'';position:absolute;left:-52%;top:8%;width:200%;height:9%;
+  border-radius:3px;background:#f8fafc;box-shadow:0 12px 0 -2px #f8fafc}
 /* 游侠：皮革轻甲、马尾、短刀 */
 .pc[data-h=ranger]{--hair:#1f2937;--c1:#84cc16;--c2:#3f6212;--acc:#fde047;
   --bm:pcB4;--lm:pcL4;--bt:6.1s;--bd:-5.2s;--mm:pcM3;--mt:4.3s;--md:-.6s;
   --hs:4.1s;--hf:2.4s;--hb:4.7s;--hd:-2.2s}
 .pc[data-h=ranger] .pc-cape{opacity:.7}
-.pc[data-h=ranger] .pc-hair{height:20%;border-radius:52% 52% 34% 34%/62% 62% 38% 38%}
-.pc[data-h=ranger] .pc-hairt{left:26%;top:12%;width:48%;height:15%}
-.pc[data-h=ranger] .pc-hairt::before{left:4%;width:44%;transform:rotate(-15deg)}
-.pc[data-h=ranger] .pc-hairt::after{right:-2%;width:27%;transform:rotate(24deg)}
+.pc[data-h=ranger] .pc-hair{height:22%;border-radius:52% 52% 34% 34%/62% 62% 38% 38%}
+/* 偏分刘海：左厚右薄的一大一小两撮，底端 25%，不压眼 */
+.pc[data-h=ranger] .pc-hairt{left:15%;top:10%;width:70%;height:15%}
+.pc[data-h=ranger] .pc-hairt::before{left:5%;width:36%;transform:rotate(-16deg)}
+.pc[data-h=ranger] .pc-hairt::after{right:-1%;width:22%;transform:rotate(25deg)}
 /* 马尾改由「脑后发」那一层承担：枢轴在头顶、摆幅 ±6~7.5°，是六个角色里飘得最明显的 */
-.pc[data-h=ranger] .pc-hairb{left:60%;top:11%;width:26%;height:52%;
+.pc[data-h=ranger] .pc-hairb{left:66%;top:8%;width:30%;height:56%;
   border-radius:44% 44% 48% 48%/28% 28% 72% 72%;transform-origin:50% 5%;
   animation:pcTail var(--hb) ease-in-out var(--hd) infinite}
 .pc[data-h=ranger] .pc-hairb::after{content:'';position:absolute;left:16%;top:5%;width:64%;height:8%;
   border-radius:99px;background:var(--acc)}
-.pc[data-h=ranger] .pc-prop{opacity:1;left:2%;top:48%;width:8%;height:32%;border-radius:34%;
+.pc[data-h=ranger] .pc-prop{opacity:1;left:1%;top:56%;width:9%;height:30%;border-radius:34%;
   background:linear-gradient(180deg,#e5e7eb,#9ca3af);transform:rotate(-22deg)}
 .pc[data-h=ranger] .pc-prop::after{content:'';position:absolute;left:-40%;top:88%;width:180%;height:9%;
   border-radius:4px;background:#4b5563}
@@ -574,9 +601,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
  font-family:inherit;box-shadow:0 3px 0 #0006,var(--sh1)}
 .key:hover{border-color:#ffffff4d;background:linear-gradient(160deg,#ffffff2b,#ffffff10)}
 .key:active{transform:translateY(3px);box-shadow:0 0 0 #0006,var(--sh1)}
-.key.sel{border-color:var(--acc2);box-shadow:0 0 0 3px #22d3ee3d,0 0 20px #22d3ee55,var(--sh1);
- background:#22d3ee24;transform:translateY(-2px)}
-.key.sel:active{transform:translateY(1px)}
 .key.out{opacity:.16;cursor:not-allowed;background:#00000030}
 .key.gone{opacity:.13;background:#ff547026;border-color:#ff547044;cursor:not-allowed;box-shadow:none}
 .key.bad{background:#ff54701f;border-color:#ff547055;opacity:.45}
@@ -985,8 +1009,9 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     </div>
     <button class="btn g" id="toReset" style="margin-top:14px">清空全部存档</button>
   </div>
-  <div class="note" style="margin-top:11px">💡 <b style="color:var(--acc2)">← → ↑ ↓</b> 移动光标 ·
- <b style="color:var(--acc2)">空格</b>确认 · <b style="color:var(--acc2)">退格</b>撤销 · 或直接鼠标点。
+  <div class="note" style="margin-top:11px">💡 直接<b style="color:var(--acc2)">点击</b>字母键填入 ·
+ 也可以用电脑键盘<b style="color:var(--acc2)">直接打字</b>（A-Z，效果和点击完全一样）·
+ <b style="color:var(--acc2)">退格</b>撤销。字母盘没有光标，方向键不做任何事。
  字母盘上方可切换 <b style="color:var(--acc2)">键盘布局</b>（按电脑 QWERTY 排）和 <b style="color:var(--acc2)">大写显示</b>。进度自动存本机。</div>
 </div>
 
@@ -1427,7 +1452,7 @@ const pick = a => a[rnd(a.length)];
 const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=rnd(i+1); const t=a[i];a[i]=a[j];a[j]=t;} return a; };
 const norm = s => String(s).toLowerCase().replace(/[^a-z]/g,'');
 const has = (a,v) => a.indexOf(v)>=0;
-const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0,0); };
+const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0,0); try{ syncVoiceBtn() }catch(e){} };
 
 const LS='wy8a_rogue_v1';
 const loadDB = () => { try{ return JSON.parse(localStorage.getItem(LS))||null }catch(e){ return null } };
@@ -1973,6 +1998,41 @@ const TTS=(function(){
     return best;
   }
 
+  /* ---- 中文音色（怪物说中文台词用）
+     ★ 为什么必须单独筛：en 音色念中文是「塑料味」，完全不像人说话。
+     ★ 判定要同时认 zh-CN / zh_CN / zh-Hans / zh-TW / 裸 zh：各系统写法不统一
+       （Windows 是 zh-CN，Android 常是 zh-CN，macOS 有 zh-CN 与 zh-TW，
+        Chrome 桌面版还可能出现 zh_CN 下划线写法）。统一小写并把 _ 换成 -。 */
+  const normLang = v => String((v&&v.lang)||'').toLowerCase().replace(/_/g,'-');
+  const zhVoices = () => (T.voices||[]).filter(v=>v && normLang(v).indexOf('zh')===0);
+  /* 中文音色的性别同样只能靠名字猜：常见 zh-CN 本地音色有
+     Microsoft Huihui / Yaoyao（女）、Kangkang 小新（男）、Google 普通话（中性）。 */
+  const ZH_FEMALE=/(huihui|xiaoxiao|xiaoyi|xiaohan|xiaomo|yaoyao|tingting|ting-ting|sin-ji|mei-?jia|panpan|yunxia|liangliang|female|woman)/i;
+  const ZH_MALE=/(kangkang|yunxi|yunjian|yunfeng|yunyang|haowen|danny|male|man)/i;
+  const zhGender = v => {
+    const s=(v.name||'')+' '+(v.voiceURI||'');
+    if(ZH_FEMALE.test(s)) return 'female';
+    if(ZH_MALE.test(s))   return 'male';
+    return null;
+  };
+  /* 怪物 → 中文音色：同性别优先、离线音色优先、更自然的引擎优先；
+     最后按 seed 在候选里转一格，让不同怪尽量落到不同中文嗓子上。
+     一个 zh 音色都没有 → 返回 null（调用方静默跳过，绝不报错）。 */
+  function zhVoiceFor(cfg, seed){
+    const all=zhVoices();
+    if(!all.length) return null;
+    const pool=all.filter(v=>normLang(v)==='zh-cn');
+    const use=pool.length?pool:all;
+    const ranked=use.map(v=>{
+      let s=0; const g=zhGender(v);
+      if(cfg&&cfg.vo&&g) s += (g===cfg.vo?100:0);
+      if(v.localService) s += 10;
+      if(/natural|neural|enhanced|premium|普通话/i.test(v.name||'')) s += 4;
+      return {v:v,s:s};
+    }).sort((a,b)=>b.s-a.s).map(x=>x.v);
+    return ranked[Math.abs(seed||0)%ranked.length];
+  }
+
   const T={
     supported: supported,
     voices: [],            // 浏览器异步填充，首次常为空数组
@@ -1982,6 +2042,7 @@ const TTS=(function(){
     _cancels: 0,            // 累计 cancel 次数（测试观测点）
     _lastLineAt: 0,         // 上一句战斗台词的时间戳
     _lastWordAt: 0,         // 上一次单词朗读的时间戳
+    _lastFoeAt: 0,          // 上一句怪物中文台词的时间戳（怪物自己的限流）
     _busyUntil: 0,          // 预计还在说话的截止时间
     _lastPick: {},          // {heroId:kind: 上次取的台词下标} → 避免立刻重复
     _lastUtter: null,
@@ -2082,6 +2143,36 @@ const TTS=(function(){
       const v=heroVoice(h);
       const ok=T.speak(arr[i], {rate:Math.max(0.85,v.rate), pitch:v.pitch, voice:voiceFor(h), volume:.95});
       if(ok) T._lastLineAt=now;
+      return ok;
+    },
+    /* ⑤ 怪物入场中文台词。
+       ★ 与 foeCry() 的 WebAudio 叫声是两层东西：叫声是「非人声怪叫」，
+         这里才是怪物「说人话」。两者可以叠加，人声优先、限流让位。
+       ★ 必须用 zh-CN 音色 —— 用 en 音色念中文是塑料味。
+       ★ 找不到任何 zh 音色 → 静默返回 false，只留 WebAudio 叫声，绝不报错。 */
+    foeLine(foe, opt){
+      if(!T.supported || !T.on || !foe) return false;
+      opt=opt||{};
+      const cfg = foeLineCfg(foe);
+      if(!cfg) return false;
+      const v = zhVoiceFor(cfg, cfg.seed||0);
+      if(!v) return false;                      // 无中文音色 → 优雅降级
+      const now=Date.now();
+      // 限流：怪物之间至少 2.6s；不压在单词朗读尾巴（1.4s）上；
+      //      也不压在角色刚说完的台词尾巴（1.8s）上 —— 免得两段话叠在一起。
+      if(!(opt && opt.force===true)){
+        if(now-T._lastFoeAt  < 2600) return false;
+        if(now-T._lastWordAt < 1400) return false;
+        if(now-T._lastLineAt < 1800) return false;
+      }
+      const arr=cfg.lines;
+      let i=rnd(arr.length);
+      const key='foe:'+(cfg.key||'');
+      if(arr.length>1 && i===T._lastPick[key]) i=(i+1)%arr.length;
+      T._lastPick[key]=i;
+      const ok=T.speak(arr[i], {rate:cfg.rate, pitch:cfg.pitch, voice:v,
+                                 lang:'zh-CN', volume:cfg.volume==null?.92:cfg.volume});
+      if(ok) T._lastFoeAt=now;
       return ok;
     },
     /* ⑤ 开关：存 DB.voice（老存档没这字段 → 默认开，向后兼容） */
@@ -2221,6 +2312,37 @@ const ENEMIES=[
  {ic:'🌪️', n:'词形旋风', base:6,  tint:'#8b5cf6'}
 ];
 const BOSS={ic:'👑',n:'词汇之王',tint:'#ffce4d'};
+
+/* ---- 怪物中文台词库：每种怪一套嗓音 + 一组短句
+   ★ 台词一律 4-8 字：中文句子越长，越容易被念得拖沓、越容易盖住单词朗读，
+     还会让语音引擎的预估时长变长，把后面的单词挤到队列后面。
+   ★ rate/pitch 按怪物「性格」分档：石头类低沉缓慢、幽灵/旋风尖锐快促，
+     BOSS 最慢最低 —— 配合 zhVoices 的中文音色，一听就知道是谁在说话。
+   ★ seed 让不同怪在候选中文音色里转到不同的嗓音（zhVoiceFor 里取模用）。 */
+const FOE_LINES={
+ '词灵':     {rate:1.02, pitch:1.25, vo:'female', seed:1, lines:['来啦！','接招！','试试我的厉害！','别躲了！']},
+ '语素蛛':   {rate:1.12, pitch:1.55, vo:'female', seed:2, lines:['织网罗你！','别想跑！','黏住你了！','乖乖留下！']},
+ '石化词素': {rate:0.78, pitch:0.55, vo:'male',   seed:3, lines:['石化！','动不了吧？','重如山！','站住！']},
+ '歧义章鱼': {rate:0.92, pitch:0.80, vo:'male',   seed:4, lines:['我有好几条腿！','哪个意思？','缠住你了！','猜猜我在说啥！']},
+ '拼写幽灵': {rate:1.20, pitch:1.75, vo:'female', seed:5, lines:['我拼错了！','别念了！','嘿嘿嘿！','错在我这！']},
+ '单复数蝎': {rate:1.08, pitch:1.35, vo:'male',   seed:6, lines:['单数还是复数？','扎你一下！','有尾巴的！','再想想！']},
+ '冰封词灵': {rate:0.86, pitch:0.70, vo:'female', seed:7, lines:['冻住你！','冰冰凉凉！','别想动！','化了！']},
+ '词形旋风': {rate:1.28, pitch:1.62, vo:'female', seed:8, lines:['转晕你！','词形变了！','呼——！','吹走了！']},
+ /* BOSS：专属开场白，最慢最低最有压迫感 */
+ '词汇之王': {rate:0.72, pitch:0.42, vo:'male',   seed:9, volume:1,
+              lines:['以吾之名，审判！','凡人，停笔！','词汇之王降临！','你的词，都归我！']}
+};
+/* 精英怪：额外多一句狠话（同一条嗓音，不会换人；BOSS 用自己的专属台词） */
+const ELITE_LINES=['精英怪！','不好对付！','来真的！'];
+function foeLineCfg(foe){
+  if(!foe || !foe.n) return null;
+  const base=FOE_LINES[foe.n];
+  if(!base) return null;                        // 认不出的怪 → 不说话，只留叫声
+  const isElite=!!foe.elite;
+  const lines = isElite ? base.lines.concat(ELITE_LINES) : base.lines;
+  return {key:foe.n, seed:base.seed, rate:base.rate, pitch:base.pitch,
+          vo:base.vo, volume:base.volume, lines:lines};
+}
 
 /* ================= 状态 ================= */
 let G=null;          // 当前远征
@@ -2495,6 +2617,9 @@ function startFight(n){
   show('s-fight'); renderFight();
   sfx.enemy(boss||elite);
   foeCry('spawn');                                    // ← 语音层：敌人登场叫（音高按敌人种类散开）
+  // ← 语音层：入场中文台词。用 zh-CN 音色、每种怪不同 rate/pitch；
+  //   受 TTS.on 总开关 + 限流控制；没有中文音色时静默跳过（叫声仍在）。
+  TTS.foeLine({n:e.n, elite:elite, boss:boss, ic:e.ic});
 }
 // 按难度抽词：budget 越高，可选池越大但平均词长越长；池太小时放宽，避免深层反复出同样几个词
 function drawWord(budget){
@@ -2597,44 +2722,12 @@ function bankPosOf(i){
   }
   return null;
 }
-// ↑↓ 导航：跳到相邻行里「视觉位置最接近」的那个可用字母
-// dir: -1 上一行 / +1 下一行。键盘模式下各行长度不等，必须按行列位置找，不能 moveSel(cols)
-function moveSelRow(dir){
-  const p=bankPosOf(B.sel);
-  if(!p){ moveSel(dir>0?1:-1); return }
-  const rows=bankRows();
-  for(let r=p.row+dir; r>=0&&r<rows.length; r+=dir){
-    let best=-1, bd=1e9;
-    rows[r].forEach((idx,c)=>{
-      if(B.used[idx]||B.bad[idx]) return;              // 跳过已填/已标错
-      const d=Math.abs(c-p.col);
-      if(d<bd){ bd=d; best=idx }                        // 同行内离当前位置最近的可用字母
-    });
-    if(best>=0){ B.sel=best; sfx.key(); renderFight(); return }
-  }
-  sfx.key();                                            // 该方向没有可用字母：原地不动
-}
-// ←→ 导航：在当前视觉行内左右走。键盘模式下字母数组是乱序的（drawLetters 洗过牌），
-// 直接 moveSel(±1) 会跳到屏幕上看似无关的键，所以按 bankRows() 的行内次序走
-function moveSelCol(dir){
-  const p=bankPosOf(B.sel);
-  if(!p){ moveSel(dir); return }                            // 拿不到位置就退回老逻辑
-  const rows=bankRows(), row=rows[p.row];
-  for(let c=p.col+dir; c>=0&&c<row.length; c+=dir){
-    if(!B.used[row[c]]&&!B.bad[row[c]]){ B.sel=row[c]; sfx.key(); renderFight(); return }
-  }
-  // 行内到头：本行没有可用键了，退回整盘线性移动（语义和原来一致）
-  moveSel(dir);
-}
-// 光标跳到下一个可用（未填未标错）字母；找不到就停
-function autoAdvanceSel(){
-  const n=B.letters.length;
-  if(!n) return;
-  for(let k=1;k<=n;k++){
-    const j=(B.sel+k)%n;
-    if(!B.used[j]&&!B.bad[j]){ B.sel=j; return }
-  }
-}
+/* ================= 字母盘交互：纯点击 + 电脑键盘打字（无光标）=================
+   2026-10 改版：字母盘上**没有光标**。
+   - 玩家看不到、也用不到「当前选中键」：渲染不再给按键加 .sel 高亮。
+   - 方向键 ←→↑↓ 在字母盘上不做任何事（不移动、不发声、不改输入）。
+   - B.sel 仍在内部保留，但语义降级为「最近一次点击/打字的字母索引」，
+     只用于把点击或键盘输入翻译成 pressKey() 的参数。 */
 function renderFight(){
   const enPct=clamp(B.enHp/B.enMax*100,0,100);
   $('fEn').style.width=enPct+'%';
@@ -2711,13 +2804,12 @@ function renderFight(){
     let cls='key';
     if(B.used[i]) cls+=' gone';
     else if(B.bad[i]) cls+=' bad';
-    else if(i===B.sel) cls+=' sel';
     if(upper) cls+=' uc';
     b.className=cls;
     b.textContent=upper?ch.toUpperCase():ch;   // 纯显示层；判定仍读小写的 B.letters[i]
     b.disabled=B.used[i];
     b.title=B.used[i]?'已填入':B.bad[i]?'已试过，不是这个字母':'';
-    b.onclick=()=>{ B.sel=i; pressKey() };
+    b.onclick=()=>{ B.sel=i; pressKey(i) };
     keyEls[i]=b;
     return b;
   };
@@ -2749,7 +2841,7 @@ function syncBankBar(){
   try{ paintSayBtn() }catch(e){}      // 语音按钮状态跟着战斗渲染一起刷新
 }
 // 切换字母盘排布：字母盘 ↔ QWERTY 键盘。只改 DB + 重渲染，
-// B.used / B.bad / B.input / B.sel 全在 B 上没动，所以进度一个字母都不丢
+// B.used / B.bad / B.input 全在 B 上没动，所以进度一个字母都不丢
 $('tBankMode').onclick=()=>{ DB.kbMode=!isKbMode(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
 // 切换大小写显示：纯显示层。判定走 norm()（转小写），所以两种显示都能正常判对
 $('tBankCase').onclick=()=>{ DB.kbUpper=!isKbUpper(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
@@ -2807,7 +2899,16 @@ function sayCurrentWord(times){
 if(TTS && TTS.supported && typeof addEventListener==='function'){
   try{ TTS.loadVoices() }catch(e){}
 }
-// 语音总开关（独立于音效音量，两者可分别静音）。常驻右上角。
+// 语音总开关（独立于音效音量，两者可分别静音）。
+// ★ 战斗页不显示这个按钮：它原本 position:fixed 钉在右上角（top:10px;right:60px），
+//   而战斗页的敌方血条也在 sticky HUD 的右上角，窄屏手机上两者直接重叠、挡住血量数字。
+//   战斗时改用字母盘上方的「🔊 听读音」按钮控制朗读，总开关只在标题/地图/奖励等界面出现。
+function syncVoiceBtn(){
+  const b=document.getElementById('voiceBtn');
+  if(!b) return;
+  const scr=document.querySelector('.screen.on');
+  b.style.display=(scr&&scr.id==='s-fight')?'none':'flex';
+}
 (function mountVoiceBtn(){
   if(typeof document==='undefined'||!document.body||document.getElementById('voiceBtn')) return;
   const b=document.createElement('button');
@@ -2817,6 +2918,15 @@ if(TTS && TTS.supported && typeof addEventListener==='function'){
     'font-size:19px;line-height:1;cursor:pointer;backdrop-filter:blur(10px);'+
     'box-shadow:0 6px 18px #0007;display:flex;align-items:center;justify-content:center;'+
     '-webkit-tap-highlight-color:transparent';
+  // show() 里会直接调 syncVoiceBtn()；这里再挂一个 MutationObserver 兜底，
+  // 防止将来有绕过 show() 的界面切换方式导致按钮没跟着隐藏。
+  try{
+    if(typeof MutationObserver==='function' && document.body){
+      new MutationObserver(syncVoiceBtn).observe(document.body,
+        {attributes:true,attributeFilter:['class'],subtree:true});
+    }
+  }catch(e){}
+  try{ if(typeof window.addEventListener==='function') window.addEventListener('resize',syncVoiceBtn) }catch(e){}
   const paint=()=>{
     if(!TTS.supported){ b.textContent='🔇'; b.style.opacity=.3;
       b.title='当前浏览器不支持语音朗读（不影响游戏）'; return }
@@ -2826,7 +2936,7 @@ if(TTS && TTS.supported && typeof addEventListener==='function'){
   };
   b.onclick=()=>{ TTS.unlock(); TTS.toggle(); paint(); paintSayBtn(); if(TTS.on) sfx.ui() };
   b.oncontextmenu=e=>{ e.preventDefault(); TTS.unlock(); TTS.setOn(true); paint(); paintSayBtn() };
-  document.body.appendChild(b); paint();
+  document.body.appendChild(b); paint(); syncVoiceBtn();
   // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged
   // 再重画一次按钮 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
   try{
@@ -2900,14 +3010,12 @@ function useItem(id){
         for(let j=0;j<B.letters.length;j++){
           if(!B.used[j]&&B.bad[j]&&B.letters[j]===rt[rp]){ B.bad[j]=false }
         }
-        autoAdvanceSel();
         msg='👁️ 透视：已揭示接下来 '+need+' 个字母（不消耗提示）';
       }
       break;
     case 'purge':
       B.usedThisFight[id]=(B.usedThisFight[id]|0)+1; G.bag[id]--;
       let freed=0; B.bad.forEach((b,j)=>{ if(b){B.bad[j]=false;freed++} });
-      autoAdvanceSel();
       msg='🧹 扫除 '+freed+' 个误标字母，重新可选';
       break;
     case 'greed':
@@ -2926,9 +3034,11 @@ function useItem(id){
     burst(av.x,av.y,it.tint||'#ffce4d',16,3.5) }
   renderFight();
 }
-function pressKey(){
+// idx：本次要按下的字母实例下标。省略时回落到 B.sel（点击路径就是这么调的）。
+// 打字路径直接传下标，因此完全不依赖 B.sel / 光标。
+function pressKey(idx){
   if(!B || B.over) return;
-  const i=B.sel;
+  const i=(idx===undefined||idx===null)?B.sel:idx;
   if(i<0||i>=B.letters.length||B.used[i]) { sfx.bad(); return }
   const ch=B.letters[i];
   const tgt=norm(B.word.w);
@@ -2992,13 +3102,10 @@ function pressKey(){
     if(B.chainNext){ B.chainNext=false; B.combo+=3; B.dmgBonus+=8; toast('⚡ 连锁触发！连击 +3') }
     if(hasR('focus') && B.combo>0 && B.combo%6===0) B.dmgBonus+=5;  // 专注：连击越长额外增伤
     if(B.word.d>=3 && B.combo>0 && rnd(6)===0) toast('💡 记住这个词！');
-    // 光标自动移到下一个可用字母，否则按空格会「哑火」（标题页承诺了空格可确认）
-    autoAdvanceSel();
     if(B.input.length>=tgt.length){
       animHero('atk');                                // ← 角色追加：整词拼出时的全力一击
       const bonus=Math.round((12+G.floor*1.5)*(1+B.combo*comboRate()));
-      markMastered(B.word.w);
-      onWordRight(B.word.w);      // 本局不再出现该词
+      creditWord(B.word.w);        // 整词拼完 → 记为学会（掌握表 + 本局退休，见 creditWord）
       B.wordsDone=(B.wordsDone||0)+1;
       const c2=centerOf($('fAv'));
       burst(c2.x,c2.y,'#ffce4d',30,6);
@@ -3108,8 +3215,15 @@ function winFight(){
   setTimeout(()=>TTS.line('win',null,{force:true}), 260);
   burst(innerWidth/2,innerHeight*0.4,B.foe.tint,44,7);
   ring(innerWidth/2,innerHeight*0.4,'#ffce4d');
-  // 标记掌握
-  if(!B.elite || B.combo>0) markMastered(B.word.w);
+  // 标记掌握：只认「整词答完」，不认「打赢了」。
+  // 敌人可能死于收尾一击（最后一个字母 / 荆棘反弹 / 道具直伤），
+  // 那一刻当前单词往往只拼了一半 —— 半个词绝不能进掌握表，
+  // 否则下次复习时这个没真学会的词就再也不会出现了。
+  // 精英的额外门槛（必须打出连击）保留。
+  // 记下「这局有个词没答完」，900ms 后的结算面板要如实告诉玩家（提示语 + 结算副标题）
+  const unfinished = wordComplete()? null : B.word.w;
+  if(wordComplete() && (!B.elite || B.combo>0)) creditWord(B.word.w);
+  if(unfinished) toast('⚔️ 敌人倒下了，但「'+unfinished+'」还没拼完，下次继续');
   G.kills++;
   let g=25+(B.boss?120:B.elite?60:0)+Math.floor(G.floor*4);
   if(B.boss) g+=50;
@@ -3121,7 +3235,8 @@ function winFight(){
     const acc=clamp(Math.round(G.attOk/Math.max(1,G.att)*100),0,100);
     show('s-pick');
     $('pTitle').textContent=B.boss?'🎉 击败词汇之王！':B.elite?'☠️ 精英击破！':'⚔️ 战斗胜利！';
-    $('pSub').textContent='击杀 '+B.foe.ic+' '+B.foe.n+' · 正确率 '+acc+'% · 最高连击 '+B.maxCombo+' · 获得 '+g+' 金币';
+    $('pSub').textContent='击杀 '+B.foe.ic+' '+B.foe.n+' · 正确率 '+acc+'% · 最高连击 '+B.maxCombo+' · 获得 '+g+' 金币'
+      +(unfinished? ' · ⚠️「'+unfinished+'」没拼完，不算学会':'');
     const picks=$('pPicks'); picks.innerHTML='';
     const opts=[];
     if(!B.boss){
@@ -3165,6 +3280,20 @@ function winFight(){
 }
 function markMastered(w){
   if(DB.mastered.indexOf(w)<0){ DB.mastered.push(w); saveDB() }
+}
+// 「学会一个词」的唯一入口：跨局掌握表 + 本局退休必须同时发生。
+// 这两件事一旦分开写，就会漂移出「没答完却记成学会」的漏洞：
+// 掌握表决定这个词以后还复习不复习，本局退休决定它还会不会再出现。
+// 少了任何一半，学习记录都会自相矛盾。
+function creditWord(w){
+  markMastered(w);   // 跨局持久化：以后复习时不再出现
+  onWordRight(w);    // 本局去重：这一局里不再出这个词
+}
+// 当前这个词是否已经「整词拼完」—— 「学会」的唯一判据。
+// norm() 会剥掉连字符/撇号等非字母字符，B.input 只累加正确字母，
+// 所以两边的长度口径一致，可以直接比。
+function wordComplete(){
+  return !!(B && B.word) && B.input.length >= norm(B.word.w).length;
 }
 function loseFight(){
   if(B.over) return;
@@ -3215,7 +3344,6 @@ function advance(){
   for(let j=0;j<B.letters.length;j++){
     if(!B.used[j]&&B.bad[j]&&B.letters[j]===tgt[pos]){ B.bad[j]=false; freed++ }
   }
-  autoAdvanceSel();
   sfx.hint();
   renderFight();
   const nextCh=tgt[pos]||'';
@@ -3243,14 +3371,13 @@ $('tFlee').onclick=()=>{
 };
 document.addEventListener('keydown',e=>{
   if($('s-fight').classList.contains('on') && B && !B.over){
-    // ←→ 在同一视觉行内前后走；↑↓ 交给 moveSelRow，它按 bankRows() 的真实行列
-    // 找「相邻行里位置最近的可用字母」——键盘模式各行长度不等，不能用 moveSel(cols)
-    if(e.key==='ArrowRight'){ moveSelCol(1); e.preventDefault() }
-    else if(e.key==='ArrowLeft'){ moveSelCol(-1); e.preventDefault() }
-    else if(e.key==='ArrowDown'){ moveSelRow(1); e.preventDefault() }
-    else if(e.key==='ArrowUp'){ moveSelRow(-1); e.preventDefault() }
-    else if(e.key===' '||e.key==='Enter'){ pressKey(); e.preventDefault() }
-    else if(e.key==='1'||e.key==='2'||e.key==='3'){
+    // 焦点在输入框里时一律不抢键（自定义词表导入框、存档文本框等）
+    const tn=(e.target&&e.target.tagName||'').toUpperCase();
+    if(tn==='INPUT'||tn==='TEXTAREA') return;
+    // 字母盘上没有光标，所以方向键 ←→↑↓ 在这里不做任何事：
+    // 既不移动、不发声，也不改输入；连 preventDefault 都不做，
+    // 让方向键保持浏览器默认行为（页面照常滚动），和其他界面一致。
+    if(e.key==='1'||e.key==='2'||e.key==='3'){
       // 数字键快速使用第 N 个道具
       const held=Object.keys(G.bag||{}).filter(id=>(G.bag[id]|0)>0);
       const id=held[parseInt(e.key,10)-1];
@@ -3271,8 +3398,33 @@ document.addEventListener('keydown',e=>{
       }
       e.preventDefault();
     }
+    // 电脑键盘直接打字（A-Z / a-z，效果与点击字母键完全一致）
+    else if(e.key.length===1 && /[a-z]/i.test(e.key)){
+      typeLetter(e.key);
+      e.preventDefault();
+    }
   }
 });
+// 打字入口：把敲下的字符映射到字母盘上的一个字母实例，再走**和点击同一个** pressKey
+// 判定 —— 不经过 B.sel、不依赖任何光标，所以有没有光标对打字路径毫无影响。
+// 返回是否消费了这次输入（字母盘上没有这个字母时不消费，交给浏览器默认行为）。
+function typeLetter(raw){
+  if(!B || B.over) return false;
+  const ch=String(raw||'').toLowerCase();
+  if(ch.length!==1 || ch<'a' || ch>'z') return false;
+  const n=B.letters.length;
+  // 优先挑「没被填过、也没被标错」的实例；重复字母出现多次也能对上正确的那个
+  let pick=-1, fallback=-1;
+  for(let i=0;i<n;i++){
+    if(B.letters[i]!==ch || B.used[i]) continue;
+    if(!B.bad[i]){ pick=i; break }
+    if(fallback<0) fallback=i;      // 全被标错了：仍走 pressKey，由它给出「已试过」提示
+  }
+  if(pick<0) pick=fallback;
+  if(pick<0) return false;          // 字母盘上根本没有这个字母 → 不当作输入
+  B.sel=pick; pressKey(pick);
+  return true;
+}
 function moveSel(d){
   let n=B.letters.length;
   for(let i=0;i<n;i++){ B.sel=(B.sel+d+n*2)%n; if(!B.used[B.sel]&&!B.bad[B.sel]) break }
