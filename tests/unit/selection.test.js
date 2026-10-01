@@ -202,22 +202,33 @@ test('generateMap is a pure function of the injected random source', () => {
   assert.notDeepEqual(generateMap(seeded(99)), generateMap(seeded(100)));
 });
 
-/* ================= 抽词 ================= */
-test('drawWord matches legacy drawWord on identical random streams', () => {
-  // 扫 8 种 done/wrong 组合 × budget × 种子：exact 池刚好 2 个、全部答完需重置、
-  // 答错词占多数等边界都要经过同一条随机序列。
-  const cases = [
-    { done: [], wrong: [] },
-    { done: ['cat'], wrong: [] },
-    { done: ['cat', 'dog'], wrong: [] },
-    { done: ['cat', 'dog', 'apple'], wrong: [] },
-    { done: [], wrong: ['vocabulary'] },
-    { done: [], wrong: ['vocabulary', 'expedition'] },
-    { done: ['cat'], wrong: ['vocabulary', 'expedition', 'banana'] },
-    { done: ['cat', 'dog', 'apple', 'banana', 'keep an eye on', 'super-speed', 'vocabulary', 'expedition', 'a', 'I'], wrong: [] },
-  ];
+/* ================= 抽词 =================
+ * ★ 本功能有意改变了 drawWord 的三处行为，所以下面的「与 legacy 逐字一致」
+ *   **不再是**整段成立。旧参照实现原样留在这里当基线，新断言精确写清
+ *   「哪里必须一致、哪里必须分叉」，而不是把整段对比删掉 ——
+ *   删掉的话，地图/字母盘/远征状态那些仍然逐字一致的部分也一并失去保护。
+ *
+ *   有意分叉的三处（docs/feature-word-queue.md）：
+ *     A) 剩余不足 3 个时不再回灌整池（旧：`if(pool.length<3) pool=run.pool`）
+ *     B) 词池穷尽时返回 null（旧：回灌整池，于是永远「打不完」）
+ *     C) 避免重复从「随机试 10 次后认命」改成「先剔除上一词再抽」
+ *   仍然逐字一致的部分：done 过滤、错词配额（1+floor(n/2)）、难度 exact→harder→softer、
+ *   以及候选足够大时的抽词结果。 */
+
+/* 这些组合下新旧实现必须仍逐字一致：剩余候选 >= 3、无上一词。
+ * 覆盖 done 过滤、错词占多数、due 配额收缩、难度 exact 命中。 */
+const PARITY_CASES = [
+  { done: [], wrong: [] },
+  { done: ['cat'], wrong: [] },
+  { done: ['cat', 'dog'], wrong: [] },
+  { done: ['cat', 'dog', 'apple'], wrong: [] },
+  { done: [], wrong: ['vocabulary'] },
+  { done: [], wrong: ['vocabulary', 'expedition'] },
+  { done: ['cat'], wrong: ['vocabulary', 'expedition', 'banana'] },
+];
+test('drawWord matches legacy drawWord on identical random streams where the rule is unchanged', () => {
   let compared = 0;
-  for (const c of cases) for (const budget of [1, 2, 3]) for (let s = 1; s <= 12; s++) {
+  for (const c of PARITY_CASES) for (const budget of [1, 2, 3]) for (let s = 1; s <= 12; s++) {
     const mk = () => { const r = createRun(1, HERO, WORDS); r.done = new Set(c.done); r.wrong = c.wrong.slice(); return r; };
     const a = drawWord(mk(), null, budget, seeded(s * 7 + budget));
     const b = legacyDrawWord(mk(), null, budget, seeded(s * 7 + budget));
@@ -225,24 +236,64 @@ test('drawWord matches legacy drawWord on identical random streams', () => {
     assert.equal(a.d, b.d);
     compared++;
   }
-  assert.equal(compared, 8 * 3 * 12);
-  // 剩余池不足 3 个时旧规则重置为整池（<3 重置，<1 不重置）
-  const small = [
-    { u: 1, d: 1, w: 'cat', z: '' }, { u: 1, d: 2, w: 'dog', z: '' }, { u: 1, d: 3, w: 'owl', z: '' },
-  ];
-  for (const done of [[], ['cat'], ['cat', 'dog'], ['cat', 'dog', 'owl']]) for (const budget of [1, 2, 3]) for (let s = 1; s <= 8; s++) {
-    const mk = () => { const r = createRun(1, HERO, small); r.done = new Set(done); return r; };
-    assert.equal(drawWord(mk(), null, budget, seeded(s * 3 + budget)).w,
-      legacyDrawWord(mk(), null, budget, seeded(s * 3 + budget)).w,
-      'small pool done=' + JSON.stringify(done) + ' budget ' + budget + ' seed ' + s);
-  }
-  // 带 battle（上一个词）时也要逐字一致
+  assert.equal(compared, PARITY_CASES.length * 3 * 12);
+  // ★ 带 battle（上一个词）时**不再**逐字一致，所以不放进这条对比：
+  //   旧实现「抽到就重试、最多 10 次」会额外消费随机数，新实现「先剔除再抽」不消费。
+  //   同一个 seeded 源下两条路会走到不同位置 —— 这是 C 项的必然结果，
+  //   下面的 diverge 用例精确锁定它，而不是假装一致。
+});
+
+test('drawWord with a battle word still filters it out and the legacy retry loop does not', () => {
+  // 基线事实：旧实现为了躲上一个词会重抽，于是随机流被额外消费，
+  // 与「先剔除再抽」的新实现在同一种子上给出不同的词。
+  let diffs = 0;
   for (let s = 1; s <= 20; s++) {
     const mk = () => { const r = createRun(1, HERO, WORDS); r.wrong = ['vocabulary']; return r; };
     const battle = { word: s % 2 ? WORDS[0] : WORDS[7] };
-    assert.equal(drawWord(mk(), battle, 1, seeded(s)).w, legacyDrawWord(mk(), battle, 1, seeded(s)).w, 'battle seed ' + s);
+    if (drawWord(mk(), battle, 1, seeded(s)).w !== legacyDrawWord(mk(), battle, 1, seeded(s)).w) diffs++;
   }
+  assert.ok(diffs > 0, '基线事实：两条路在同一种子上确实会分叉（否则这条断言是假的）');
 });
+
+test('drawWord deliberately diverges from legacy exactly where the queue rule changed', () => {
+  // A) 小词池不再回灌整池。旧实现在剩余 2 个时会回灌整池，于是可能抽到已完成的词。
+  const small = [
+    { u: 1, d: 1, w: 'cat', z: '' }, { u: 1, d: 2, w: 'dog', z: '' }, { u: 1, d: 3, w: 'owl', z: '' },
+  ];
+  let legacyLeaks = 0, newLeaks = 0, nulls = 0;
+  for (const done of [['cat'], ['cat', 'dog']]) for (const budget of [1, 2, 3]) for (let s = 1; s <= 8; s++) {
+    const mk = () => { const r = createRun(1, HERO, small); r.done = new Set(done); return r; };
+    const now = drawWord(mk(), null, budget, seeded(s * 3 + budget));
+    const old = legacyDrawWord(mk(), null, budget, seeded(s * 3 + budget));
+    if (now && done.includes(now.w)) newLeaks++;
+    if (old && done.includes(old.w)) legacyLeaks++;
+    assert.ok(now, '仍有未完成词时必须给出词');
+  }
+  assert.equal(newLeaks, 0, '新版绝不许返回已完成的词');
+  assert.ok(legacyLeaks > 0, '基线事实：旧实现在小词池上确实会回灌已完成的词（否则这条断言是假的）');
+
+  // B) 穷尽时新版返回 null，旧实现回灌整池给出一个词。
+  const exhausted = ['cat', 'dog', 'owl'];
+  for (let budget = 1; budget <= 3; budget++) for (let s = 1; s <= 8; s++) {
+    const mk = () => { const r = createRun(1, HERO, small); r.done = new Set(exhausted); return r; };
+    assert.equal(drawWord(mk(), null, budget, seeded(s * 11 + budget)), null, '穷尽返回 null');
+    assert.ok(legacyDrawWord(mk(), null, budget, seeded(s * 11 + budget)), '基线事实：旧实现永远给得出词');
+  }
+
+  // C) 10 次认命 → 先剔除。恒定随机源下旧实现必然重复。
+  // random 恒为 0.999 ⇒ rnd(n)=n-1 ⇒ pick 恒取最后一个；shuffle 因此不换位。
+  // 战斗词正好是最后一个 ⇒ 旧实现 10 次都抽中它，只能「认命」重复。
+  const hi = () => 0.999;
+  const pair = createRun(1, HERO, [
+    { u: 1, d: 1, w: 'cat', z: '' }, { u: 1, d: 1, w: 'dog', z: '' },
+  ]);
+  assert.equal(drawWord(pair, { word: pair.pool[1] }, 1, hi).w, 'cat', '新版剔除后抽另一个');
+  assert.equal(legacyDrawWord(pair, { word: pair.pool[1] }, 1, hi).w, 'dog', '基线事实：旧实现 10 次认命后重复');
+  // 极值随机源 0：旧实现重复 cat（第一个），新版仍抽另一个。
+  assert.equal(drawWord(pair, { word: pair.pool[0] }, 1, () => 0).w, 'dog', '新版在 random=0 下也不重复');
+  assert.equal(legacyDrawWord(pair, { word: pair.pool[0] }, 1, () => 0).w, 'dog');
+});
+
 
 test('drawWord prefers exact difficulty, skips answered words and reviews wrong ones first', () => {
   const run = createRun(1, HERO, WORDS);

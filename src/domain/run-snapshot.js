@@ -31,6 +31,12 @@ export const PHASE = {
   // ★ 反过来，run.result 一旦是布尔就说明 endRun 已经跑过：那时的正确做法
   //   是删掉快照（encodeSnapshot 返回 null），而不是存一份等着重发奖励。
   ENDING: 'ending',
+  // 本单元词汇已全部完成（词池抽干），但战斗还没打完。
+  // ★ 这**不是**通关：怪物血还在、kills 不加、wins 不加、run.result 仍是
+  //   undefined。带上 battle 是为了把 B.myHp / B.shield / B.enHp 原样带回来 ——
+  //   「怪物还剩多少血」是这个屏必须如实说出的事实，不能在刷新后凭空重算。
+  //   恢复时它只重建这个检查点屏，绝不重发奖励、绝不重新抽词。
+  LEARNING_COMPLETE: 'learning-complete',
 };
 
 const PHASES = new Set(Object.values(PHASE));
@@ -268,9 +274,19 @@ function validBattle(b, run, byId) {
   if (!Array.isArray(b.bad) || b.bad.length !== b.letters.length || !b.bad.every(isBool)) return false;
   if (!Array.isArray(b.input) || !b.input.every(letter)) return false;
   if (b.input.length > norm(b.word.w).length) return false;
-  const pool = run.pool.filter(w => w.w === b.word.w);
-  if (pool.length !== 1) return false;           // 战斗词必须是本局词池里真实存在的那一条
-  if (b.word.u !== pool[0].u || b.word.d !== pool[0].d) return false;
+  // 战斗词必须是本局词池里真实存在的那一条。
+  // ★ 判据是「**至少有一条**精确匹配，且战斗词的每一个字段都与**第一条**精确匹配
+  //   词条一致」，不是「恰好一条」。玩家把同一行 'cat 猫' 导入两次就会得到两条
+  //   w/u/d/z 全同的词条；旧的 `length !== 1` 判据会把这份**合法**存档整份拒掉，
+  //   于是自定义单元的暂停/保存/刷新每次都报「存档损坏」。
+  //   抽词侧对重复条目只出第一条（见 word-selection 的 uniquePool），所以这里
+  //   也只认第一条 —— 引用校验仍然 fail closed：不在词池里的词、字段对不上的词
+  //   一律拒绝，不接受任何字段的「近似匹配」。
+  const entry = run.pool.filter(w => w.w === b.word.w)[0];
+  if (!entry) return false;
+  if (b.word.u !== entry.u || b.word.d !== entry.d) return false;
+  if (b.word.z !== entry.z) return false;
+  if ((b.word.th || null) !== (entry.th || null)) return false;
   if (!isObj(b.foe) || !isStr(b.foe.n) || !isStr(b.foe.ic) || !isStr(b.foe.tint)) return false;
   if (!num(b.myHp, 0, run.maxhp) || !num(b.shield, 0, run.maxhp)) return false;
   if (!isNum(b.enHp) || !isNum(b.enMax) || b.enMax <= 0) return false;   // enHp 可为负（致命一击）
@@ -350,6 +366,9 @@ const PHASE_SHAPE = {
   // 结算待记账：带着**已结算的战斗**（over/finished 已置值），没有事件屏。
   // ★ 恢复时绝不重发奖励：battle.rewardTaken / over 原样带回，父层据此续跑 endRun。
   [PHASE.ENDING]: { battle: true, encounter: false },
+  // 词汇完成检查点：带着**真实未打完**的战斗（enHp > 0、over=false），
+  // 没有事件屏。恢复只重建检查点屏 —— 绝不重发奖励、绝不重新抽词。
+  [PHASE.LEARNING_COMPLETE]: { battle: true, encounter: false },
 };
 
 export function decodeSnapshot(raw) {

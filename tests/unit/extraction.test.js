@@ -41,12 +41,15 @@ test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
   const imports = [...entry.matchAll(/@import\s+['"](.+?)['"]/g)].map(match=>match[1]);
-  // pause.css 是暂停/保存功能新增的唯一一张表，只作用于 #s-pause / #continueRow。
-  // 归档里没有它，所以这里排除它之后仍要求与归档逐字相同。
-  const actual = imports.filter(p=>p!=='./pause.css')
+  // pause.css 与 learning-complete.css 都是后续功能新增的唯一一张表，各自只作用于
+  // 自己的屏（#s-pause / #s-learning-complete）。归档里没有它们，所以这里排除之后
+  // 仍要求与归档逐字相同 —— 其余规则一个都不许漂。
+  const ADDED_CSS = new Set(['./pause.css', './learning-complete.css']);
+  const actual = imports.filter(p=>!ADDED_CSS.has(p))
     .map(path=>readFileSync(new URL(`../../src/styles/${path}`,import.meta.url),'utf8')).join('');
   assert.equal(actual.replace(/\r\n/g,'\n'), expected.replace(/\r\n/g,'\n'));
-  assert.equal(imports[imports.length-1], './pause.css', '新增样式必须追加在最后');
+  // 新增样式必须追加在最后，且顺序固定（提取链不许被打乱）
+  assert.deepEqual(imports.slice(-2), ['./pause.css', './learning-complete.css'], '新增样式必须追加在最后');
 });
 
 // 本任务唯一有意偏离归档骨架的地方：跳过按钮的小字。旧版写「不掉血」，
@@ -60,9 +63,13 @@ const SKIP_COPY_DIFF = /(<button class="tool" id="tSkip">跳过<small>)[^<]*(<\/
 // 暂停屏整块：锚定在 s-pause 起点与下一个 screen 起点之间，
 // 这样不依赖内部 div 层数，将来加内容也不会让这条断言悄悄失效。
 const PAUSE_SCREEN = /<div class="screen" id="s-pause">[\s\S]*?(?=<div class="screen" id="s-import">)/;
+// 「本单元词汇已全部完成」检查点屏：纯新增（归档里没有对应物），整段挖掉。
+// 锚点从 s-learning-complete 到下一个 screen 起点，将来加内容也不会静默失效。
+const LEARNING_SCREEN = /<div class="screen" id="s-learning-complete">[\s\S]*?(?=<div class="screen" id="s-import">)/;
 // 纯新增（归档里没有对应物）→ 整段挖掉。
 const PAUSE_ONLY_NEW = [
   PAUSE_SCREEN,
+  LEARNING_SCREEN,
   /<div class="row" id="continueRow" hidden><button class="btn" id="continueRun">继续远征<\/button><\/div>\n/,
   /<button class="tool" id="tPause">暂停<small>保存进度<\/small><\/button>\n/,
 ];
@@ -96,6 +103,13 @@ test('page skeleton preserves approved character parts and all existing controls
   assert.match(html, /id="tPause">暂停/);
   assert.match(html, /id="continueRun">继续远征/);
   assert.match(html, /id="s-pause"/);
+  // 词汇完成检查点必须真的在页面上，且按钮文案与契约一致
+  // （否则上面那两条对齐会因为「都不存在」而假通过）
+  assert.match(html, /id="s-learning-complete"/);
+  assert.match(html, /id="lcBtnHome">保存并返回主页/);
+  assert.match(html, /id="lcBtnQuit">结束本轮学习/);
+  assert.doesNotMatch(html, /id="s-learning-complete">[\s\S]*?(解锁下一单元|下一单元已)/,
+    '检查点屏不许承诺解锁下一单元');
 });
 
 test('monster artwork matches original trusted SVG and rejects injected names', async () => {
