@@ -30,7 +30,7 @@
    战斗页要按「视口高 - body 上下内边距」精确占满，两者必须是同一个数，
    写成两处字面量就会漂移（实测按 24px 算、实际是 12+30=42px，
    390x844 上会多出 18px 的残余滚动，底部按钮看着还是贴着屏幕边）。 */
-:root{--sab:env(safe-area-inset-bottom,0px);--padT:12px;--padB:calc(30px + var(--sab))}
+:root{--sab:env(safe-area-inset-bottom,0px);--padT:12px;--padB:calc(30px + var(--sab) + var(--verh,0px))}
 /* overflow-x 必须用 clip 而不是 hidden：hidden 会把同轴的 overflow-y 从 visible
    强制计算成 auto，body 就变成了滚动容器，.hud 的 position:sticky 随之失效
    （实测 390x700 滚到底时 HUD 顶部跑到 -49px，血条整条滚出屏幕）。 */
@@ -214,6 +214,14 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
  font-size:calc(var(--avatar,64px)*.53);border:2px solid var(--line2);background:linear-gradient(150deg,#ffffff14,#00000040);
  animation:idle 2.6s ease-in-out infinite;box-shadow:var(--sh2)}
 .avatar.hurt{animation:hurt .38s}
+/* 整词大招命中：比普通受击更大更久的形变，与单字母的 .hurt 明确分层 */
+.avatar.finhurt{animation:finHurt .52s var(--ease)}
+@keyframes finHurt{0%,100%{transform:translateX(0) scale(1)}
+  12%{transform:translateX(-16px) scale(.86) rotate(-4deg)}
+  30%{transform:translateX(13px) scale(1.14) rotate(3deg)}
+  48%{transform:translateX(-7px) scale(.97)}
+  68%{transform:translateX(4px) scale(1.03)}
+  100%{transform:translateX(0) scale(1)}}
 @keyframes idle{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-7px) rotate(1.5deg)}}
 @keyframes hurt{0%,100%{transform:translateX(0)}20%{transform:translateX(-11px) scale(.93)}45%{transform:translateX(9px) scale(1.05)}70%{transform:translateX(-5px)}}
 .finfo{flex:1 1 auto;min-width:0}
@@ -338,6 +346,12 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .pci.atk .pc-mouth{animation:pcMouthYell .34s var(--ease)}   /* 出招那一下张大嘴喊一声 */
 .pci.hurt{animation:pcHurt .42s var(--ease)}
 .pci.hurt .pc-eye{animation:pcEyeSquint .42s var(--ease)}   /* 挨打时眯一下眼 */
+/* fin：整词大招。刻意与 atk 区分 —— 先蓄力后仰（0~28%），再猛地跃出挥击（28~62%），
+   收招更慢（.78s），配合金色辉光，视觉上「一下就能认出这是大招」。 */
+.pci.fin{animation:pcFinish .78s var(--ease)}
+.pci.fin .pc-arm{animation:pcSwingBig .78s var(--ease)}
+.pci.fin .pc-mouth{animation:pcMouthYellBig .78s var(--ease)}
+.pci.fin .pc-cape{opacity:1;animation:pcCapeFlare .78s var(--ease)}   /* 大招时披风甩开 */
 @keyframes pcIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-3.5px)}}
 @keyframes pcSh{0%,100%{transform:scaleX(1);opacity:.55}50%{transform:scaleX(.82);opacity:.34}}
 @keyframes pcAtk{0%{transform:translateX(0) scaleY(1)}
@@ -354,6 +368,71 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   62%{transform:translateX(4px) rotate(1deg);filter:none}80%{transform:translateX(-2px)}}
 @keyframes pcEyeSquint{0%,100%{transform:scaleY(1)}20%,74%{transform:scaleY(.22)}}
 @keyframes pcMouthYell{0%,100%{transform:scaleY(.2)}38%{transform:scaleY(1.6)}}
+/* ---- 整词大招（fin）：蓄力 → 暴起挥击 → 收招。全部只用 transform/filter，走合成层 ----
+   和单字母的 pcAtk 结构上就不同：atk 是「直接前冲」，fin 是「先后仰蓄力再暴起」，
+   玩家只看动作形状就能分清这一下是打对一个字母还是拼完了整个单词。 */
+@keyframes pcFinish{0%{transform:translateX(0) scale(1)}
+  26%{transform:translateX(9px) scale(.93) ;                       /* 蓄力：后仰下压 */
+       filter:drop-shadow(0 0 5px #ffce4d88)}
+  38%{transform:translateX(-24px) scale(1.16,.9) rotate(-3deg);     /* 暴起：拉长压扁 */
+       filter:drop-shadow(0 0 16px #ffce4dcc) brightness(1.35)}
+  52%{transform:translateX(-32px) scale(.94,1.12) rotate(2deg);     /* 挥到最前：竖向拉长 */
+       filter:drop-shadow(0 0 22px #ffe9a0) brightness(1.5)}
+  72%{transform:translateX(-13px) scale(1.03,.98)}
+  100%{transform:translateX(0) scale(1);filter:none}}
+@keyframes pcSwingBig{0%{transform:rotate(0)}
+  24%{transform:rotate(22deg)}      /* 蓄力：手臂向后拉 */
+  40%{transform:rotate(28deg)}
+  56%{transform:rotate(-112deg)}    /* 暴挥：一口气甩过最高点 */
+  68%{transform:rotate(26deg)}      /* 收招回弹 */
+  84%{transform:rotate(-9deg)}
+  100%{transform:rotate(0)}}
+@keyframes pcMouthYellBig{0%,100%{transform:scaleY(.2)}
+  24%{transform:scaleY(.55)}40%,56%{transform:scaleY(2.1)}80%{transform:scaleY(.35)}}
+@keyframes pcCapeFlare{0%,100%{opacity:0;transform:scaleY(.5)}
+  30%{opacity:.95;transform:scaleY(1.5)}70%{opacity:.5;transform:scaleY(1.1)}}
+
+/* ---- 整词大招的「完整单词」展示 ----
+   一枚完整的词从角色位置「甩」向敌人（.finword.go，用 --dx/--dy 位移），
+   命中瞬间在敌人身上炸成金色大字（.finword.pop）+ 一圈冲击波（.finwave）。
+   两者都是 position:fixed + transform/opacity，不触发任何重排；
+   动画结束即 remove()，同屏最多 3 个元素，性能可忽略。 */
+.finword{position:fixed;z-index:71;pointer-events:none;white-space:nowrap;
+  font-weight:900;letter-spacing:.5px;line-height:1;
+  color:#fff;text-shadow:0 0 4px #7a4a00,0 0 14px #ffce4d,0 0 30px #ffce4daa,0 3px 0 #6b3a00;
+  transform:translate(-50%,-50%)}
+.finword.go{font-size:26px;--dx:0px;--dy:0px;
+  animation:finFly .26s cubic-bezier(.35,.9,.4,1) forwards}
+@keyframes finFly{
+  0%  {transform:translate(-50%,-50%) scale(.4) rotate(-10deg);opacity:0}
+  16% {transform:translate(-50%,-50%) scale(1.15) rotate(3deg);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.85) rotate(0deg);opacity:0}}
+.finword.pop{font-size:34px;
+  animation:finPop .86s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes finPop{
+  0%  {transform:translate(-50%,-50%) scale(.5);opacity:0}
+  14% {transform:translate(-50%,-50%) scale(1.42) rotate(-2deg);opacity:1}
+  24% {transform:translate(-50%,-50%) scale(1.06)}
+  38% {transform:translate(-50%,-62%) scale(1.16)}
+  70% {transform:translate(-50%,-86%) scale(1.1);opacity:1}
+  100%{transform:translate(-50%,-128%) scale(.92);opacity:0}}
+/* 命中瞬间的径向冲击波 + 白闪，纯 transform/opacity */
+.finwave{position:fixed;z-index:70;pointer-events:none;width:10px;height:10px;
+  margin:-5px 0 0 -5px;border-radius:50%;
+  border:3px solid #ffce4d;box-shadow:0 0 18px #ffce4dcc,inset 0 0 12px #ffce4d99;
+  animation:finWave .5s cubic-bezier(.15,.8,.3,1) forwards}
+@keyframes finWave{0%{transform:scale(.2);opacity:.95}
+  100%{transform:scale(9);opacity:0}}
+/* 大招的短促震屏 + 缩放脉冲：只作用在战斗页的中段容器 .fmid（位移 ≤5px，不晃眼）。
+   ★ 刻意不挂 #s-fight 本身：.screen.on 已经有一条 animation:fade，
+     两条 animation 会互相顶掉，页面切换时反而闪。 */
+.fmid.finshake{animation:finShake .3s ease-out}
+@keyframes finShake{
+  0%{transform:translate(0,0)}
+  22%{transform:translate(-5px,2px) scale(1.012)}
+  46%{transform:translate(4px,-2px) scale(1.008)}
+  72%{transform:translate(-2px,1px)}
+  100%{transform:translate(0,0)}}
 
 /* ---- 眨眼：眼睛 scaleY 压扁 + 眼睑弧线淡入，两条时间轴用同一组时长/延迟 ----
    pcB* 与 pcL* 成对出现，百分比完全一致，所以眼睑一定盖在闭眼的那一刻。
@@ -932,7 +1011,7 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 @media (max-width:360px){
  /* 窄屏 body 内边距同步收窄：--padT/--padB 必须一起改，
     否则战斗页按旧值算高度、又冒出残余滚动。 */
- :root{--padT:10px;--padB:calc(24px + var(--sab))}
+ :root{--padT:10px;--padB:calc(24px + var(--sab) + var(--verh,0px))}
  body{padding-left:10px;padding-right:10px}
  .hud{margin:-10px -10px 12px;padding:9px 10px}
  .card{padding:15px;border-radius:var(--r2)}
@@ -980,6 +1059,53 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 }
 @media (prefers-reduced-motion:reduce){
  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+
+/* ============================================================
+   版本更新提示条（APP_VERSION 检测到线上版本变了才出现）
+   ------------------------------------------------------------
+   这个游戏是单文件 HTML + GitHub Pages，浏览器/CDN 都会缓存 ——
+   发新版后用户看到的仍是旧文件，于是每次都反馈「改动没生效」。
+   所以：页面启动后延迟几秒拉一次「线上自己」的 HTML，比对里面的
+   APP_VERSION，不同就在底部挂这条提示，点按钮强制刷新。
+
+   位置为什么是底部、且不靠 z-index 压内容：
+     顶部是 .hud（position:sticky 吸顶，两条血条 + 提示行都在那儿），
+     底部是 #s-fight 的字母盘与 提示/跳过/逃跑（按 --vh 精确算高钉在底部）。
+     任何 fixed 浮层都会盖住其中之一 —— 这正是旧 toast 压住血条那个 bug。
+   改法：条子占的高度走 --verh，body 的 --padB 把它算进去，
+     而 #s-fight 的等高 calc(100dvh - --padT - --padB) 同步收紧 ——
+     内容是被真实顶上来的，物理上不可能被遮住。
+   ============================================================ */
+:root{--verh:0px}                       /* 默认不占位：没有新版本时布局零变化 */
+:root.hasver{--verh:60px}               /* 提示条出现时才撑开底部 */
+#verbar{display:none}
+#verbar.on{display:flex;position:fixed;left:0;right:0;bottom:var(--sab);z-index:80;
+ height:var(--verh);align-items:center;gap:9px;padding:0 10px 0 13px;
+ background:linear-gradient(180deg,#241c58,#141033);
+ border-top:1px solid #8b5cf666;box-shadow:0 -10px 30px #000a,0 -1px 0 #ffffff14 inset;
+ backdrop-filter:blur(14px) saturate(1.25);-webkit-backdrop-filter:blur(14px) saturate(1.25);
+ color:var(--fg);font-size:12.5px;line-height:1.35}
+#verbar::before{content:'';flex:none;width:7px;height:7px;border-radius:50%;
+ background:var(--gold);box-shadow:0 0 0 3px #ffce4d26,0 0 10px #ffce4d80}
+#verbar .vmsg{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#verbar .vmsg b{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+#verbar .vbtn{flex:none;min-height:34px;border:1px solid #ffffff2e;border-radius:var(--r1);
+ padding:0 12px;font-family:inherit;font-size:12.5px;font-weight:800;letter-spacing:.6px;
+ color:#fff;cursor:pointer;background:linear-gradient(100deg,var(--acc),#5b8cff);
+ box-shadow:0 4px 14px #8b5cf659;transition:transform .12s var(--ease),filter .18s}
+#verbar .vbtn:hover{filter:brightness(1.1)}
+#verbar .vbtn:active{transform:translateY(1px) scale(.985)}
+#verbar .vx{flex:none;width:32px;height:32px;border:1px solid #ffffff1f;border-radius:50%;
+ background:#ffffff0f;color:var(--mut);font-family:inherit;font-size:14px;line-height:1;
+ cursor:pointer;padding:0;transition:color .16s,background .16s}
+#verbar .vx:hover{color:var(--fg);background:#ffffff1f}
+#verbar .vx:active{transform:scale(.92)}
+@media (max-width:360px){
+ :root.hasver{--verh:68px}              /* 窄屏文字要两行，条子跟着长高 */
+ #verbar{font-size:12px;padding:0 8px 0 11px;gap:7px}
+ #verbar .vmsg{white-space:normal;overflow:visible}
+ #verbar .vbtn{padding:0 10px;font-size:12px}
 }
 </style>
 </head>
@@ -1168,6 +1294,153 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 
 </div>
 <script>
+// ============================================================
+//  版本检测 + 强制刷新提示
+//  ============================================================
+//  为什么要有这个功能：
+//    这是个单文件 HTML 丢在 GitHub Pages 上，浏览器和 CDN 都会缓存。
+//    每次发版，用户打开的往往还是浏览器缓存里的旧文件 —— 于是
+//    「我改了怎么没生效」。让人手动清缓存不是长久之计。
+//    所以：页面启动后延迟 2.5 秒，拉一次「线上自己」的 HTML，
+//    抠出里面的 APP_VERSION 跟当前页面的比：
+//      相同 → 什么都不做（静默）
+//      不同 → 底部挂一条提示条，点按钮用带时间戳的 URL 强制重载
+//    拉不到（file:// 的 CORS / 断网 / 老浏览器没 fetch）也什么都不做。
+//
+//  ★ 发版时只需要改下面这一行 APP_VERSION。
+//
+//  三条不能破的约束：
+//    1) 检测绝不能阻塞首屏 —— 延后到 DOMContentLoaded 之后再等 2.5s；
+//    2) 任何异常都必须静默降级 —— 游戏永远照常启动，不许红屏、不许卡住；
+//    3) 提示条不许压住游戏内容 —— 靠 --verh 撑 --padB 把内容真实顶上来，
+//       而不是靠 z-index 盖在字母盘/血条上面（那正是旧 toast 的坑）。
+// ============================================================
+const APP_VERSION='2026.10.01-b';
+// 记录「已经提示过哪个版本」。用户关掉提示条时写入，同一版本不再反复弹；
+// 版本一变就重新提示。用独立 key，不进存档 DB（存档 key 仍是 wy8a_rogue_v1）。
+const VER_SEEN_KEY='wy8a_ver_seen_v1';
+const VER_DELAY=2500;
+
+/* 从 HTML 文本里抠出版本号。只认「const + APP_VERSION + = + 单引号版本串」
+   这一种写法；抠不到就返回 ''（当作「没查到」，绝不误报有新版本）。
+   版本串要求以数字开头：这样万一以后有人在注释里写了个
+   「const APP_VERSION = '...'」当占位示例，正则会跳过它，
+   不会把省略号当成版本号。 */
+function verParse(html){
+  try{
+    const m=/const\s+APP_VERSION\s*=\s*'([0-9][\w.\-]*)'/.exec(String(html||''));
+    return m?m[1]:'';
+  }catch(e){ return '' }
+}
+const verSeenGet = () => { try{ return localStorage.getItem(VER_SEEN_KEY)||'' }catch(e){ return '' } };
+const verSeenSet = v => { try{ localStorage.setItem(VER_SEEN_KEY, String(v||'')) }catch(e){} };
+
+/* 当前页面的干净 URL（去掉 ?query 和 #hash），并把 file:// 挡在门外。
+   file:// 下 fetch 本地文件必被 CORS 拒（Chrome 直接抛 TypeError），
+   与其白发一次请求 + 吞一个异常，不如一开始就返回 ''。 */
+function verSelfUrl(){
+  try{
+    if(typeof location==='undefined'||!location||!location.href) return '';
+    if(String(location.protocol||'')==='file:') return '';
+    const h=String(location.href);
+    if(!/^https?:\/\//i.test(h)) return '';   // 只认 http/https（别用 slice 比前缀：
+                                           // 'https://' 是 8 个字符不是 7 个）
+    return h.split('#')[0].split('?')[0];
+  }catch(e){ return '' }
+}
+
+/* 强制刷新：给 URL 挂一个时间戳，让浏览器把这当成一个全新的地址，
+   缓存里没有、必须回源拉 —— 这是唯一在所有浏览器上都确定有效的做法。
+   （location.reload(true) 的 forceGet 参数早就被规范废弃、
+     Chrome/Firefox 都会忽略它，所以只当兜底。） */
+function verHardReload(){
+  try{
+    const base=verSelfUrl();
+    if(base && typeof location.replace==='function'){
+      location.replace(base+'?v='+Date.now());
+      return 'replace';
+    }
+  }catch(e){}
+  try{ if(typeof location.reload==='function'){ location.reload(true); return 'reload' } }catch(e){}
+  return 'none';
+}
+
+/* 显示提示条。会先查「这个版本是不是已经提示过了」，是就直接不弹。 */
+function verShow(remote){
+  try{
+    if(!remote) return false;
+    if(verSeenGet()===remote) return false;   // 同一版本提示过了 → 不再烦用户
+    let bar=document.getElementById('verbar');
+    if(!bar){
+      bar=document.createElement('div');
+      bar.id='verbar';
+      bar.innerHTML='<span class="vmsg">发现新版本 <b></b>，点右侧按钮强制刷新以启用</span>'+
+                    '<button class="vbtn" id="verGo" type="button">立即刷新</button>'+
+                    '<button class="vx" id="verX" type="button" aria-label="关闭提示">✕</button>';
+      document.body.appendChild(bar);
+      const go=bar.querySelector('#verGo'), x=bar.querySelector('#verX');
+      if(go) go.onclick=()=>verHardReload();
+      if(x)  x.onclick =()=>verHide();
+    }
+    const tag=bar.querySelector('.vmsg b');
+    if(tag) tag.textContent='v'+remote;
+    bar.classList.add('on');
+    // 给 <html> 挂标记：--verh 撑开 --padB，内容被真实顶上来而不是被遮住
+    const de=document.documentElement;
+    if(de&&de.classList&&de.classList.add) de.classList.add('hasver');
+    try{ console.log('[版本检测] 发现新版本 v'+remote+'（当前 v'+APP_VERSION+
+                      '）—— 请强制刷新'); }catch(e){}
+    return true;
+  }catch(e){ return false }
+}
+/* 关掉提示条。只是隐藏，并把当前 remote 记成「提示过了」，
+   版本检测本身不受影响（下次发版 remote 变了会重新提示）。 */
+function verHide(){
+  try{
+    const bar=document.getElementById('verbar');
+    if(bar){
+      const tag=bar.querySelector('.vmsg b');
+      const shown=tag?String(tag.textContent||'').replace(/^v/,'') : '';
+      if(shown) verSeenSet(shown);
+      if(bar.classList&&bar.classList.remove) bar.classList.remove('on');
+    }
+    const de=document.documentElement;
+    if(de&&de.classList&&de.classList.remove) de.classList.remove('hasver');
+  }catch(e){}
+}
+
+/* 真正的检测。永远不抛异常，永远不阻塞：
+   返回 Promise（便于测试），失败一律 resolve(false)。 */
+function verCheck(){
+  try{
+    if(typeof fetch!=='function') return Promise.resolve(false);      // 老浏览器 / 无 fetch
+    const base=verSelfUrl();
+    if(!base) return Promise.resolve(false);                          // file:// 或无 location
+    // 注意分隔符：base 已经被 verSelfUrl 去掉过 ?query，所以这里基本走 '?' 分支
+    const url=base+(base.indexOf('?')>=0?'&':'?')+'_v='+Date.now();  // cache-buster
+    return fetch(url,{cache:'no-store',credentials:'same-origin'})
+      .then(r=>(r&&r.ok!==false&&typeof r.text==='function')?r.text():'')
+      .then(txt=>{
+        const remote=verParse(txt);
+        if(!remote || remote===APP_VERSION) return false;             // 抠不到 / 已是最新
+        return verShow(remote);
+      })
+      .catch(()=>false);   // 断网、CORS、404、超时 —— 全部静默
+  }catch(e){ return Promise.resolve(false) }
+}
+
+/* 排期：DOMContentLoaded 之后再等 VER_DELAY，只跑一次，不轮询。 */
+function verSchedule(){
+  const go=()=>{ try{ setTimeout(verCheck,VER_DELAY) }catch(e){} };
+  try{
+    if(typeof document!=='undefined' && document.addEventListener &&
+       document.readyState!=='complete'){
+      document.addEventListener('DOMContentLoaded',go);
+    }else go();
+  }catch(e){ try{ go() }catch(e2){} }
+}
+verSchedule();
+
 // ============================================================
 //  外研版（新标准）八年级上册 词库
 //  d: 难度 1易 2中 3难(短语/长词)
@@ -1648,6 +1921,18 @@ const sfx={
     tone(pnote(19),.5,'triangle',.08,null,{delay:.21,send:.34});     // 铃铛五度泛音
     noise(.2,'highpass',6000,.045,{delay:.19});
   },
+  /* 整词大招：比 word() 更「重」的一档 —— 低频轰击(蓄力) → 金属撞击(命中) →
+     五声音阶大琶音(收招) → 长混响尾。整词路径专用，单字母绝不调用它，
+     这样「拼完一个词」有自己独立的声音签名（低频 + 宽音域，和 hit() 的短促窄带完全不同）。
+     节点数控制在 7 个以内，别把 AU.maxVoices(32) 的预算吃掉。 */
+  finisher(){
+    noise(.22,'lowpass',760,.17,{sweep:130,send:.1});              // 蓄力的低频轰
+    tone(72,.34,'triangle',.15,pnote(-2),{cut:600});               // 亚低频下坠
+    noise(.07,'bandpass',2600,.14,{q:.9});                         // 金属撞击头
+    tone(pnote(7),.2,'square',.07,pnote(12),{cut:3400});           // 撞击体的滑音
+    arp([pnote(12),pnote(16),pnote(19),pnote(21)],.062,.42,'triangle',.1,{send:.3});
+    noise(.26,'highpass',6500,.04,{delay:.24,send:.2});            // 高频闪粉
+  },
   /* 连击里程碑：清脆的上行三连 + 闪粉 */
   combo(){ const b=Math.min(Math.floor(combo()/5),3);
     arp([pnote(14+b),pnote(16+b),pnote(19+b)],.06,.14,'triangle',.11);
@@ -1745,25 +2030,12 @@ let volStep=0;
   AU.vol=VOL_STEPS[volStep]; AU.muted=v<=0;
 })();
 const saveVol=()=>{ DB.vol=AU.vol; DB.mute=AU.muted; saveDB() };
-(function mountVolBtn(){
-  if(typeof document==='undefined'||!document.body||document.getElementById('volBtn')) return;
-  const b=document.createElement('button');
-  b.id='volBtn'; b.type='button';
-  b.style.cssText='position:fixed;top:10px;right:10px;z-index:75;width:42px;height:42px;padding:0;'+
-    'border-radius:12px;border:1px solid #ffffff26;background:rgba(16,16,30,.8);color:#fff;'+
-    'font-size:19px;line-height:1;cursor:pointer;backdrop-filter:blur(10px);'+
-    'box-shadow:0 6px 18px #0007;display:flex;align-items:center;justify-content:center;'+
-    '-webkit-tap-highlight-color:transparent';
-  const paint=()=>{
-    b.textContent=AU.muted?'🔇':(AU.vol>=.5?'🔊':'🔉');
-    b.title='音量 '+Math.round(AU.vol*100)+'%（点击切换：55% → 30% → 12% → 静音）';
-    b.style.opacity=AU.muted?.45:1;
-  };
-  b.onclick=()=>{ volStep=(volStep+1)%VOL_STEPS.length; AU.setVol(VOL_STEPS[volStep]); saveVol(); paint(); if(!AU.muted) sfx.ui() };
-  b.oncontextmenu=e=>{ e.preventDefault(); volStep=(volStep+VOL_STEPS.length-1)%VOL_STEPS.length;
-    AU.setVol(VOL_STEPS[volStep]); saveVol(); paint(); if(!AU.muted) sfx.ui() };
-  document.body.appendChild(b); paint();
-})();
+/* 音量按钮已按用户要求移除：它在窄屏手机上与语音按钮一起挤在右上角，遮挡界面。
+   音量逻辑本身（AU.vol / AU.muted / DB.vol / DB.mute）全部保留，
+   存档里的旧字段照常读取，删掉按钮不会影响已保存的音量设置。 */
+if(typeof document!=='undefined'&&document.getElementById&&document.getElementById('volBtn')){
+  try{ document.getElementById('volBtn').remove() }catch(e){}
+}
 /* UI 点击 / 悬停提示音（事件委托，只作用于主要按钮和地图节点） */
 if(typeof document!=='undefined'&&document.addEventListener){
   document.addEventListener('click',e=>{
@@ -1833,17 +2105,22 @@ const centerOf = el => { if(!el) return {x:innerWidth/2,y:innerHeight/2};
 
 /* ================= 角色动画 =================
    只做「加 class → 到点移除」，动画本体全在 CSS keyframes 里（不用 JS 逐帧）。
-   .pci 上同时可能挂着 idle/atk/hurt：atk 与 hurt 优先（同优先级下后写的赢，
-   而 hurt 定义在 atk 之后），idle 挂在外壳 .pc 上，永不冲突。 */
+   .pci 上同时可能挂着 idle/atk/hurt/fin：状态类互斥（每次进来先把旧的摘掉），
+   idle 挂在外壳 .pc 上，永不冲突。
+   ★ 单字母 = 'atk'（.34s 轻挥）；整词大招 = 'fin'（.78s 蓄力+暴挥）——
+     两个 kind 走不同的 keyframes 和不同时长，视觉上不会混淆。 */
 let heroAnimT=0;
+const HERO_ANIM_CLS=['atk','hurt','fin'];
+const HERO_ANIM_MS={hurt:440, fin:820, atk:360};
 function animHero(kind){
   const fig=$('fPcI');
   if(!fig) return;
   clearTimeout(heroAnimT);
-  fig.classList.remove('atk','hurt');
+  fig.classList.remove(...HERO_ANIM_CLS);
   void fig.offsetWidth;            // 强制重排，让连续两次攻击能重新触发动画
   if(kind) fig.classList.add(kind);
-  heroAnimT=setTimeout(()=>fig.classList.remove('atk','hurt'), kind==='hurt'?440:360);
+  const ms=HERO_ANIM_MS[kind]||360;
+  heroAnimT=setTimeout(()=>fig.classList.remove(...HERO_ANIM_CLS), ms);
 }
 // 角色形象辅助：中心点（粒子/飘字用）
 const heroPoint=()=> centerOf($('fPc'));
@@ -2410,7 +2687,9 @@ function buildMap(){
     for(let c=0;c<cnt;c++){
       let type;
       if(isBoss) type='boss';
-      else if(r===0) type=rnd(2)?'battle':''+(pick(['event','rest','shop']));
+      // 第 1 行（r===0）不放商店：开局 0 金币，进去什么也买不起，只会让玩家困惑。
+      // 第 1 行只有 战斗 / 事件 / 休息。
+      else if(r===0) type=rnd(2)?'battle':pick(['event','rest']);
       else {
         const roll=Math.random();
         type = roll<0.50?'battle' : roll<0.66?'event' : roll<0.80?'rest' : roll<0.92?'shop':'elite';
@@ -2587,12 +2866,19 @@ function startFight(n){
   const elite = n.type==='elite', boss = n.type==='boss';
   const e = boss ? BOSS : pick(ENEMIES);
   const lv = boss ? 9 : (elite ? 5+Math.floor(G.floor/2) : 1+Math.floor(G.floor/2));
-  // 血量 = 每词伤害 × 目标词数
-  // 每词伤害 ≈ 词长(~6) × base × 连击均值(1.4) + 整词奖励(~14)
-  // 30 次实测：第1层100血≈1.3词 → 约77/词，据此反推
+  // 血量 = 每词伤害 × 目标词数（深层靠 perWord 递增来加难度）
+  // 每词伤害 = 字母小伤害之和 + 整词大招那一击
+  //   字母 ≈ 词长(~6) × base × 连击均值(1.45)
+  //   大招 ≈ base × WORD_RATIO × (1 + 连击均值 × comboRate × WORD_COMBO_BOOST)
+  // ★ 大招变强后必须同步抬血量，否则每场战斗会从设计的 4 词被压缩到 1.4 词，
+  //   深层直接秒杀、难度曲线整个塌掉。
+  // ★ BOSS 原本用的是一个写死的 130（≈ 第9层的 perWord），靠「5 词 vs 4 词」拉开难度。
+  //   现在 perWord 整体抬高了，写死的 130 反而会低于第 9 层普通怪 —— 首领变弱。
+  //   所以 BOSS 走同一套公式（base 按第 9 层算），难度差仍然由 targetWords 5 vs 4 承担。
   const avgLen = 6;
-  const base = 7+Math.floor(G.floor*0.7);
-  const perWord = boss ? 130 : Math.round(avgLen*base*1.45 + 12 + G.floor*1.5);
+  const base = 7+Math.floor((boss?9:G.floor)*0.7);
+  const finMult = 1 + 1.45*comboRate()*WORD_COMBO_BOOST;
+  const perWord = Math.round(avgLen*base*1.45 + base*WORD_RATIO*finMult + (boss?9:G.floor)*1.5);
   const targetWords = boss?5 : (elite?4 : 4);
   const hpMax = Math.round(perWord*targetWords);
   // 从词库按难度出题：越深越难
@@ -2607,6 +2893,9 @@ function startFight(n){
       hintUsed:(G.nextHint?1:0), hintTotal:(G.nextHint?1:0),
       combo:0, maxCombo:0, dmgBonus:0, firstWrong:true,
       lethUsed:hasR('lucky')?1:0, ghostUsed:false, wordsDone:0, over:false, mistaken:[],
+      // 连续整词计数：每拼完一个词 +1（连错清零），只影响大招的档位 finTier()，
+      // 有上限（FIN_TIER_MAX），所以不可能数值爆炸
+      wordStreak:0,
       rageLeft:0, freezeWord:false, chainNext:false, goldMult:1, usedThisFight:{} };
   if(G.nextHint) toast('🔮 水壶生效：本场已揭示首字母');
   G.nextHint=0;
@@ -3060,7 +3349,7 @@ function pressKey(idx){
   if(B.bad[i]){
     sfx.bad();
     if(keyEl){ keyEl.classList.add('flash'); setTimeout(()=>keyEl.classList.remove('flash'),340) }
-    toast('「'+ch.toUpperCase()+'」不在「'+B.word.w+'」里，换一个字母');
+    toast('「'+ch.toUpperCase()+'」不在这个词里，换一个字母');
     return;
   }
 
@@ -3102,17 +3391,19 @@ function pressKey(idx){
     if(B.chainNext){ B.chainNext=false; B.combo+=3; B.dmgBonus+=8; toast('⚡ 连锁触发！连击 +3') }
     if(hasR('focus') && B.combo>0 && B.combo%6===0) B.dmgBonus+=5;  // 专注：连击越长额外增伤
     if(B.word.d>=3 && B.combo>0 && rnd(6)===0) toast('💡 记住这个词！');
-    if(B.input.length>=tgt.length){
-      animHero('atk');                                // ← 角色追加：整词拼出时的全力一击
-      const bonus=Math.round((12+G.floor*1.5)*(1+B.combo*comboRate()));
+    if(wordComplete()){
+      // ── 整词拼完：一次大招 ─────────────────────────────────────────────
+      // ★ 判据用 wordComplete()（和掌握判定 winFight() 里同一个函数），
+      //   不用裸的 input.length 比较，杜绝两边口径漂移。
+      // ★ 大招动画(wordFinisher) 与 creditWord() 在同一个分支里连续执行，
+      //   中间没有任何 return 分支，所以不可能出现「动画播了没记学会」
+      //   或「记了学会没动画」。
+      const bonus=wordDmg();       // 大招伤害：≥ 单字母 ×3.2（见 wordDmg 的夹逼）
       creditWord(B.word.w);        // 整词拼完 → 记为学会（掌握表 + 本局退休，见 creditWord）
       B.wordsDone=(B.wordsDone||0)+1;
-      const c2=centerOf($('fAv'));
-      burst(c2.x,c2.y,'#ffce4d',30,6);
-      ring(c2.x,c2.y,'#ffce4d');
-      floatTxt(c2.x,c2.y-26,'整词 +'+bonus,'#ffce4d');
-      flash('#ffce4d22');
-      sfx.word();
+      B.wordStreak=(B.wordStreak||0)+1;   // 连续整词 → 下一次大招更强（封顶见 finTier）
+      wordFinisher(B.word.w, bonus);        // 完整单词展示 + 专属动画 + 冲击波 + 震屏 + 重音效
+      sfx.word();                            // 保留原来的清脆铃声，叠在大招之上更有层次
       foeCry('hit');                                          // ← 语音层：怪物被击叫（WebAudio 合成）
       TTS.word(B.word.w);                                     // ← 语音：整词拼出自动朗读（最高优先级，抢在下一句台词前）
       if(hasR('battery') && B.wordsDone%3===0){ B.myHp=Math.min(G.maxhp,B.myHp+3); toast('🔋 永动电池：回复 3 生命') }
@@ -3144,6 +3435,7 @@ function pressKey(idx){
       else hurtPlayer(B.boss?16:12, ch, tgt[pos]);
       // 专注头环：连击中断时保留一半，而不是清零
       B.combo = hasR('focus') ? Math.floor(B.combo/2) : 0;
+      B.wordStreak=0;   // 真正答错 → 连续整词计数清零，大招回到基础档
     }
     renderFight();
   }
@@ -3155,6 +3447,81 @@ function hitDmg(){
   if(B.rageLeft>0) d=Math.round(d*2.5);        // 怒火护符
   if(B.freezeWord) d=Math.round(d*0.5);       // 寒冰护符
   return clamp(d, Math.max(1,Math.round(base*0.5)), 140);
+}
+/* ================= 战斗反馈的两条路径 =================
+   玩家必须一眼看出「这一下是打对一个字母」还是「整个词拼完了」，
+   所以伤害、动画、音效、视觉全部走两套独立参数，绝不共用：
+     单字母 hitDmg()  → animHero('atk')  .34s 轻挥 + 20 粒子 + sfx.hit()
+     整词   wordDmg() → animHero('fin')  .78s 蓄力暴挥 + 全词展示 + 冲击波
+                                    + 54 粒子 + 双圈 + 闪屏 + 震屏 + sfx.finisher()
+   掌握判定只有 wordComplete() 一个口径（见下），两条路径共用同一个分支入口，
+   所以「动画播了但没记学会」/「记了学会但没动画」这两种漂移都不可能发生。 */
+const WORD_RATIO=4;         // 整词的基础伤害 = 单字母基础伤害 × 4（连击为 0 时的静态倍率）
+const WORD_COMBO_BOOST=1.8; // 大招额外再吃 1.8 份连击加成 → 连击流玩法的收益明显更高
+const WORD_MIN_RATIO=3.2;   // 硬下限：任何层数/连击/道具组合下，整词伤害都 ≥ 单字母 ×3.2
+const WORD_DMG_CAP=560;     // 绝对上限：连击 + 增伤 + 怒火叠满也不会数值爆炸
+const FIN_TIER_MAX=4, FIN_TIER_STEP=0.12;   // 连续整词逐级增强：第1词×1，第5词起封顶×1.48
+function finTier(){
+  const s=Math.max(0,Math.min(FIN_TIER_MAX,(B.wordStreak|0)-1));
+  return 1+s*FIN_TIER_STEP;
+}
+function wordDmg(){
+  const base=7+Math.floor(G.floor*0.7);
+  const mult=1+B.combo*comboRate()*WORD_COMBO_BOOST;
+  let d=Math.round(base*WORD_RATIO*mult*finTier()*(1+B.dmgBonus/100));
+  if(B.rageLeft>0) d=Math.round(d*2.5);        // 怒火护符（与单字母同规则）
+  if(B.freezeWord) d=Math.round(d*0.5);       // 寒冰护符
+  const lo=Math.max(Math.round(base*WORD_RATIO*0.5),1);
+  // 双重夹逼：夹上限，再对 hitDmg() 取硬下限倍率 —— 任何参数组合下倍率都落在 [3.2, ~4.3]
+  return Math.max(clamp(d,lo,WORD_DMG_CAP), Math.round(hitDmg()*WORD_MIN_RATIO));
+}
+/* 在敌人身上炸开一个巨大的完整单词：position:fixed + transform/opacity，
+   动画结束即自删，不留残影、不触发任何重排。
+   cls='go' 的那枚用 --dx/--dy 从角色位置甩向敌人（位移量由调用方算好写进 CSS 变量）。 */
+function spawnFinWord(x,y,text,cls,delayMs,dx,dy){
+  const d=document.createElement('div');
+  d.className='finword'+(cls?' '+cls:'');
+  d.textContent=text;
+  d.style.left=x+'px'; d.style.top=y+'px';
+  if(dx!==undefined) d.style.setProperty('--dx', dx+'px');
+  if(dy!==undefined) d.style.setProperty('--dy', dy+'px');
+  if(delayMs) d.style.animationDelay=delayMs+'ms';   // 命中节奏用 CSS 延迟，不靠 JS 计时器串联
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(), 1100);
+  return d;
+}
+/* 命中冲击波：一个 10px 圆环放大到 ~90px，纯 transform */
+function finWave(x,y){
+  const d=document.createElement('div');
+  d.className='finwave';
+  d.style.left=x+'px'; d.style.top=y+'px';
+  document.body.appendChild(d);
+  setTimeout(()=>d.remove(), 620);
+}
+/* 整词大招的完整反馈包。只在「整词拼完」那一个分支里调用，
+   且与 creditWord() 同处一个分支 —— 记学会和大招动画天生同步。 */
+function wordFinisher(word,dmg){
+  animHero('fin');                                    // 专属大招动作，不复用单字母的 'atk'
+  const av=$('fAv');
+  av.classList.remove('hurt','finhurt'); void av.offsetWidth; av.classList.add('finhurt');
+  setTimeout(()=>av.classList.remove('finhurt'), 560);
+  const c=centerOf(av);
+  const hp=heroPoint();
+  // 完整单词：先从角色位置甩向敌人，命中后在敌人身上炸成金色大字
+  // （飞行路径走在 .vsrow 这一带的中线上，不会压到下方卡片里的中文释义和字母槽）
+  spawnFinWord(hp.x, hp.y-26, word, 'go', 0, c.x-hp.x, c.y-(hp.y-26));
+  spawnFinWord(c.x, c.y, word, 'pop', 190);
+  finWave(c.x, c.y);
+  burst(c.x,c.y,'#ffce4d',54,8);                     // 54 粒子（单字母只有 20）
+  burst(c.x,c.y,'#ffffff',22,10);
+  ring(c.x,c.y,'#ffce4d'); ring(c.x,c.y,'#ffe9a0');  // 双圈
+  floatTxt(c.x,c.y-36,'整词 -'+dmg,'#ffce4d');
+  flash('#ffce4d3a');
+  // 震屏：位移 ≤5px、时长 .3s，挂在 .fmid 上 —— 不和 .screen.on 的 fade 抢同一条 animation
+  const fm=document.querySelector('.fmid');
+  if(fm){ fm.classList.remove('finshake'); void fm.offsetWidth; fm.classList.add('finshake');
+          setTimeout(()=>fm.classList.remove('finshake'),320) }
+  sfx.finisher();                                     // 独立音效档，不复用 sfx.hit()
 }
 function dealDamage(d){
   B.enHp-=d;
@@ -3204,7 +3571,9 @@ function hurtPlayer(d,wrongCh,rightCh){
     onWordWrong(B.word.w);
     if(DB.mastered.indexOf(B.word.w)>=0) DB.mastered.splice(DB.mastered.indexOf(B.word.w),1);
     saveDB() }
-  toast('❌ 「'+wrongCh+'」不对，这里应该是「'+(rightCh||'?')+'」');
+  // ★ 不要在这里报出完整单词或下一个该填的字母 —— 错误提示剧透 = 直接给答案。
+  // 只告诉她「这个字母不对」，让她自己回忆词形。
+  toast('❌ 「'+wrongCh+'」不在这个词里，再想想');
   if(B.myHp<=0) loseFight();
 }
 function winFight(){
@@ -3511,7 +3880,8 @@ function showRest(){
 }
 function showShop(){
   $('rTitle').textContent='商店 🛒';
-  $('rSub').textContent='用金币强化自己';
+  // 明确显示当前金币：玩家进商店第一眼要知道买不买得起
+  $('rSub').textContent='你的金币：'+G.gold+' 枚 —— 用金币强化自己';
   $('rPicks').innerHTML='';
   const opts=[
     {cat:'heal',ic:'💚',t:'疗伤药剂 · 45 金币',d:'回复 35 点生命',fn:()=>{ if(G.gold<45) return '金币不够。';
