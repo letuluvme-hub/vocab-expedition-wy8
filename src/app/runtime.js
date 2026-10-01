@@ -1,7 +1,7 @@
 import { parseCustomWords } from '../domain/custom-words.js';
 import { createCombatController } from './combat.js';
 import { createEncounterController } from './encounters.js';
-import { createRun, advanceRun, finishBattleNode, endRunProgress } from '../domain/run.js';
+import { createRun, advanceRun, finishBattleNode, endRunProgress, isDuplicateRunStart, registerRunStart } from '../domain/run.js';
 import { generateMap } from '../domain/map.js';
 import { drawWord as selectWord } from '../domain/word-selection.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
@@ -358,8 +358,18 @@ function newRun(){
   if(!pool.length){alert('这个单元还没有词，去「导入词表」添加吧');return false}
   lifecycle.resetRun();TTS.stop();B=null;
   G=createRun(curUnit,curHero(),pool);
-  applyRelicInit();DB.runs++;saveDB();
+  // ★ 远征次数的唯一入口：真正新开一轮才 +1，恢复/读档不经过这里。
+  registerRunStart(DB,G);applyRelicInit();saveDB();
   show('s-map');renderMap();return true;
+}
+// ★ 玩家点「开始远征 / 再来一次 / 下一单元」的唯一入口。
+// 连点时第二次会看到「当前 G 还是一场没结束的远征」，直接放弃 —— 不建 run、不计数。
+// 判据是状态而不是时间窗：时间窗会误伤「放弃这次远征 → 立刻重开」和
+// 「结算完 → 立刻下一单元」这些正常操作。
+// 内部强制重开（测试探针、将来的恢复流程）直接调 newRun()，不受这个闸门约束。
+function startRunFromUi(){
+  if(isDuplicateRunStart(G))return false;
+  return newRun();
 }
 // 答对 → 本局退休；答错 → 进复习队列
 function onWordRight(w){
@@ -811,8 +821,8 @@ function endRun(win){
   endRunProgress(G,DB,win);saveDB();
   renderOver({run:G,db:DB,win,onTitle:renderTitle,show});
 }
-$('oAgain').onclick=()=>{ if(!G || typeof G.result!=='boolean') return; curUnit=G.unit; newRun() };
-$('oNext').onclick=()=>{ if(!G || !G.result || !UNITS.some(u=>G.unit>0 && u.n===G.unit+1)) return; curUnit=G.unit+1; newRun() };
+$('oAgain').onclick=()=>{ if(!G || typeof G.result!=='boolean') return; curUnit=G.unit; startRunFromUi() };
+$('oNext').onclick=()=>{ if(!G || !G.result || !UNITS.some(u=>G.unit>0 && u.n===G.unit+1)) return; curUnit=G.unit+1; startRunFromUi() };
 $('oHome').onclick=()=>{ lifecycle.resetRun(); TTS.stop(); G=null; B=null; renderTitle(); show('s-title') };
 $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ lifecycle.resetRun(); TTS.stop(); G=null; B=null; renderTitle(); show('s-title') } };
 
@@ -839,7 +849,7 @@ const encounters=createEncounterController({state,ports:{$,clamp,pick,shuffle,rn
   sfx,toast,advance,endRun,finishNode,show,scheduleRun:lifecycle.scheduleRun,scheduleBattle:lifecycle.scheduleBattle}});
         // 字母光标
 
-$('startRun').onclick=()=>{ if(newRun()){} };
+$('startRun').onclick=()=>{ startRunFromUi() };
 $('toRelics').onclick=()=>{
   const box=$('rlBox'); box.innerHTML='';
   RELICS.forEach(r=>{
