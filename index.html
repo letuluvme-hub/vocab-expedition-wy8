@@ -1118,6 +1118,346 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
  -webkit-tap-highlight-color:transparent}
 .volbtn:active{transform:scale(.94)}
 .volval{font-size:11px;color:var(--dim);min-width:34px;text-align:left;font-variant-numeric:tabular-nums}
+/* 词星小队 / reference-v2 — REPLACES vocab-hero-cartoon.css, after original CSS.
+   Hero-only repaint: no DOM edits, shell dimensions, animation, transform or keyframe overrides.
+   Wide 84% head / 62% height; huge offset black eye cores; flat fills / pure black ink.
+   Socks + shoes are torso pseudo-elements. All six original profession identifiers retained. */
+.pc.pc[data-h] {
+  --ink:#000;
+  --stroke:clamp(1.5px,calc(var(--pcw,104px) * .029),3.2px);
+  --detail:clamp(1px,calc(var(--pcw,104px) * .017),1.9px);
+  --skin:#ffe0cf;--iris:#8571e8;
+}
+.hcard .pc.pc[data-h] {
+  --stroke:clamp(1.35px,calc(var(--hcpcw,58px) * .029),2px);
+  --detail:clamp(.8px,calc(var(--hcpcw,58px) * .017),1.2px);
+}
+.pc.pc[data-h=scholar]{--hair:#49365b;--c1:#7872de;--c2:#51469e;--acc:#ffc65b;--iris:#aa80ea;}
+.pc.pc[data-h=warrior]{--hair:#743d32;--c1:#ed6260;--c2:#a83040;--acc:#ffc949;--iris:#e88354;}
+.pc.pc[data-h=scout]{--hair:#85532c;--c1:#40b78e;--c2:#24735e;--acc:#e9c76b;--iris:#5ed3ae;}
+.pc.pc[data-h=lucky]{--hair:#be663a;--c1:#ffc64b;--c2:#cb852a;--acc:#70cba0;--iris:#f2bb42;}
+.pc.pc[data-h=healer]{--hair:#8e6aa8;--c1:#ddfff1;--c2:#65b7a7;--acc:#269b87;--iris:#72ccd9;}
+.pc.pc[data-h=ranger]{--hair:#304957;--c1:#a3cf61;--c2:#588244;--acc:#e6c66c;--iris:#a3d85a;}
+
+/* Remove the old rendered shadow without touching pcSh or its animation target. */
+.pc.pc[data-h] .pc-shadow{background:none;filter:none;box-shadow:none;}
+.pc.pc[data-h] .pc-head{
+  left:8%;top:4%;width:84%;height:62%;z-index:9;
+  border-radius:49% 49% 46% 46% / 48% 48% 52% 52%;
+  border:var(--stroke) solid var(--ink);background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-blush{background:none;opacity:0;}
+.pc.pc[data-h] .pc-blush::before,.pc.pc[data-h] .pc-blush::after{content:none;}
+
+/* Eye area is 67% of the shell across, with just a 3% centre gap.
+   The black core is offset to the left/top: NOT concentric spectacle rings.
+   Iris remains a broad side crescent; each eye has ONE circular white highlight. */
+.pc.pc[data-h] .pc-eye{
+  top:26%;width:32%;height:30%;z-index:11;
+  border:var(--stroke) solid var(--ink);border-radius:49% 49% 47% 47%;
+  background:var(--iris);box-shadow:none;overflow:hidden;
+}
+.pc.pc[data-h] .pc-eyeL{left:16.5%;}
+.pc.pc[data-h] .pc-eyeR{left:51.5%;}
+.pc.pc[data-h] .pc-eye::before{
+  content:'';position:absolute;left:-1%;top:-2%;width:84%;height:87%;
+  border:0;border-radius:50%;background:var(--ink);box-sizing:border-box;
+}
+.pc.pc[data-h] .pc-eye::after{
+  content:'';position:absolute;left:15%;top:13%;width:34%;height:auto;aspect-ratio:1;
+  border:0;border-radius:50%;background:#fff;box-shadow:none;
+}
+/* scaleY eye pivot remains the original 52%; closed-eye centre is 41.6% shell.
+   Lid widths/positions are expressed directly in the same 67%-wide eye envelope. */
+.pc.pc[data-h] .pc-lid{left:16.5%;top:40.5%;width:67%;height:2.4%;z-index:12;}
+.pc.pc[data-h] .pc-lid::before,.pc.pc[data-h] .pc-lid::after{
+  content:'';top:0;width:47.7612%;height:100%;
+  border:0;border-radius:0 0 70% 70%;background:var(--ink);
+}
+.pc.pc[data-h] .pc-lid::before{left:0;}
+.pc.pc[data-h] .pc-lid::after{left:52.2388%;}
+.pc.pc[data-h] .pc-mouth{
+  left:46%;top:58%;width:8%;height:3.5%;border-radius:45%;
+  border:0;background:var(--ink);box-shadow:none;
+}
+.pc.pc[data-h] .pc-mouth::after{background:#ef8d97;}
+
+/* No neck, compact rectangular tunic and bold black horizontal band. */
+.pc.pc[data-h] .pc-torso{
+  left:33%;top:62%;width:34%;height:20%;z-index:3;
+  border:var(--stroke) solid var(--ink);border-radius:10% 10% 15% 15%;
+  background:var(--c1);box-shadow:none;overflow:visible;
+}
+/* Two independently outlined white socks; thick solid bottom borders form black shoes.
+   From top 80% to bottom <98% of shell, even at the 58x71 card size. */
+.pc.pc[data-h] .pc-torso::before,.pc.pc[data-h] .pc-torso::after{
+  content:'';position:absolute;top:90%;width:35%;height:80%;
+  box-sizing:border-box;border:var(--detail) solid var(--ink);
+  border-bottom-width:calc(var(--stroke) * 2.7);
+  border-radius:18% 18% 48% 48%;background:#fff;
+}
+.pc.pc[data-h] .pc-torso::before{left:6%;}
+.pc.pc[data-h] .pc-torso::after{right:6%;}
+.pc.pc[data-h] .pc-sash{
+  left:34%;top:73%;width:32%;height:5%;z-index:5;
+  clip-path:none;border:0;border-radius:0;background:var(--ink);opacity:1;box-shadow:none;
+}
+.pc.pc[data-h] .pc-sash::before{
+  content:'';position:absolute;right:-62%;top:-130%;width:34%;height:320%;
+  box-sizing:border-box;border:var(--stroke) solid var(--ink);
+  border-radius:50%;background:var(--skin);
+}
+.pc.pc[data-h] .pc-sash::after{content:none;}
+.pc.pc[data-h] .pc-arm{
+  left:20%;top:66.5%;width:12%;height:16%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;
+  background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hand{
+  left:18%;top:78%;width:12%;height:9%;border-radius:50%;
+  border:var(--detail) solid var(--ink);background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-cape{
+  left:22%;top:60%;width:56%;height:27%;
+  border:var(--stroke) solid var(--ink);border-radius:18% 18% 30% 30%;
+  background:var(--c2);box-shadow:none;
+}
+
+/* Front hair and hats end at/before 22%, safely above the eyes at 26%.
+   Polygon shapes are black silhouettes with a smaller coloured inset, not clipped borders. */
+.pc.pc[data-h] .pc-hair{
+  left:8%;top:3%;width:84%;height:20%;z-index:14;
+  border:var(--stroke) solid var(--ink);border-radius:60% 60% 12% 12%;
+  background:var(--hair);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairb{
+  left:6%;top:8%;width:88%;height:54%;opacity:1;
+  border:var(--stroke) solid var(--ink);border-radius:45% 45% 12% 12%;
+  background:var(--hair);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairt{
+  left:12%;top:12%;width:76%;height:11%;background:none;
+  border:0;border-radius:0;box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairt::before,.pc.pc[data-h] .pc-hairt::after{
+  content:'';display:block;position:absolute;top:0;width:34%;height:100%;
+  border:0;border-radius:0;background:var(--ink);box-sizing:border-box;
+  clip-path:polygon(0 0,100% 0,70% 100%);
+}
+.pc.pc[data-h] .pc-hairt::before{left:0;}
+.pc.pc[data-h] .pc-hairt::after{right:0;clip-path:polygon(0 0,100% 0,25% 100%);}
+.pc.pc[data-h] .pc-gear{
+  background:none;border:0;box-shadow:none;
+}
+.pc.pc[data-h] .pc-gear::before,.pc.pc[data-h] .pc-gear::after,
+.pc.pc[data-h] .pc-prop::before,.pc.pc[data-h] .pc-prop::after{
+  box-sizing:border-box;box-shadow:none;
+}
+.pc.pc[data-h] .pc-prop{box-shadow:none;}
+
+/* SCHOLAR: square-cut bob + high side bun; no spectacle frames over the eyes. */
+.pc.pc[data-h=scholar] .pc-hairb{
+  left:5%;top:1%;width:89%;height:67%;border-radius:48% 48% 14% 14%;
+}
+.pc.pc[data-h=scholar] .pc-hairb::after{
+  content:'';position:absolute;right:3%;top:0;width:25%;height:24%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:var(--hair);
+}
+.pc.pc[data-h=scholar] .pc-hair{height:18%;border-radius:60% 60% 8% 8%;}
+.pc.pc[data-h=scholar] .pc-hairt{
+  left:13%;top:14%;width:74%;height:9%;background:var(--ink);
+  clip-path:polygon(0 0,100% 0,100% 75%,73% 75%,62% 100%,47% 75%,0 75%);
+}
+.pc.pc[data-h=scholar] .pc-hairt::before{
+  inset:var(--detail);width:auto;height:auto;background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=scholar] .pc-hairt::after{content:none;}
+.pc.pc[data-h=scholar] .pc-gear{opacity:0;border:0;}
+.pc.pc[data-h=scholar] .pc-gear::before,.pc.pc[data-h=scholar] .pc-gear::after{content:none;}
+.pc.pc[data-h=scholar] .pc-prop{
+  opacity:1;left:0%;top:71%;width:34%;height:19%;
+  border:var(--stroke) solid var(--ink);border-radius:8%;background:#fff0c8;
+}
+.pc.pc[data-h=scholar] .pc-prop::before{
+  content:'';position:absolute;left:47%;top:0;width:6%;height:100%;background:var(--ink);
+}
+.pc.pc[data-h=scholar] .pc-prop::after{
+  content:'';position:absolute;left:9%;top:26%;width:26%;height:40%;
+  border-top:var(--detail) solid #8976ac;border-bottom:var(--detail) solid #8976ac;background:none;
+}
+
+/* WARRIOR: short blocky hair behind a silver helmet and warm gold plume. */
+.pc.pc[data-h=warrior] .pc-hair{height:17%;}
+.pc.pc[data-h=warrior] .pc-hairb{
+  left:5%;top:16%;width:90%;height:48%;border-radius:34% 34% 10% 10%;
+}
+.pc.pc[data-h=warrior] .pc-gear{
+  opacity:1;left:8%;top:2%;width:84%;height:21%;
+  border:var(--stroke) solid var(--ink);border-radius:60% 60% 8% 8%;background:#b9c8d9;
+}
+.pc.pc[data-h=warrior] .pc-gear::after{
+  content:'';left:46%;top:-8%;width:11%;height:47%;
+  border:var(--detail) solid var(--ink);border-radius:40%;background:#ffc949;
+}
+.pc.pc[data-h=warrior] .pc-gear::before{
+  content:'';position:absolute;left:47%;top:30%;width:6%;height:52%;background:#61748e;
+}
+.pc.pc[data-h=warrior] .pc-prop{
+  opacity:1;left:1%;top:31%;width:8%;height:52%;
+  border:var(--detail) solid var(--ink);border-radius:70% 70% 8% 8%;background:#e5edf5;
+}
+.pc.pc[data-h=warrior] .pc-prop::after{
+  left:-58%;top:80%;width:220%;height:8%;
+  border:var(--detail) solid var(--ink);border-radius:20%;background:#ffc949;
+}
+.pc.pc[data-h=warrior] .pc-prop::before{
+  content:'';position:absolute;left:5%;top:90%;width:90%;height:13%;
+  border:var(--detail) solid var(--ink);border-radius:15%;background:var(--hair);
+}
+
+/* SCOUT: outward saw-tooth back hair and a high, broad expedition hat. */
+.pc.pc[data-h=scout] .pc-hair{height:17%;}
+.pc.pc[data-h=scout] .pc-hairb{
+  left:2%;top:7%;width:96%;height:60%;border:0;border-radius:0;background:var(--ink);
+  clip-path:polygon(16% 0,84% 0,92% 43%,100% 76%,85% 72%,92% 100%,70% 88%,30% 88%,8% 100%,15% 72%,0 76%,8% 43%);
+}
+.pc.pc[data-h=scout] .pc-hairb::before{
+  content:'';position:absolute;inset:var(--stroke);background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=scout] .pc-hairt{top:12%;height:9%;}
+.pc.pc[data-h=scout] .pc-hairt::before{left:0;width:27%;}
+.pc.pc[data-h=scout] .pc-hairt::after{right:0;width:27%;}
+.pc.pc[data-h=scout] .pc-gear{
+  opacity:1;left:23%;top:1%;width:54%;height:15%;
+  border:var(--stroke) solid var(--ink);border-radius:48% 48% 10% 10%;background:#3a957b;
+}
+.pc.pc[data-h=scout] .pc-gear::before{
+  content:'';position:absolute;left:8%;top:48%;width:84%;height:23%;background:var(--acc);
+}
+.pc.pc[data-h=scout] .pc-gear::after{
+  left:-35%;top:70%;width:170%;height:36%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#4fbb90;
+}
+.pc.pc[data-h=scout] .pc-prop{
+  opacity:1;left:4%;top:63%;width:7%;height:24%;
+  border:var(--detail) solid var(--ink);border-radius:65% 65% 8% 8%;background:#e6edf2;
+}
+.pc.pc[data-h=scout] .pc-prop::after{
+  content:'';position:absolute;left:-40%;top:78%;width:180%;height:13%;
+  border:var(--detail) solid var(--ink);background:var(--acc);border-radius:20%;
+}
+
+/* LUCKY: rounded side tufts, offset broad fringe, shallow straw hat and solid coin. */
+.pc.pc[data-h=lucky] .pc-hair{height:19%;border-radius:65% 45% 20% 10%;}
+.pc.pc[data-h=lucky] .pc-hairb{
+  left:4%;top:10%;width:92%;height:49%;border-radius:48%;
+}
+.pc.pc[data-h=lucky] .pc-hairt{left:12%;top:11%;width:76%;height:12%;}
+.pc.pc[data-h=lucky] .pc-hairt::before{left:0;width:47%;clip-path:polygon(0 0,100% 0,75% 100%,10% 67%);}
+.pc.pc[data-h=lucky] .pc-hairt::after{right:0;width:20%;}
+.pc.pc[data-h=lucky] .pc-gear{
+  opacity:1;left:20%;top:1%;width:60%;height:11%;
+  border:var(--stroke) solid var(--ink);border-radius:55% 55% 15% 15%;background:#ffdf93;
+}
+.pc.pc[data-h=lucky] .pc-gear::before{
+  content:'';position:absolute;left:8%;top:41%;width:84%;height:26%;background:var(--acc);
+}
+.pc.pc[data-h=lucky] .pc-gear::after{
+  left:-27%;top:73%;width:154%;height:49%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#efbb54;
+}
+.pc.pc[data-h=lucky] .pc-prop{
+  opacity:1;left:72%;top:69%;width:20%;height:16%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#ffd34e;
+}
+.pc.pc[data-h=lucky] .pc-prop::before{
+  content:'';position:absolute;inset:12%;border:var(--detail) solid #bd8125;border-radius:50%;
+}
+.pc.pc[data-h=lucky] .pc-prop::after{
+  content:'';position:absolute;left:42%;top:20%;width:16%;height:60%;background:#bd8125;border-radius:20%;
+}
+
+/* HEALER: long straight lavender sides, white medical cap and unmistakable cross staff. */
+.pc.pc[data-h=healer] .pc-hair{height:18%;}
+.pc.pc[data-h=healer] .pc-hairb{
+  left:4%;top:7%;width:92%;height:65%;border-radius:44% 44% 10% 10%;
+}
+.pc.pc[data-h=healer] .pc-hairt{left:12%;top:12%;width:76%;height:11%;}
+.pc.pc[data-h=healer] .pc-hairt::before{left:0;width:19%;}
+.pc.pc[data-h=healer] .pc-hairt::after{right:0;width:19%;}
+.pc.pc[data-h=healer] .pc-gear{
+  opacity:1;left:15%;top:2%;width:70%;height:18%;
+  border:var(--stroke) solid var(--ink);border-radius:50% 50% 10% 10%;background:#f1fff8;
+}
+.pc.pc[data-h=healer] .pc-gear::before{
+  content:'';position:absolute;left:44%;top:17%;width:12%;height:64%;background:var(--acc);
+}
+.pc.pc[data-h=healer] .pc-gear::after{
+  content:'';position:absolute;left:34%;top:36%;width:32%;height:26%;background:var(--acc);border:0;border-radius:0;
+}
+/* Retain original translateX(-50%) on healer sash, but match everyone else's belt geometry. */
+.pc.pc[data-h=healer] .pc-sash{left:50%;top:73%;width:32%;height:5%;background:var(--ink);}
+.pc.pc[data-h=healer] .pc-prop{
+  opacity:1;left:3%;top:37%;width:7%;height:49%;
+  border:var(--detail) solid var(--ink);border-radius:30%;background:#e8b958;
+}
+.pc.pc[data-h=healer] .pc-prop::before{
+  content:'';position:absolute;left:-42%;top:0;width:184%;height:25%;
+  border:var(--detail) solid var(--ink);border-radius:10%;background:#effff7;
+}
+.pc.pc[data-h=healer] .pc-prop::after{
+  left:-135%;top:8%;width:370%;height:9%;border:var(--detail) solid var(--ink);
+  border-radius:10%;background:#effff7;
+}
+
+/* RANGER: asymmetrical wedge fringe, tall side ponytail, leaf headband, bow + string. */
+.pc.pc[data-h=ranger] .pc-hair{height:19%;border-radius:65% 40% 8% 10%;}
+.pc.pc[data-h=ranger] .pc-hairb{
+  left:72%;top:3%;width:25%;height:66%;border:0;border-radius:0;background:var(--ink);
+  clip-path:polygon(0 0,70% 8%,100% 42%,80% 100%,15% 79%,30% 42%);
+}
+.pc.pc[data-h=ranger] .pc-hairb::before{
+  content:'';position:absolute;inset:var(--stroke);background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=ranger] .pc-hairb::after{
+  left:10%;top:8%;width:65%;height:8%;border:var(--detail) solid var(--ink);background:var(--acc);
+}
+.pc.pc[data-h=ranger] .pc-hairt{left:12%;top:10%;width:76%;height:13%;}
+.pc.pc[data-h=ranger] .pc-hairt::before{left:0;width:48%;clip-path:polygon(0 0,100% 0,80% 100%);}
+.pc.pc[data-h=ranger] .pc-hairt::after{right:0;width:18%;}
+.pc.pc[data-h=ranger] .pc-gear{
+  opacity:1;left:15%;top:15%;width:70%;height:5%;
+  border:var(--detail) solid var(--ink);border-radius:20%;background:#a9c875;
+}
+.pc.pc[data-h=ranger] .pc-gear::after{
+  content:'';position:absolute;left:80%;top:-170%;width:20%;height:230%;
+  border:var(--detail) solid var(--ink);border-radius:80% 0 80% 0;background:var(--acc);
+}
+.pc.pc[data-h=ranger] .pc-prop{
+  opacity:1;left:2%;top:61%;width:16%;height:30%;background:none;
+  border:var(--stroke) solid #000;border-right:0;border-radius:80% 0 0 80%;
+}
+.pc.pc[data-h=ranger] .pc-prop::before{
+  content:'';position:absolute;right:0;top:0;width:0;height:100%;border-right:var(--detail) solid var(--ink);
+}
+.pc.pc[data-h=ranger] .pc-prop::after{
+  left:-20%;top:47%;width:155%;height:7%;border-radius:0;
+  border:0;border-bottom:var(--detail) solid var(--ink);background:var(--acc);
+}
+
+/* 仅替换敌人头像底色与边框颜色。沿用原 .avatar 的宽高、圆角、
+   box-shadow、idle / hurt / finhurt 动画与 transform，保留粒子锚点。 */
+#fAv {
+  background: #f4eaff;
+  border-color: #24152f;
+}
+/* 百分比随 --avatar 缩放；不重置外壳或 SVG 的动画、transform、滤镜。 */
+#fAv > svg.foe-cartoon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 </style>
 </head>
 <body>
@@ -1311,6 +1651,76 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 
 </div>
 <script>
+/* 原创平涂怪物，配合原页面大眼粗描边英雄。
+ * 接入 renderFight: $('fAv').innerHTML = foeArtHTML(B.foe, B.boss, B.elite);
+ * 仅返回可信静态 SVG；foe.n 仅用于 Map 查找，绝不插入输出。
+ * 类型：词灵、语素蛛、石化词素、歧义章鱼、拼写幽灵、单复数蝎、冰封词灵、词形旋风、词汇之王。
+ * 不依赖 DOM，不改战斗状态、容器尺寸、动画、粒子或伤害逻辑。
+ */
+const foeArtHTML = (() => {
+  'use strict';
+  const ink = '#24152f';
+  const eye = (x, y, pupilColor = '#5d2a88') =>
+    `<ellipse cx="${x}" cy="${y}" rx="10.5" ry="13" fill="#fffdf4" stroke-width="3"/><ellipse cx="${x + 1.5}" cy="${y + 1}" rx="5" ry="7" fill="${pupilColor}" stroke="none"/><circle cx="${x}" cy="${y - 2}" r="2.3" fill="#ffffff" stroke="none"/>`;
+  // 所有参数均为下方作者定义的常量，不读取用户可控颜色或坐标。
+  const face = (y = 51, color = '#5d2a88', mood = 'smirk') =>
+    `<g>${eye(38, y, color)}${eye(62, y, color)}<path d="M27 ${y - 13} L46 ${y - 8} M54 ${y - 8} L73 ${y - 13}" fill="none" stroke-width="4.5"/><ellipse cx="25" cy="${y + 13}" rx="4.5" ry="2.4" fill="#ff91b0" stroke="none"/><ellipse cx="75" cy="${y + 13}" rx="4.5" ry="2.4" fill="#ff91b0" stroke="none"/>${mood === 'pout'
+      ? `<path d="M42 ${y + 23} Q50 ${y + 17} 58 ${y + 23}" fill="none" stroke-width="3.5"/>`
+      : `<path d="M39 ${y + 19} Q51 ${y + 28} 63 ${y + 16} Q55 ${y + 30} 43 ${y + 26} Z" fill="#fffdf4" stroke-width="3"/>`}</g>`;
+  const shadow = '<ellipse cx="50" cy="91" rx="29" ry="4" fill="#24152f" opacity=".16" stroke="none"/>';
+  const crown = '<g data-ornament="boss"><path d="M34 22 L30 8 L42 15 L50 5 L58 15 L70 8 L66 22 Z" fill="#ffcf44" stroke-width="3.5"/><path d="M35 22 H65" fill="none" stroke-width="4"/><path d="M50 12 L54 17 L50 21 L46 17 Z" fill="#ff638c" stroke-width="2"/></g>';
+  const eliteMark = '<g data-ornament="elite"><path d="M85 20 L88 25 L94 26 L90 31 L90 37 L85 34 L80 37 L80 31 L76 26 L82 25 Z" fill="#ffcf44" stroke-width="2.5"/><path d="M7 73 L13 69 L18 73 L13 82 Z" fill="#ff638c" stroke-width="2.5"/></g>';
+  const designs = new Map([
+    ['词灵', {
+      body: '<path d="M34 32 Q27 21 22 22 M66 32 Q73 21 78 22" fill="none" stroke-width="5"/><circle cx="21" cy="20" r="6" fill="#ffe36d"/><circle cx="79" cy="20" r="6" fill="#ffe36d"/><path d="M25 53 Q11 49 12 62 Q13 69 26 65 M75 53 Q89 49 88 62 Q87 69 74 65" fill="#9872f8"/><path d="M30 75 L28 88 Q35 94 43 86 M70 75 L72 88 Q65 94 57 86" fill="#7450cb"/><path d="M50 27 C24 27 20 43 24 65 Q25 84 50 85 Q75 84 76 65 C80 43 76 27 50 27 Z" fill="#a67dff"/><path d="M31 35 Q39 29 46 32" fill="none" stroke="#d9c4ff" stroke-width="4"/>',
+      face: face(51)
+    }],
+    ['语素蛛', {
+      body: '<g fill="none" stroke-width="5"><path d="M29 45 L17 33 L7 37 M26 52 L12 47 L6 54 M27 62 L12 65 L7 75 M32 71 L21 80 L20 90 M71 45 L83 33 L93 37 M74 52 L88 47 L94 54 M73 62 L88 65 L93 75 M68 71 L79 80 L80 90"/></g><ellipse cx="50" cy="36" rx="22" ry="13" fill="#e55d90"/><path d="M34 29 L40 25 M60 25 L66 29" fill="none" stroke="#ffb6cf" stroke-width="3"/><ellipse cx="50" cy="60" rx="29" ry="27" fill="#ff779c"/><path d="M45 80 L50 74 L55 80" fill="none" stroke="#b62b65" stroke-width="3"/>',
+      face: face(55, '#ba2f62')
+    }],
+    ['石化词素', {
+      body: '<path d="M25 57 L14 58 L10 77 L24 81 L32 70 M75 57 L86 58 L90 77 L76 81 L68 70" fill="#87939d"/><path d="M32 77 L29 90 L44 90 L47 79 M68 77 L71 90 L56 90 L53 79" fill="#697681"/><path d="M30 29 L62 25 L79 39 L78 73 L64 84 L31 82 L21 64 L22 40 Z" fill="#adb9c3"/><path d="M30 29 L38 38 L22 40 M62 25 L58 35 L70 37 L79 39 M31 82 L37 71 L30 67 M78 73 L66 70" fill="none" stroke="#586475" stroke-width="3"/><path d="M38 31 L49 29" fill="none" stroke="#e2eaf0" stroke-width="4"/>',
+      face: face(51, '#435667', 'pout')
+    }],
+    ['歧义章鱼', {
+      body: '<g fill="none" stroke="#24152f" stroke-width="12"><path d="M30 65 Q10 62 9 74 Q8 83 16 78 M33 74 Q15 74 20 86 Q24 94 29 85 M40 76 Q28 86 35 90 Q41 94 43 86 M46 77 Q42 95 48 93 M54 77 Q58 95 52 93 M60 76 Q72 86 65 90 Q59 94 57 86 M67 74 Q85 74 80 86 Q76 94 71 85 M70 65 Q90 62 91 74 Q92 83 84 78"/></g><g fill="none" stroke="#b669ef" stroke-width="6"><path d="M30 65 Q10 62 9 74 Q8 83 16 78 M33 74 Q15 74 20 86 Q24 94 29 85 M40 76 Q28 86 35 90 Q41 94 43 86 M46 77 Q42 95 48 93 M54 77 Q58 95 52 93 M60 76 Q72 86 65 90 Q59 94 57 86 M67 74 Q85 74 80 86 Q76 94 71 85 M70 65 Q90 62 91 74 Q92 83 84 78"/></g><path d="M50 26 C23 26 20 45 23 61 Q25 80 50 80 Q75 80 77 61 C80 45 77 26 50 26 Z" fill="#cb8cf6"/><circle cx="28" cy="77" r="2" fill="#ffb4d7" stroke="none"/><circle cx="72" cy="77" r="2" fill="#ffb4d7" stroke="none"/>',
+      face: face(49, '#823eae')
+    }],
+    ['拼写幽灵', {
+      body: '<path d="M27 51 Q11 43 13 58 L24 69 M73 51 Q89 43 87 58 L76 69" fill="#c3e8f1"/><path d="M50 27 C28 27 22 43 23 63 L20 87 Q29 83 34 89 Q42 82 50 90 Q58 82 66 89 Q71 83 80 87 L77 63 C78 43 72 27 50 27 Z" fill="#def7f3"/><path d="M31 34 Q38 30 43 32" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M27 78 Q33 82 38 79 M63 79 Q69 82 74 78" fill="none" stroke="#8ebfcf" stroke-width="3"/>',
+      face: face(52, '#466ba0')
+    }],
+    ['单复数蝎', {
+      body: '<path d="M71 68 C96 70 94 37 83 27 Q74 19 80 14" fill="none" stroke-width="13"/><path d="M71 68 C96 70 94 37 83 27 Q74 19 80 14" fill="none" stroke="#ffc052" stroke-width="7"/><path d="M80 10 L89 14 L79 23 L75 16 Z" fill="#ff7956" stroke-width="3"/><path d="M27 68 L18 76 L20 83 M32 76 L28 88 M65 76 L69 88 M70 68 L78 78" fill="none" stroke-width="4"/><path d="M24 55 L12 52 L7 39 L14 33 L18 42 L25 35 L29 42 L24 55 M69 57 L80 51 L82 41 L76 35 L74 44 L67 39 L64 46 Z" fill="#ffb344"/><path d="M26 41 Q46 26 65 39 L73 55 L70 71 Q63 84 47 83 Q29 84 23 69 Z" fill="#ffd064"/><path d="M38 82 L48 89 L58 82" fill="#e99339"/>',
+      face: '<g transform="translate(-2 0)">' + face(53, '#a45a27', 'pout') + '</g>'
+    }],
+    ['冰封词灵', {
+      body: '<path d="M23 52 L8 43 L12 62 L24 68 M77 52 L92 43 L88 62 L76 68" fill="#6fe5ec"/><path d="M29 76 L27 90 L42 86 M71 76 L73 90 L58 86" fill="#29b4d2"/><path d="M28 31 L48 25 L71 29 L81 51 L74 78 L51 87 L26 78 L19 52 Z" fill="#8deef5"/><path d="M28 31 L36 40 L48 25 M71 29 L66 39 L81 51 M26 78 L34 69 M74 78 L66 70" fill="none" stroke="#36b8d2" stroke-width="3"/><path d="M27 40 L24 49 M48 30 L56 29" fill="none" stroke="#ffffff" stroke-width="4"/><path d="M48 80 H56 M52 76 V84" fill="none" stroke="#ffffff" stroke-width="2.5"/>',
+      face: face(52, '#177f9f', 'pout')
+    }],
+    ['词形旋风', {
+      body: '<path d="M22 29 Q7 29 9 39 Q12 46 24 42 M78 31 Q94 26 93 38 Q92 45 82 44" fill="none" stroke="#a6afff" stroke-width="4"/><path d="M22 32 Q50 24 78 32 Q88 38 79 49 L69 64 L63 78 L50 91 L46 78 L34 67 L24 51 Q13 42 22 32 Z" fill="#abb4ff"/><path d="M20 39 Q48 32 80 38 M26 67 Q46 75 68 67 M35 77 Q51 84 62 76 M46 88 Q54 88 60 83" fill="none" stroke="#685acc" stroke-width="3.5"/><path d="M7 66 H19 M81 60 H94 M11 76 H22" fill="none" stroke="#c7d2ff" stroke-width="3"/>',
+      face: face(49, '#5948b2')
+    }],
+    ['词汇之王', {
+      body: '<path d="M27 40 L16 81 L33 86 L50 80 L67 86 L84 81 L73 40 Z" fill="#c64c85"/><path d="M22 79 L30 72 M78 79 L70 72" fill="none" stroke="#f184ae" stroke-width="3"/><path d="M29 76 L28 90 L43 90 L47 78 M71 76 L72 90 L57 90 L53 78" fill="#ffbc4b"/><path d="M77 62 L88 65" fill="none" stroke="#ffca54" stroke-width="7"/><path d="M89 43 V83" fill="none" stroke="#ffca54" stroke-width="4"/><path d="M89 34 L95 42 L89 50 L83 42 Z" fill="#7ce7ca" stroke-width="3"/><path d="M26 31 Q39 26 50 31 Q61 26 74 31 L75 77 Q60 73 50 79 Q40 73 25 77 Z" fill="#ffe092"/><path d="M50 31 V79" fill="none" stroke="#d39d46" stroke-width="3"/><path d="M29 33 V72 M71 33 V72" fill="none" stroke="#fff4cd" stroke-width="3"/><path d="M33 82 L50 86 L67 82" fill="none" stroke="#ffcf44" stroke-width="3"/>',
+      face: face(51, '#ad6136')
+    }]
+  ]);
+  return function foeArtHTML(foe, boss = false, elite = false) {
+    const suppliedName = foe && typeof foe.n === 'string' ? foe.n : '';
+    const name = designs.has(suppliedName) ? suppliedName : '词灵';
+    const art = designs.get(name);
+    const isBoss = Boolean(boss) || name === '词汇之王';
+    const isElite = Boolean(elite) || Boolean(foe && foe.elite);
+    // name 只取 Map 的固定键；不能使用 suppliedName、foe.ic 或 foe.tint 插入 HTML。
+    const label = name + (isBoss ? '首领' : '') + (isElite ? '精英' : '');
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="foe-cartoon" role="img" aria-label="${label}" focusable="false"><title>${label}</title><g stroke="${ink}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${shadow}${art.body}${art.face}${isBoss ? crown : ''}${isElite ? eliteMark : ''}</g></svg>`;
+  };
+})();
+
+
 // ============================================================
 //  版本检测 + 强制刷新提示
 //  ============================================================
@@ -3057,7 +3467,7 @@ function renderFight(){
   const H=heroById(G.heroId||HERO_DEFAULT), pc=$('fPc');
   if(pc) pc.dataset.h=H.id;
   const nm=$('fMyName'); if(nm) nm.textContent=H.n;
-  $('fAv').textContent=B.foe.ic;
+  $('fAv').innerHTML=foeArtHTML(B.foe,B.boss,B.elite);
   $('fName').textContent=B.foe.n+(B.boss?'（首领）':B.elite?'（精英）':'');
   $('fZh').textContent=B.word.z;
   $('fCat').textContent='Unit '+B.word.u+' · '+B.word.w.length+' 字符'+(B.word.d>=3?' · 困难':'');
