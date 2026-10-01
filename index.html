@@ -66,6 +66,7 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
  background:linear-gradient(100deg,var(--acc),#5b8cff);color:#fff;font-size:16.5px;font-weight:800;
  cursor:pointer;font-family:inherit;letter-spacing:1.5px;box-shadow:0 8px 22px #8b5cf64d,inset 0 1px 0 #ffffff33;
  transition:transform .12s var(--ease),box-shadow .18s,filter .18s;overflow:hidden}
+#oNext[hidden]{display:none}
 .btn::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
  background:linear-gradient(180deg,#ffffff1f,transparent 55%)}
 .btn:hover{filter:brightness(1.08);box-shadow:0 10px 26px #8b5cf666,inset 0 1px 0 #ffffff40}
@@ -86,7 +87,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .hdrtitle{font-size:17px;font-weight:800;flex:1;letter-spacing:.5px}
 .hdr{display:flex;align-items:center;gap:12px;margin-bottom:4px}
 .crumbs{font-size:11px;color:var(--dim);letter-spacing:.6px;line-height:1.6}
-
 /* ---- HUD ---- */
 .hud{position:sticky;top:0;z-index:20;background:rgba(10,10,20,.9);backdrop-filter:blur(16px) saturate(1.3);
  border-bottom:1px solid var(--line);margin:-12px -12px 14px;padding:10px 12px;
@@ -121,7 +121,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .chip b{font-size:14px;font-variant-numeric:tabular-nums}
 .chip.gold{border-color:#ffce4d33;background:#ffce4d0f}
 .chip.gold b{color:var(--gold)}
-
 /* ---- map ---- */
 /* --nd / --ndb 由 JS 按容器宽度与层数实时写入，--ndb 为 BOSS 直径
    节点尺寸必须等于 JS 假设的直径（圆→同尺寸圆角方块），否则会与连线错位/重叠。
@@ -142,39 +141,32 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 /* 中文标签：字号随节点直径缩放，但有下限保证可读 */
 .node::after{content:attr(data-l);font-size:clamp(9px,calc(var(--nd) * .2),12px);font-weight:800;letter-spacing:.5px;
  color:var(--nc,var(--mut));white-space:nowrap;text-shadow:0 1px 3px #000c}
-
 .node[title="遭遇词灵"]{--nc:#ff6b8a}
 .node[title="遭遇词灵"]::before{clip-path:polygon(38% 0,50% 8%,62% 0,62% 62%,50% 100%,38% 62%);
  border-radius:2px;width:44%;height:44%}
 .node[title="遭遇词灵"]::after{content:"战斗"}
-
 .node[title="精英战"]{--nc:#c084fc}
 .node[title="精英战"]::before{border-radius:50%;
  background:radial-gradient(circle at 34% 38%,#1a1330 0 15%,transparent 16%),
             radial-gradient(circle at 66% 38%,#1a1330 0 15%,transparent 16%),
             linear-gradient(180deg,var(--nc),#7c3aed)}
 .node[title="精英战"]::after{content:"精英"}
-
 .node[title="未知事件"]{--nc:#22d3ee}
 .node[title="未知事件"]::before{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);border-radius:2px;
  background:linear-gradient(160deg,#67e8f9,var(--nc))}
 .node[title="未知事件"]::after{content:"事件"}
-
 .node[title="营火"]{--nc:#ffb020}
 .node[title="营火"]::before{clip-path:polygon(50% 0,72% 34%,100% 72%,78% 100%,22% 100%,0 72%,28% 34%);
  border-radius:3px;background:linear-gradient(180deg,#fde68a,#f97316)}
 .node[title="营火"]::after{content:"营火"}
-
 .node[title="商店"]{--nc:#3ddc84}
 .node[title="商店"]::before{border-radius:50% 50% 22% 22%;
  background:radial-gradient(circle at 50% 34%,#0f2a1c 0 12%,transparent 13%),linear-gradient(180deg,#6ee7b7,#16a34a)}
 .node[title="商店"]::after{content:"商店"}
-
 .node[title="词汇之王"]{--nc:#ffce4d}
 .node[title="词汇之王"]::before{clip-path:polygon(0 100%,0 22%,25% 62%,50% 8%,75% 62%,100% 22%,100% 100%);
  background:linear-gradient(180deg,#fff3c4,#f59e0b)}
 .node[title="词汇之王"]::after{content:"首领"}
-
 .node.pick{border-color:var(--nc,var(--acc2));cursor:pointer;
  background:#22d3ee1f;
  background:linear-gradient(160deg,color-mix(in srgb,var(--nc,#22d3ee) 26%,transparent),#ffffff08);
@@ -203,7 +195,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
  transition:.16s var(--ease);box-shadow:var(--sh1)}
 .relic:hover{background:#ffffff1f;transform:translateY(-2px);border-color:var(--line2)}
 .relic:active{transform:scale(.92)}
-
 /* ---- combat ---- */
 /* 视觉层级：敌人（小）→ 释义（最大、最亮）→ 字母槽 → 字母盘 */
 /* 敌人信息块（名字 + 状态标签）与血条分离：名字在血条下方约 20px 处紧邻，不会叠在条上。
@@ -233,7 +224,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .tg{font-size:10.5px;padding:3px 9px;border-radius:99px;background:#ffffff10;border:1px solid var(--line);color:var(--mut);letter-spacing:.5px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tg.bad{background:#ff54701f;border-color:#ff547055;color:#ff9db0}
 .tg.ok{background:#3ddc8418;border-color:#3ddc8455;color:#7fe6b0}
-
 /* ================= 玩家角色形象（纯 CSS 绘制，无图片 / 无 emoji） =================
    结构约定：
      .pc    外壳，负责「呼吸」待机动画；宽高可变，内部全部用 % 定位，
@@ -339,7 +329,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .pc .pc-hairt::before{left:0;width:17%;transform:rotate(-5deg)}
 .pc .pc-hairt::after{right:0;width:17%;transform:rotate(5deg)}
 .pc .pc-gear{opacity:0;z-index:16}
-
 /* ---- 状态动画：待机 / 攻击（向左前冲 + 挥臂）/ 受伤（抖动 + 变红） ---- */
 .pci.atk{animation:pcAtk .34s var(--ease)}
 .pci.atk .pc-arm{animation:pcSwing .34s var(--ease)}
@@ -391,7 +380,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   24%{transform:scaleY(.55)}40%,56%{transform:scaleY(2.1)}80%{transform:scaleY(.35)}}
 @keyframes pcCapeFlare{0%,100%{opacity:0;transform:scaleY(.5)}
   30%{opacity:.95;transform:scaleY(1.5)}70%{opacity:.5;transform:scaleY(1.1)}}
-
 /* ---- 整词大招的「完整单词」展示 ----
    一枚完整的词从角色位置「甩」向敌人（.finword.go，用 --dx/--dy 位移），
    命中瞬间在敌人身上炸成金色大字（.finword.pop）+ 一圈冲击波（.finwave）。
@@ -433,7 +421,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   46%{transform:translate(4px,-2px) scale(1.008)}
   72%{transform:translate(-2px,1px)}
   100%{transform:translate(0,0)}}
-
 /* ---- 眨眼：眼睛 scaleY 压扁 + 眼睑弧线淡入，两条时间轴用同一组时长/延迟 ----
    pcB* 与 pcL* 成对出现，百分比完全一致，所以眼睑一定盖在闭眼的那一刻。
    四套形态 × 每角色不同的时长与起始延迟：眨眼落在周期里的位置不均匀，
@@ -456,7 +443,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   88%{transform:scaleY(1)}88.8%{transform:scaleY(.07)}90%{transform:scaleY(1)}100%{transform:scaleY(1)}}
 @keyframes pcL4{0%,11%{opacity:0}11.9%{opacity:1}13.2%{opacity:0}47%{opacity:0}
   47.8%{opacity:1}49%{opacity:0}88%{opacity:0}88.8%{opacity:1}90%{opacity:0}100%{opacity:0}}
-
 /* ---- 动嘴：一小段一小段地开合，像在吟唱/念词；循环长短各不相同 ---- */
 @keyframes pcM1{0%,100%{transform:scaleY(.2)}
   5%{transform:scaleY(1)}8%{transform:scaleY(.24)}11%{transform:scaleY(.9)}14%{transform:scaleY(.22)}
@@ -477,13 +463,11 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   16%{transform:scaleY(.6)}20%{transform:scaleY(.16)}27%{transform:scaleY(1)}31%{transform:scaleY(.16)}
   38%{transform:scaleY(.75)}41%{transform:scaleY(.16)}70%{transform:scaleY(.16)}
   74%{transform:scaleY(.9)}78%{transform:scaleY(.16)}85%{transform:scaleY(.65)}89%{transform:scaleY(.16)}}
-
 /* ---- 飘发：三层不同周期 + 不同枢轴，发梢摆幅远大于发根（差速，不是整块平移） ---- */
 @keyframes pcHairSway{0%,100%{transform:rotate(-1.3deg)}50%{transform:rotate(1.5deg)}}
 @keyframes pcHairFlow{0%,100%{transform:rotate(-6.5deg)}50%{transform:rotate(7deg)}}
 @keyframes pcHairBack{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(2.8deg)}}
 @keyframes pcTail{0%,100%{transform:rotate(-6deg)}40%{transform:rotate(7.5deg)}}
-
 /* ---- 战斗页对峙行：敌在左、我在右 ----
    .foe 在这里一次性给全（弹性占位 + 内部横排 + 外边距），全文件只有这一条 .foe 规则。 */
 /* --vs* / --foegap / --msw / --pcw / --pch：把这几个盒子的尺寸与间距抽成变量，
@@ -497,7 +481,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 /* 角色名独立成行：不再和血条挤在一起，血条已统一由 HUD 承担 */
 .myname{font-size:11px;font-weight:700;color:var(--mut);letter-spacing:1px;line-height:1.3;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
-
 /* ---- 六个角色的外形差异（颜色变量 + 发型/头饰/道具形状 + 各自的眨眼与飘发节奏） ----
    头部统一放大到 48%，所以每个角色的头饰/刘海/脑后发都要按新比例重新定位；
    眨眼/动嘴/飘发靠 --bm/--lm/--mm 与 --bt/--bd/--mt/--md/--hs/--hf/--hb/--hd 打散。 */
@@ -630,7 +613,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   background:linear-gradient(180deg,#e5e7eb,#9ca3af);transform:rotate(-22deg)}
 .pc[data-h=ranger] .pc-prop::after{content:'';position:absolute;left:-40%;top:88%;width:180%;height:9%;
   border-radius:4px;background:#4b5563}
-
 /* ---- 标题页角色选择 ---- */
 .heroes{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:4px}
 .hcard{position:relative;border:1px solid var(--line);border-radius:var(--r2);
@@ -651,7 +633,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
   background:#ffffff0c;font-size:12.5px;line-height:1.75;color:var(--mut);text-align:center}
 .herodesc b{color:var(--fg);font-size:13px;letter-spacing:.5px}
 .herodesc i{font-style:normal;color:var(--acc2)}
-
 /* 释义卡：全页焦点 */
 .q{text-align:center;padding:20px 12px 16px;
  background:linear-gradient(165deg,#ffffff1f,#ffffff08);border-color:var(--line2);box-shadow:var(--sh3)}
@@ -669,7 +650,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .slot.fx{border-bottom-color:transparent;width:12px;background:transparent;box-shadow:none}
 .slot.hint{color:var(--warn);border-bottom-color:var(--warn);background:#ffb0201f}
 @keyframes popin{0%{transform:scale(.5) translateY(9px)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
-
 /* 字母盘：JS 会写 maxWidth = cols*66，grid 容器一旦有 maxWidth 就会脱离父宽度的居中，
    必须显式 margin-inline:auto，否则整盘字母贴着左边（实测 768px 时偏左 198px）。 */
 .bank{display:grid;gap:8px;justify-content:center;margin:6px auto 4px}
@@ -688,7 +668,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 @keyframes kbad{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px);background:#ff547055}75%{transform:translateX(8px)}}
 .key.good{animation:kgood .3s}
 @keyframes kgood{0%{transform:scale(1)}45%{transform:scale(1.2);background:#3ddc8466}100%{transform:scale(1)}}
-
 /* ---- 字母盘：键盘布局模式（QWERTY 三行阶梯）----
    .bank.kb 用 flex 纵向排 .kbrow（每行一个），彻底绕开 gridTemplateColumns。
    阶梯缩进用 --kbw（键宽）+ 固定比例 padding，避免不同屏宽下错位。
@@ -703,7 +682,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
  font-size:clamp(19px,calc(var(--kbw,44px)*.52),26px);flex:0 0 auto}
 /* 大写显示（纯显示层，判定仍走 norm() 小写） */
 .bank.kb .key.uc,.bank.grid .key.uc{text-transform:uppercase}
-
 /* ---- 字母盘模式切换按钮（放在字母盘正上方，不挡字母点击）---- */
 .bankbar{display:flex;justify-content:center;align-items:center;gap:7px;margin:9px 0 1px;flex-wrap:wrap}
 .bkbtn{background:#ffffff0d;border:1px solid var(--line2);border-radius:99px;
@@ -727,7 +705,6 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 /* 发声时喇叭做一次脉冲：无声环境（含降级）下不会有任何动画，避免「假反馈」 */
 .bkbtn.say.on2 .spk{animation:spkpop .45s ease-out}
 @keyframes spkpop{0%{transform:scale(1)}40%{transform:scale(1.45);filter:drop-shadow(0 0 6px #22d3ee)}100%{transform:scale(1)}}
-
 .combo{text-align:center;font-size:13.5px;font-weight:800;letter-spacing:2px;min-height:20px;color:var(--gold)}
 .combo.hot{animation:cpop .35s}
 @keyframes cpop{0%{transform:scale(1)}45%{transform:scale(1.4);filter:drop-shadow(0 0 9px #ffce4d)}100%{transform:scale(1)}}
@@ -765,7 +742,16 @@ h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc)
 .bkbtn.say .spk{font-size:12.5px}
 .bkbtn.say small{font-size:8.5px}
 .bkbtn.say{white-space:nowrap}
-
+/* 独立纪念卡：与战斗中的可选奖励卡分开，不影响地图节点。 */
+.reward-collection{margin-top:14px}
+.reward-collection summary{cursor:pointer;color:var(--gold);font-size:14px;font-weight:800;min-height:32px;line-height:32px}
+.reward-card{position:relative;border:1px solid #ffce4d80;border-radius:var(--r3);padding:20px 16px;margin:12px 0 16px;text-align:left;
+ background:radial-gradient(ellipse at top right,#ffce4d24,transparent 70%),linear-gradient(135deg,#261b4a,#101b32);
+ box-shadow:inset 0 0 0 4px #ffce4d0d,0 8px 24px #0006;overflow-wrap:anywhere}
+.reward-card::before{content:'★  EXPEDITION  ★';display:block;font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:10px}
+.reward-card h3{font-size:18px;color:var(--gold);margin:0 0 10px;line-height:1.5}
+.reward-card p{font-size:13px;line-height:1.8;margin:6px 0}
+.reward-card small{display:block;font-size:10.5px;color:var(--mut);line-height:1.7;margin-top:10px}
 /* ---- cards / rewards ---- */
 /* 注意：地图可选节点的 class 是 "node pick"，与奖励卡片的 .pick 同名。
    奖励卡一律由 JS 追加到 .picks 容器内，故用 .picks > .pick 限定作用域，
@@ -852,7 +838,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 .unit b{display:block;font-size:13.5px;margin-bottom:3px;letter-spacing:.3px;padding-right:16px}
 .unit span{font-size:11px;color:var(--dim);line-height:1.5}
 .unit em{font-style:normal;color:var(--gold);font-size:10.5px;display:block;margin-top:5px}
-
 /* 标题页统计条 */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
 .stats>div b{font-size:19px;font-variant-numeric:tabular-nums;display:block}
@@ -862,7 +847,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 .evhead .ic{font-size:44px;line-height:1.1;margin-bottom:10px}
 .evhead h2{font-size:18px;font-weight:800;margin:0 0 8px;letter-spacing:.5px}
 .evhead p{font-size:13.5px;color:var(--mut);line-height:1.8;margin:0}
-
 /* ==================================================================
    移动端「不裁切」高度预算
    ------------------------------------------------------------------
@@ -888,13 +872,11 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
    修完之后实测：7 组视口（320/360/375/390/414 + 横屏 844x390）
    战斗页全部一屏装下、页面 scrollTop 恒为 0、按钮底部还留 27-33px 余量。
    ================================================================== */
-
 /* 矮屏（横屏手机、小尺寸设备、以及带地址栏的竖屏）统一压缩。
       阈值取 900px，而不是更矮的 760px —— 因为 CSS 媒体查询用的是「布局视口」高度，
       390x844 的 iPhone 在 Safari 里布局视口仍是 844（地址栏不计入），
       可用户实际看到的只有约 700-720px。取 900 能把「真机带地址栏」和
       「小窗口笔记本」两种情形一起覆盖；更高的视口本来也装得下。
-
    核心结构：战斗页改成「视口等高的 flex 列」——
      .hud   固定（顶部血条，本来就是 sticky）
      .fmid  可滚动（敌人形象 + 释义 + 字母槽 + 道具栏；信息区，超高就内部滚）
@@ -915,7 +897,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   #s-fight .fmid::-webkit-scrollbar{display:none}
   /* 底部交互区：永不压缩、永不滚动 */
   #s-fight .bankbar,#s-fight .bank,#s-fight .tools{flex:none}
-
   /* 敌人头像 64 → 46，.vsrow 整行矮 18px；--avatar 同时驱动字号。
      对峙行 / 我方角色 / 敌人间距一律走变量（.vsrow/.foe/.myside/.pc 只允许 1-2 条规则）。 */
   #s-fight{--avatar:46px;--msw:72px;--pcw:72px;--pch:88px;--foegap:9px;--vsm:0 0 9px}
@@ -957,7 +938,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   #s-fight .tool{padding:7px 3px;font-size:11px}
   #s-fight .tool small{font-size:8.5px}
 }
-
 /* 地图页：#map 的高度由 JS 的 mapMetrics() 按节点数算好（实测 650px），内部 SVG
    用 1:1 的像素 viewBox 映射、节点是绝对定位 —— 给它加 max-height 会把 SVG 压扁、
    让底部的节点溢出重叠。所以这里不动地图高度：节点图本来就是「往下走」的内容，
@@ -966,7 +946,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   #s-map .mapbar{margin-bottom:0}
   #s-map #mQuit{margin-top:8px}
 }
-
 /* 标题页：6 张角色卡 + 单位选择让文档高 1274-1319px，所有按钮都在折叠线以下。
    矮屏上把角色卡压缩成两行三列的小卡、并收窄纵向间距，让「开始远征」上移。 */
 @media (max-height:760px){
@@ -997,7 +976,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   #s-title .unit{padding:11px 9px}
   #s-title .units{gap:7px}
 }
-
 /* 结算页 / 奖励页 / 导入页：内容天然高于矮屏，但它们是纯卡片流，
    只要保证底部按钮不被安全区吞掉即可。 */
 @media (max-height:760px){
@@ -1006,7 +984,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   #s-over #oText{line-height:1.55!important;margin-bottom:10px!important}
   #s-import textarea{min-height:96px}
 }
-
 /* ---- 窄屏适配：320px 起不溢出 ---- */
 @media (max-width:360px){
  /* 窄屏 body 内边距同步收窄：--padT/--padB 必须一起改，
@@ -1060,7 +1037,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 @media (prefers-reduced-motion:reduce){
  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
 }
-
 /* ============================================================
    版本更新提示条（APP_VERSION 检测到线上版本变了才出现）
    ------------------------------------------------------------
@@ -1068,7 +1044,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
    发新版后用户看到的仍是旧文件，于是每次都反馈「改动没生效」。
    所以：页面启动后延迟几秒拉一次「线上自己」的 HTML，比对里面的
    APP_VERSION，不同就在底部挂这条提示，点按钮强制刷新。
-
    位置为什么是底部、且不靠 z-index 压内容：
      顶部是 .hud（position:sticky 吸顶，两条血条 + 提示行都在那儿），
      底部是 #s-fight 的字母盘与 提示/跳过/逃跑（按 --vh 精确算高钉在底部）。
@@ -1138,7 +1113,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 .pc.pc[data-h=lucky]{--hair:#be663a;--c1:#ffc64b;--c2:#cb852a;--acc:#70cba0;--iris:#f2bb42;}
 .pc.pc[data-h=healer]{--hair:#8e6aa8;--c1:#ddfff1;--c2:#65b7a7;--acc:#269b87;--iris:#72ccd9;}
 .pc.pc[data-h=ranger]{--hair:#304957;--c1:#a3cf61;--c2:#588244;--acc:#e6c66c;--iris:#a3d85a;}
-
 /* Remove the old rendered shadow without touching pcSh or its animation target. */
 .pc.pc[data-h] .pc-shadow{background:none;filter:none;box-shadow:none;}
 .pc.pc[data-h] .pc-head{
@@ -1148,7 +1122,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 }
 .pc.pc[data-h] .pc-blush{background:none;opacity:0;}
 .pc.pc[data-h] .pc-blush::before,.pc.pc[data-h] .pc-blush::after{content:none;}
-
 /* Eye area is 67% of the shell across, with just a 3% centre gap.
    The black core is offset to the left/top: NOT concentric spectacle rings.
    Iris remains a broad side crescent; each eye has ONE circular white highlight. */
@@ -1181,7 +1154,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   border:0;background:var(--ink);box-shadow:none;
 }
 .pc.pc[data-h] .pc-mouth::after{background:#ef8d97;}
-
 /* No neck, compact rectangular tunic and bold black horizontal band. */
 .pc.pc[data-h] .pc-torso{
   left:33%;top:62%;width:34%;height:20%;z-index:3;
@@ -1222,7 +1194,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   border:var(--stroke) solid var(--ink);border-radius:18% 18% 30% 30%;
   background:var(--c2);box-shadow:none;
 }
-
 /* Front hair and hats end at/before 22%, safely above the eyes at 26%.
    Polygon shapes are black silhouettes with a smaller coloured inset, not clipped borders. */
 .pc.pc[data-h] .pc-hair{
@@ -1254,7 +1225,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   box-sizing:border-box;box-shadow:none;
 }
 .pc.pc[data-h] .pc-prop{box-shadow:none;}
-
 /* SCHOLAR: square-cut bob + high side bun; no spectacle frames over the eyes. */
 .pc.pc[data-h=scholar] .pc-hairb{
   left:5%;top:1%;width:89%;height:67%;border-radius:48% 48% 14% 14%;
@@ -1285,7 +1255,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   content:'';position:absolute;left:9%;top:26%;width:26%;height:40%;
   border-top:var(--detail) solid #8976ac;border-bottom:var(--detail) solid #8976ac;background:none;
 }
-
 /* WARRIOR: short blocky hair behind a silver helmet and warm gold plume. */
 .pc.pc[data-h=warrior] .pc-hair{height:17%;}
 .pc.pc[data-h=warrior] .pc-hairb{
@@ -1314,7 +1283,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   content:'';position:absolute;left:5%;top:90%;width:90%;height:13%;
   border:var(--detail) solid var(--ink);border-radius:15%;background:var(--hair);
 }
-
 /* SCOUT: outward saw-tooth back hair and a high, broad expedition hat. */
 .pc.pc[data-h=scout] .pc-hair{height:17%;}
 .pc.pc[data-h=scout] .pc-hairb{
@@ -1346,7 +1314,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   content:'';position:absolute;left:-40%;top:78%;width:180%;height:13%;
   border:var(--detail) solid var(--ink);background:var(--acc);border-radius:20%;
 }
-
 /* LUCKY: rounded side tufts, offset broad fringe, shallow straw hat and solid coin. */
 .pc.pc[data-h=lucky] .pc-hair{height:19%;border-radius:65% 45% 20% 10%;}
 .pc.pc[data-h=lucky] .pc-hairb{
@@ -1376,7 +1343,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 .pc.pc[data-h=lucky] .pc-prop::after{
   content:'';position:absolute;left:42%;top:20%;width:16%;height:60%;background:#bd8125;border-radius:20%;
 }
-
 /* HEALER: long straight lavender sides, white medical cap and unmistakable cross staff. */
 .pc.pc[data-h=healer] .pc-hair{height:18%;}
 .pc.pc[data-h=healer] .pc-hairb{
@@ -1409,7 +1375,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   left:-135%;top:8%;width:370%;height:9%;border:var(--detail) solid var(--ink);
   border-radius:10%;background:#effff7;
 }
-
 /* RANGER: asymmetrical wedge fringe, tall side ponytail, leaf headband, bow + string. */
 .pc.pc[data-h=ranger] .pc-hair{height:19%;border-radius:65% 40% 8% 10%;}
 .pc.pc[data-h=ranger] .pc-hairb{
@@ -1444,7 +1409,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   left:-20%;top:47%;width:155%;height:7%;border-radius:0;
   border:0;border-bottom:var(--detail) solid var(--ink);background:var(--acc);
 }
-
 /* 仅替换敌人头像底色与边框颜色。沿用原 .avatar 的宽高、圆角、
    box-shadow、idle / hurt / finhurt 动画与 transform，保留粒子锚点。 */
 #fAv {
@@ -1457,13 +1421,11 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   width: 100%;
   height: 100%;
 }
-
 </style>
 </head>
 <body>
 <canvas id="fx"></canvas>
 <div id="app">
-
 <div class="screen on" id="s-title">
   <h1>词汇<em>远征</em></h1>
   <div class="sub">外研版（新标准）· 八年级上册<br>选字母、拼英文、砍怪物 —— 全程不用打字</div>
@@ -1492,12 +1454,15 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     </div>
     <button class="btn g" id="toReset" style="margin-top:14px">清空全部存档</button>
   </div>
+  <details class="card reward-collection" id="rewardCollection">
+    <summary id="rewardSummary">通关纪念卡 · 0 张</summary>
+    <div id="rewardCards"></div>
+  </details>
   <div class="note" style="margin-top:11px">💡 直接<b style="color:var(--acc2)">点击</b>字母键填入 ·
  也可以用电脑键盘<b style="color:var(--acc2)">直接打字</b>（A-Z，效果和点击完全一样）·
  <b style="color:var(--acc2)">退格</b>撤销。字母盘没有光标，方向键不做任何事。
  字母盘上方可切换 <b style="color:var(--acc2)">键盘布局</b>（按电脑 QWERTY 排）和 <b style="color:var(--acc2)">大写显示</b>。进度自动存本机。</div>
 </div>
-
 <div class="screen" id="s-map">
   <div class="hud">
     <div class="hudrow">
@@ -1518,7 +1483,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   <div class="map" id="map"></div>
   <button class="btn g" id="mQuit" style="margin-top:8px">放弃远征</button>
 </div>
-
 <div class="screen" id="s-fight">
   <div class="hud">
     <div class="hudrow">
@@ -1576,7 +1540,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     <button class="tool" id="tFlee">逃跑<small>损失金币</small></button>
   </div>
 </div>
-
 <div class="screen" id="s-pick">
   <div class="card">
     <div class="hdrtitle" id="pTitle">选择奖励</div>
@@ -1585,7 +1548,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     <button class="btn g" id="pSkip" style="margin-top:11px">跳过</button>
   </div>
 </div>
-
 <div class="screen" id="s-event">
   <div class="card">
     <div class="evhead">
@@ -1596,7 +1558,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     <div class="picks" id="ePicks"></div>
   </div>
 </div>
-
 <div class="screen" id="s-rest">
   <div class="card">
     <div class="hdrtitle" id="rTitle">营火</div>
@@ -1604,7 +1565,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     <div class="picks" id="rPicks"></div>
   </div>
 </div>
-
 <div class="screen" id="s-over">
   <div class="card" style="text-align:center">
     <div style="font-size:56px;margin:8px 0" id="oIcon">💀</div>
@@ -1619,11 +1579,12 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
       <div class="lbl" style="margin-top:0">本次收获</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap" id="oRelics"></div>
     </div>
+    <div id="oReward" hidden aria-live="polite"></div>
     <button class="btn" id="oAgain">再来一次</button>
+    <button class="btn" id="oNext" hidden style="margin-top:9px">继续下一 Unit</button>
     <button class="btn g" id="oHome" style="margin-top:9px">回到标题</button>
   </div>
 </div>
-
 <div class="screen" id="s-relics">
   <div class="hdr">
     <button class="back" data-back>‹</button>
@@ -1632,7 +1593,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   <div class="rl" id="rlBox"></div>
   <div class="note">战斗中点击已获得的遗物可查看效果。遗物在一次远征内持续生效。</div>
 </div>
-
 <div class="screen" id="s-import">
   <div class="hdr">
     <button class="back" data-back>‹</button>
@@ -1648,7 +1608,6 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
     <div class="note" id="impMsg"></div>
   </div>
 </div>
-
 </div>
 <script>
 /* 原创平涂怪物，配合原页面大眼粗描边英雄。
@@ -1720,7 +1679,6 @@ const foeArtHTML = (() => {
   };
 })();
 
-
 // ============================================================
 //  版本检测 + 强制刷新提示
 //  ============================================================
@@ -1742,12 +1700,11 @@ const foeArtHTML = (() => {
 //    3) 提示条不许压住游戏内容 —— 靠 --verh 撑 --padB 把内容真实顶上来，
 //       而不是靠 z-index 盖在字母盘/血条上面（那正是旧 toast 的坑）。
 // ============================================================
-const APP_VERSION='2026.10.01-d';
+const APP_VERSION='2026.10.01-e';
 // 记录「已经提示过哪个版本」。用户关掉提示条时写入，同一版本不再反复弹；
 // 版本一变就重新提示。用独立 key，不进存档 DB（存档 key 仍是 wy8a_rogue_v1）。
 const VER_SEEN_KEY='wy8a_ver_seen_v1';
 const VER_DELAY=2500;
-
 /* 从 HTML 文本里抠出版本号。只认「const + APP_VERSION + = + 单引号版本串」
    这一种写法；抠不到就返回 ''（当作「没查到」，绝不误报有新版本）。
    版本串要求以数字开头：这样万一以后有人在注释里写了个
@@ -1761,7 +1718,6 @@ function verParse(html){
 }
 const verSeenGet = () => { try{ return localStorage.getItem(VER_SEEN_KEY)||'' }catch(e){ return '' } };
 const verSeenSet = v => { try{ localStorage.setItem(VER_SEEN_KEY, String(v||'')) }catch(e){} };
-
 /* 当前页面的干净 URL（去掉 ?query 和 #hash），并把 file:// 挡在门外。
    file:// 下 fetch 本地文件必被 CORS 拒（Chrome 直接抛 TypeError），
    与其白发一次请求 + 吞一个异常，不如一开始就返回 ''。 */
@@ -1775,7 +1731,6 @@ function verSelfUrl(){
     return h.split('#')[0].split('?')[0];
   }catch(e){ return '' }
 }
-
 /* 强制刷新：给 URL 挂一个时间戳，让浏览器把这当成一个全新的地址，
    缓存里没有、必须回源拉 —— 这是唯一在所有浏览器上都确定有效的做法。
    （location.reload(true) 的 forceGet 参数早就被规范废弃、
@@ -1791,7 +1746,6 @@ function verHardReload(){
   try{ if(typeof location.reload==='function'){ location.reload(true); return 'reload' } }catch(e){}
   return 'none';
 }
-
 /* 显示提示条。会先查「这个版本是不是已经提示过了」，是就直接不弹。 */
 function verShow(remote){
   try{
@@ -1835,7 +1789,6 @@ function verHide(){
     if(de&&de.classList&&de.classList.remove) de.classList.remove('hasver');
   }catch(e){}
 }
-
 /* 真正的检测。永远不抛异常，永远不阻塞：
    返回 Promise（便于测试），失败一律 resolve(false)。 */
 function verCheck(){
@@ -1855,7 +1808,6 @@ function verCheck(){
       .catch(()=>false);   // 断网、CORS、404、超时 —— 全部静默
   }catch(e){ return Promise.resolve(false) }
 }
-
 /* 排期：DOMContentLoaded 之后再等 VER_DELAY，只跑一次，不轮询。 */
 function verSchedule(){
   const go=()=>{ try{ setTimeout(verCheck,VER_DELAY) }catch(e){} };
@@ -1867,7 +1819,6 @@ function verSchedule(){
   }catch(e){ try{ go() }catch(e2){} }
 }
 verSchedule();
-
 // ============================================================
 //  外研版（新标准）八年级上册 词库
 //  d: 难度 1易 2中 3难(短语/长词)
@@ -2141,9 +2092,7 @@ const WORDS=[
 {d:2,u:6,w:"positive",z:"积极乐观的",th:"mind"},
 {d:2,u:6,w:"cure",z:"药物；疗法",th:"body"},
 {d:2,u:6,w:"cancer",z:"癌；癌症",th:"body"},
-
 ];
-
 /* ================= 工具 ================= */
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
@@ -2153,18 +2102,17 @@ const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=rnd(i+
 const norm = s => String(s).toLowerCase().replace(/[^a-z]/g,'');
 const has = (a,v) => a.indexOf(v)>=0;
 const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on')); $(id).classList.add('on'); window.scrollTo(0,0); try{ syncVoiceBtn() }catch(e){} };
-
 const LS='wy8a_rogue_v1';
 const loadDB = () => { try{ return JSON.parse(localStorage.getItem(LS))||null }catch(e){ return null } };
 let DB = loadDB() || {runs:0,wins:0,mastered:[],best:0,custom:[]};
 DB.mastered=DB.mastered||[]; DB.custom=DB.custom||[];
+DB.rewards=Array.isArray(DB.rewards)?DB.rewards:[];
 // 字母盘偏好：kbMode(QWERTY 键盘布局) / kbUpper(大写显示)
 // 老存档没有这两个字段时回落默认 false（字母盘模式 + 小写），向后兼容、不报错
 DB.kbMode=!!DB.kbMode; DB.kbUpper=!!DB.kbUpper;
 // 语音开关：老存档没有 voice 字段时默认「开」（!!undefined === false，所以要显式取反）
 DB.voice=(DB.voice===undefined)?true:!!DB.voice;
 const saveDB = () => { try{ localStorage.setItem(LS, JSON.stringify(DB)) }catch(e){} };
-
 /* ================= 音效系统 =================
    调性：D 小调五声音阶（D E F A C），所有音高都从这条音阶上取，不再随手写 Hz。
    音色分工：三角波=柔和提示音  方波=打击/受击  锯齿波=危险/失败  白噪音=瞬态质感
@@ -2264,7 +2212,6 @@ function audioUnlock(){ if(AU.ac&&AU.ac.state==='running'&&!AU.wasSuspended){ re
 addEventListener('pointerdown',audioUnlock);
 addEventListener('keydown',audioUnlock);
 addEventListener('touchstart',audioUnlock);
-
 // 升级版 tone()：极短起音(1~5ms) + 指数衰减，可选低通与混响 send
 function tone(f,dur,type,vol,slide,o){
   o=o||{};
@@ -2317,7 +2264,6 @@ function arp(notes,step,dur,type,vol,o){
     Object.assign({},o||{},{at:t0+i*step})));
 }
 const combo=()=> (typeof B!=='undefined'&&B&&typeof B.combo==='number')?B.combo:0;
-
 const sfx={
   /* 答对一个字母：噪声 click + 音高随连击沿五声音阶上行的三角波，音量随连击微增 */
   good(){
@@ -2443,7 +2389,6 @@ const sfx={
     tone(pnote(17),.028,'triangle',.028);
   }
 };
-
 /* ---------- 音量 / 静音：存进 wy8a_rogue_v1，老存档没这字段也能正常跑 ---------- */
 const VOL_STEPS=[.55,.3,.12,0];
 let volStep=0;
@@ -2485,14 +2430,12 @@ if(typeof document!=='undefined'&&document.addEventListener){
     if(t) sfx.hover();
   });
 }
-
 /* ================= 粒子/飘字 ================= */
 const cv=$('fx'), ctx=cv.getContext('2d');
 let parts=[], raf=0;
 function sizeCanvas(){ cv.width=innerWidth*devicePixelRatio; cv.height=innerHeight*devicePixelRatio;
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0) }
 addEventListener('resize',sizeCanvas); sizeCanvas();
-
 function burst(x,y,color,n,speed){
   for(let i=0;i<(n||12);i++){
     const a=Math.random()*Math.PI*2, s=(speed||3)*(.4+Math.random());
@@ -2540,7 +2483,6 @@ function loop(){
 }
 const centerOf = el => { if(!el) return {x:innerWidth/2,y:innerHeight/2};
   const r=el.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2} };
-
 /* ================= 角色动画 =================
    只做「加 class → 到点移除」，动画本体全在 CSS keyframes 里（不用 JS 逐帧）。
    .pci 上同时可能挂着 idle/atk/hurt/fin：状态类互斥（每次进来先把旧的摘掉），
@@ -2562,7 +2504,6 @@ function animHero(kind){
 }
 // 角色形象辅助：中心点（粒子/飘字用）
 const heroPoint=()=> centerOf($('fPc'));
-
 /* ================= 词库 ================= */
 const UNITS=[
  {n:1,t:"Unit 1 水与资源"},{n:2,t:"Unit 2 数字生活"},{n:3,t:"Unit 3 成长与发现"},
@@ -2570,7 +2511,6 @@ const UNITS=[
  {n:0,t:"我的词表"}
 ];
 const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
-
 /* ================= 遗物 ================= */
 const RELICS=[
  {id:'hint',   ic:'🔮', n:'提示水晶', d:'每场战斗多 2 次提示'},
@@ -2609,7 +2549,6 @@ const ITEMS=[
 ];
 const relicById = id => RELICS.filter(r=>r.id===id)[0];
 const itemById=id=>ITEMS.filter(x=>x.id===id)[0];
-
 /* ================= 奖励类别 =================
    每张奖励卡都带一个结构化字段 cat，UI 徽标直接读它，
    不再靠「获得道具 X」这类标题前缀去暗示类别。
@@ -2629,7 +2568,6 @@ function pickCardHTML(o){
     +'<span>'+o.d+'</span>'
     +(o.tip?'<span class="ctip">'+o.tip+'</span>':'');
 }
-
 /* ================= 玩家角色 =================
    纯 CSS 形象（无图片/无 emoji），data-h 决定外形。
    mod 字段全部是「加法」：hp/hint/noise/shield/gold 为增量，
@@ -2663,13 +2601,11 @@ const curHeroId=()=> heroById(DB.hero||HERO_DEFAULT).id;
 const curHero  =()=> heroById(curHeroId());
 /* 当前角色的音色参数（永远返回完整对象，缺字段自动补默认） */
 const heroVoice = id => heroById(id).voice || HERO_VOICE_DEFAULT;
-
 /* ================= 语音层：Web Speech API =================
    为什么用 speechSynthesis 而不是 WebAudio 合成人声：
    WebAudio 的振荡器只能发出「音高」，拼不出英语的音素（/θ/ /æ/ /ɪ/ 这些），
    硬合成只会得到机器人 soundscape，根本不像人话。speechSynthesis 是浏览器
    原生 TTS —— 系统自带真人级音色、零依赖零体积，还能按角色挑不同音色。
-
    ★ 降级（本层最重要的一条）：Node 测试环境 / 老浏览器 / 隐私模式里没有
    speechSynthesis 时，TTS.supported=false，speak/word/line/hint 全部静默返回
    false，游戏逻辑一行不变、不抛任何异常。UI 按钮会自动变成禁用态。      */
@@ -2678,7 +2614,6 @@ const TTS=(function(){
   const synth = (w && w.speechSynthesis) || (typeof speechSynthesis!=='undefined' ? speechSynthesis : null);
   const Utt   = (w && w.SpeechSynthesisUtterance) || (typeof SpeechSynthesisUtterance!=='undefined' ? SpeechSynthesisUtterance : null);
   const supported = !!(synth && Utt && typeof synth.speak==='function');
-
   /* ---- 音色性别识别：按名字关键字打分，而不是依赖 voice.gender
      （Chrome/Edge 的 Web Speech 根本不提供 gender 字段） ---- */
   const FEMALE_RE=/(female|woman|zira|samantha|karen|moira|tessa|fiona|serena|allison|ava|victoria|susan|hazel|catherine|amelie|marie|helena|carla|tatiana|joana|lucia|paulina|sabina|ioana|jenny|michelle|emma|nicky|libby|zoe|aria|jessa|sonia|theresa|sin-ji|mei|ting-ting|li-mu|hsiao)/i;
@@ -2712,7 +2647,6 @@ const TTS=(function(){
     for(let i=1;i<use.length;i++){ const s=score(use[i]); if(s>bs){ bs=s; best=use[i] } }
     return best;
   }
-
   /* ---- 中文音色（怪物说中文台词用）
      ★ 为什么必须单独筛：en 音色念中文是「塑料味」，完全不像人说话。
      ★ 判定要同时认 zh-CN / zh_CN / zh-Hans / zh-TW / 裸 zh：各系统写法不统一
@@ -2747,7 +2681,6 @@ const TTS=(function(){
     }).sort((a,b)=>b.s-a.s).map(x=>x.v);
     return ranked[Math.abs(seed||0)%ranked.length];
   }
-
   const T={
     supported: supported,
     voices: [],            // 浏览器异步填充，首次常为空数组
@@ -2761,7 +2694,6 @@ const TTS=(function(){
     _busyUntil: 0,          // 预计还在说话的截止时间
     _lastPick: {},          // {heroId:kind: 上次取的台词下标} → 避免立刻重复
     _lastUtter: null,
-
     /* getVoices() 首次返回空数组是规范行为：音色列表异步加载。
        必须监听 voiceschanged 补一次，否则整个语音层永远是「无音色」状态。 */
     loadVoices(){
@@ -2784,7 +2716,6 @@ const TTS=(function(){
     },
     /* 纯静音取消（不抛错）。返回布尔，和 speak/word/line 保持同一套约定。 */
     stop(){ if(!T.supported) return false; try{ synth.cancel(); return true }catch(e){ return false } },
-
     /* 底层发声。o: {rate,pitch,volume,voice,lang}
        ★ 每次发声前先 cancel：连续快速答题会往队列里堆 utterance，
        越堆越慢、越排越后 —— 不 cancel 的话第 10 个词要等前 9 个念完。 */
@@ -2810,11 +2741,9 @@ const TTS=(function(){
       try{ synth.speak(u); return true }catch(e){ return false }
     },
     busy(){ return Date.now() < T._busyUntil },
-
     /* 角色语速（单词朗读用）。角色没配 voice 也能拿到安全值。 */
     rate(id){ return heroVoice(id).rate },
     pitch(id){ return heroVoice(id).pitch },
-
     /* ① 拼完单词自动朗读 —— 这是「知道读音」的核心训练，所以最高优先级：
        永远会念，不参与限流，也不会被战斗台词吞掉。 */
     word(w, id){
@@ -2906,7 +2835,6 @@ const TTS=(function(){
   }
   return T;
 })();
-
 /* ---- 语音层的启动挂钩 ----
    1) 浏览器自动播放策略：speechSynthesis 必须先有用户手势才肯发声。
       沿用音效系统那套 pointerdown/keydown/touchstart 时机（不改动它的实现，
@@ -2926,7 +2854,6 @@ if(typeof document!=='undefined' && document.addEventListener){
 }
 /* 起手就按存档设置语音开关（老存档没这字段 → DB.voice 默认 true） */
 try{ TTS.on = (typeof DB!=='undefined' && DB.voice!==undefined) ? !!DB.voice : true }catch(e){}
-
 /* ---- 战斗台词库：每个角色 5 类 × 4 句（atk/combo/low/win/lose）
    —— 台词一律用短英文：语音引擎本来就锁定 en-US，用中文会被英文音色念成
    塑料感的中文，而且句子越长越容易盖住单词朗读。短英文顺带强化单词记忆。 */
@@ -2968,7 +2895,6 @@ const VOICE_LINES={
   win:  ['Target down!','Clean kill!','The path is clear!','Away before they recover!'],
   lose: ['Out of arrows.','I slipped the shot.','The quarry wins this round.','Regroup in the shadows.']}
 };
-
 /* ---- 怪物叫声：走 WebAudio 合成，不走 TTS。
    判断依据：怪物的「语言」不是英语，用英文 TTS 念怪叫既不像怪叫、又会占用
    语音队列跟单词朗读抢话。WebAudio 的锯齿波 + 带通噪声 + 频率下滑能做出
@@ -3014,7 +2940,6 @@ function foeCry(kind){
     return true;
   }catch(e){ return false }
 }
-
 /* ================= 敌人 ================= */
 const ENEMIES=[
  {ic:'👾', n:'词灵',     base:3,  tint:'#8b5cf6'},
@@ -3027,7 +2952,6 @@ const ENEMIES=[
  {ic:'🌪️', n:'词形旋风', base:6,  tint:'#8b5cf6'}
 ];
 const BOSS={ic:'👑',n:'词汇之王',tint:'#ffce4d'};
-
 /* ---- 怪物中文台词库：每种怪一套嗓音 + 一组短句
    ★ 台词一律 4-8 字：中文句子越长，越容易被念得拖沓、越容易盖住单词朗读，
      还会让语音引擎的预估时长变长，把后面的单词挤到队列后面。
@@ -3058,19 +2982,18 @@ function foeLineCfg(foe){
   return {key:foe.n, seed:base.seed, rate:base.rate, pitch:base.pitch,
           vo:base.vo, volume:base.volume, lines:lines};
 }
-
 /* ================= 状态 ================= */
 let G=null;          // 当前远征
 let B=null;          // 当前战斗
 let curUnit=1;
 let selIdx=0;        // 字母光标
-
 function newRun(){
   const pool=allWords(curUnit);
   if(!pool.length){ alert('这个单元还没有词，去「导入词表」添加吧'); return false }
   const H=curHero(), M=H.mod||{};
   const maxhp=70+(M.hp||0);                 // 角色差异：生命上限
-  G={ hp:maxhp, maxhp:maxhp, shield:M.shield||0, gold:M.gold||0, floor:1, maxFloor:1,
+  B=null;
+  G={ unit:curUnit, hp:maxhp, maxhp:maxhp, shield:M.shield||0, gold:M.gold||0, floor:1, maxFloor:1,
       relics:[], skipFree:false, heroId:H.id, hm:M.hint||0, hnoise:M.noise||0,
       hcombo:M.combo||1, hregen:M.regen||0, hleech:M.leech||0,
       pool:pool.slice(), kills:0, att:0, attOk:0, deckHint:0, history:[], avail:null, node:null,
@@ -3102,7 +3025,6 @@ const goldGain = n => G.gold += hasR('greed') ? Math.round(n*1.5) : n;
 // 每层连击的加成率：遗物「连击徽章」翻倍，角色幸运儿再乘 0.9（连击更钝）
 // —— 单一来源，避免「伤害按新规则算、面板文案按老规则显示」的漂移
 const comboRate = () => (hasR('combo')?0.2:0.1) * (G.hcombo||1);
-
 /* ================= 地图生成 ================= */
 // 杀戮尖塔式：每层 2-4 个节点，节点间连线，只能走向下一层相邻的节点
 const NODES={
@@ -3289,7 +3211,6 @@ function toast(msg){
   t.textContent=msg; t.style.opacity='1';
   toastT=setTimeout(()=>{t.style.opacity='0'},2400);
 }
-
 /* ================= 节点 ================= */
 function enterNode(n){
   G.node=n; G.avail=[];
@@ -3298,7 +3219,6 @@ function enterNode(n){
   else if(n.type==='shop') showShop();
   else showEvent();
 }
-
 /* ================= 战斗 ================= */
 function startFight(n){
   const elite = n.type==='elite', boss = n.type==='boss';
@@ -3410,7 +3330,6 @@ function nextWord(){
 // 字母盘列数：唯一来源，渲染与键盘导航共用，避免两处算法漂移
 // 仅「字母盘模式」用；键盘模式下 gridTemplateColumns 不生效，改由 bankRows() 给行列
 function bankCols(n){ return n<=6?3 : n<=9?4 : n<=12?4 : n<=16?5 : 6 }
-
 /* ================= 字母盘布局：字母盘模式 ↔ QWERTY 键盘模式 =================
    - 偏好存在 DB（存档 key 仍是 wy8a_rogue_v1，新增字段，老存档缺字段时回落默认值 false）
    - kbMode：字母盘按电脑 QWERTY 三行阶梯排；gridMode：沿用原来的乱序网格
@@ -3573,11 +3492,9 @@ function syncBankBar(){
 $('tBankMode').onclick=()=>{ DB.kbMode=!isKbMode(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
 // 切换大小写显示：纯显示层。判定走 norm()（转小写），所以两种显示都能正常判对
 $('tBankCase').onclick=()=>{ DB.kbUpper=!isKbUpper(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
-
 /* 听读音限制：每个单词最多听 3 遍（长按连读算 2 遍），两次之间至少隔 1.2 秒。
    拼完单词的自动朗读走 TTS.word()，不受限制 —— 那是完成后的奖励，不是答题辅助。 */
 const SAY_MAX=3, SAY_COOLDOWN_MS=1200;
-
 /* ================= 「听读音」按钮 + 语音开关 =================
    · 独立于「提示」按钮：提示只揭示字母，这个只出声、不改任何游戏状态。
    · 慢速 0.7 朗读当前目标单词；长按 = 连读两遍（背单词时反复听最有用）。
@@ -3792,7 +3709,6 @@ function pressKey(idx){
   const tgt=norm(B.word.w);
   const pos=B.input.length;
   const keyEl=(B.keyEls&&B.keyEls[i])||(($('fBank').children||[])[i]);
-
   // 恢复：若当前位置所需的正确字母被误标为 bad，则自动解封
   // （否则手滑标错一个字母会让整个词永远拼不完）
   const needCh=tgt[pos];
@@ -3803,7 +3719,6 @@ function pressKey(idx){
     }
     if(freed){ toast('已解开「'+needCh.toUpperCase()+'」，再试一次'); renderFight(); return }
   }
-
   // 已标记为错：再点只抖动，不再扣血（惩罚已付过）
   if(B.bad[i]){
     sfx.bad();
@@ -3811,7 +3726,6 @@ function pressKey(idx){
     toast('「'+ch.toUpperCase()+'」不在这个词里，换一个字母');
     return;
   }
-
   if(tgt[pos]===ch){
     // ✅ 正确
     B.used[i]=true; B.input.push(ch);
@@ -4147,16 +4061,20 @@ function loseFight(){
   B.over=true; sfx.lose();
   TTS.line('lose',null,{force:true});               // ← 语音：失败台词，角色自己的收场白
   flash('#ff547055');
-  setTimeout(()=>endRun(false),800);
+  const run=G;
+  setTimeout(()=>{ if(G===run) endRun(false) },800);
 }
 function finishNode(){
+  if(!G || !B || B.finished) return;
+  B.finished=true;
+  const run=G;
   const n=B.node; if(n) n.done=true;
   G.hp=clamp(B.myHp,1,G.maxhp);      // 把战斗中的生命结转回远征状态
   G.shield=B.shield;                 // 护盾同理，跨战斗保留
   // 只有「真打赢」才算通关 BOSS；逃跑/跳过/影分身不算
   if(B.boss && B.won){ G.hp=Math.min(G.maxhp,G.hp+30); toast('🏆 通关！回复 30 生命'); DB.wins++; DB.best=Math.max(DB.best,9); saveDB();
-    setTimeout(()=>endRun(true),700); return }
-  if(B.boss){ toast('👑 词汇之王逃脱了……远征失败'); setTimeout(()=>endRun(false),700); return }
+    setTimeout(()=>{ if(G===run) endRun(true) },700); return }
+  if(B.boss){ toast('👑 词汇之王逃脱了……远征失败'); setTimeout(()=>{ if(G===run) endRun(false) },700); return }
   advance();
 }
 const ADV_LOCK_MS=400;        // 双击去重窗口：够挡住连点，又短到不会挡住正常下一次推进
@@ -4277,7 +4195,6 @@ function moveSel(d){
   for(let i=0;i<n;i++){ B.sel=(B.sel+d+n*2)%n; if(!B.used[B.sel]&&!B.bad[B.sel]) break }
   sfx.key(); renderFight();
 }
-
 /* ================= 事件 ================= */
 const EVENTS=[
  {ic:'🎁',t:'神秘的背包',x:'你捡到一个鼓鼓的背包，主人却不见了。',o:[
@@ -4404,12 +4321,42 @@ function showShop(){
   });
   show('s-rest');
 }
+// 纪念卡只记录本次远征表现，不代表掌握所选范围的全部词汇。
+function rewardScope(unit){
+  const u=UNITS.find(x=>x.n===unit);
+  return u?u.t:(unit===-1?'全册':'所选范围');
+}
+function renderRewardCard(box,r){
+  box.innerHTML='';
+  const card=document.createElement('article'); card.className='reward-card';
+  const title=document.createElement('h3'); title.textContent='词王征服者 · 通关纪念卡'; card.appendChild(title);
+  const scope=document.createElement('p'); scope.textContent=rewardScope(r.unit)+' · '+heroById(r.heroId).n; card.appendChild(scope);
+  const stats=document.createElement('p'); stats.textContent='拼写正确率 '+r.accuracy+'% · 击败词灵 '+r.kills+' · 到达 '+r.floor+' 层'; card.appendChild(stats);
+  const note=document.createElement('small'); note.textContent='击败最终 BOSS 的纪念，不代表已掌握全部词汇。'; card.appendChild(note);
+  const stamp=document.createElement('small'); stamp.textContent='获得于 '+new Date(r.earnedAt).toLocaleString('zh-CN')+' · 卡片 '+r.id; card.appendChild(stamp);
+  box.appendChild(card);
+}
 function endRun(win){
-  DB.best=Math.max(DB.best,G.maxFloor); saveDB();
+  if(!G) return; // 清档后忽略尚未执行的结算回调。
   const acc=clamp(Math.round(G.attOk/Math.max(1,G.att)*100),0,100);
+  const rewardBox=$('oReward'); rewardBox.innerHTML=''; rewardBox.hidden=!win;
+  if(win){
+    if(!G.reward){
+      G.reward={id:'WR-'+Date.now().toString(36)+'-'+DB.runs+'-'+DB.rewards.length,
+        unit:G.unit,heroId:G.heroId,accuracy:acc,kills:G.kills,floor:G.maxFloor,earnedAt:new Date().toISOString()};
+      DB.rewards.push(G.reward);
+    }
+    renderRewardCard(rewardBox,G.reward);
+  }
+  DB.best=Math.max(DB.best,G.maxFloor); saveDB();
+  G.result=!!win;
+  $('oAgain').textContent=win?(G.unit===0?'复习自定义词表':'复习本单元'):'再来一次';
+  const next=UNITS.find(u=>G.unit>0 && u.n===G.unit+1);
+  $('oNext').hidden=!win || !next;
+  $('oNext').textContent=next?'继续 Unit '+next.n:'继续下一 Unit';
   $('oIcon').textContent=win?'🏆':'💀';
   $('oTitle').textContent=win?'远征成功！':'远征结束';
-  $('oText').textContent=win?'你击败了词汇之王，整册词汇向你敞开了大门。'
+  $('oText').textContent=win?'你击败了词汇之王，完成了'+rewardScope(G.unit)+'的本次远征！'+(G.unit>0 && !next?'已到本册最后一个单元，可复习本单元或返回选择单元。':'')
     :'你倒在了第 '+G.floor+' 层。那些还没记住的词，还在等着你。';
   $('oFloor').textContent=G.maxFloor;
   $('oKill').textContent=G.kills;
@@ -4421,7 +4368,8 @@ function endRun(win){
   show('s-over');
   renderTitle();
 }
-$('oAgain').onclick=()=>{ if(newRun()){} };
+$('oAgain').onclick=()=>{ if(!G || typeof G.result!=='boolean') return; curUnit=G.unit; newRun() };
+$('oNext').onclick=()=>{ if(!G || !G.result || !UNITS.some(u=>G.unit>0 && u.n===G.unit+1)) return; curUnit=G.unit+1; newRun() };
 $('oHome').onclick=()=>{ G=null; B=null; renderTitle(); show('s-title') };
 $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){ G=null; renderTitle(); show('s-title') } };
 
@@ -4485,6 +4433,14 @@ function renderTitle(){
   $('sWin').textContent=DB.wins;
   $('sMaster').textContent=DB.mastered.length;
   $('sFloor').textContent=DB.best;
+  $('rewardSummary').textContent='通关纪念卡 · '+DB.rewards.length+' 张（点击查看）';
+  const cards=$('rewardCards'); cards.innerHTML='';
+  if(!DB.rewards.length){
+    const empty=document.createElement('p'); empty.className='note'; empty.textContent='击败最终 BOSS 后，纪念卡会收藏在这里。'; cards.appendChild(empty);
+  }
+  DB.rewards.slice().reverse().forEach(r=>{
+    const slot=document.createElement('div'); renderRewardCard(slot,r); cards.appendChild(slot);
+  });
 }
 $('startRun').onclick=()=>{ if(newRun()){} };
 $('toRelics').onclick=()=>{
@@ -4520,17 +4476,17 @@ $('clearCustom').onclick=()=>{
   DB.custom=[]; saveDB(); $('ta').value=''; $('impMsg').innerHTML="<span style='color:var(--mut)'>已清空</span>"; renderTitle();
 };
 $('toReset').onclick=()=>{
-  if(!confirm('清空所有存档（远征次数、已掌握词、自定义词库）？')) return;
+  if(!confirm('清空所有存档（远征次数、通关次数、已掌握词、自定义词库、通关纪念卡）？')) return;
   const keepHero=DB.hero;   // 清档不该让人重选角色
   // 字母盘显示偏好也留着：清档清的是进度，不是界面口味（与 keepHero 同理）
   const keepKb={kbMode:DB.kbMode,kbUpper:DB.kbUpper};
-  DB={runs:0,wins:0,mastered:[],best:0,custom:[],hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
+  DB={runs:0,wins:0,mastered:[],best:0,custom:[],rewards:[],hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
+  G=null; B=null;
+  $('oReward').innerHTML=''; $('oReward').hidden=true;
   saveDB(); renderTitle();
 };
 document.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ renderTitle(); show('s-title') });
-
 renderTitle();
-
 </script>
 </body>
 </html>
