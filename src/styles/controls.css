@@ -1,0 +1,142 @@
+/* 释义卡：全页焦点 */
+.q{text-align:center;padding:20px 12px 16px;
+ background:linear-gradient(165deg,#ffffff1f,#ffffff08);border-color:var(--line2);box-shadow:var(--sh3)}
+.q .zh{font-size:clamp(28px,8.5vw,40px);font-weight:900;letter-spacing:1.5px;line-height:1.28;
+ margin-bottom:8px;word-break:break-word;
+ background:linear-gradient(180deg,#ffffff,#cfd6ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.q .cat{font-size:11.5px;color:var(--dim);letter-spacing:.8px;margin-bottom:16px}
+.slots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px;min-height:46px}
+.slot{width:30px;height:44px;border-radius:9px;border-bottom:3px solid var(--line);
+ display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;text-transform:lowercase;
+ background:#ffffff0a;transition:.14s;color:transparent;box-shadow:inset 0 1px 0 #ffffff0f}
+.slot.f{border-bottom-color:var(--acc2);background:#22d3ee26;color:#fff;animation:popin .2s;
+ box-shadow:0 0 14px #22d3ee4d,inset 0 1px 0 #ffffff26}
+.slot.w{border-bottom-color:var(--bad);color:#ff9db0;background:#ff54701f}
+.slot.fx{border-bottom-color:transparent;width:12px;background:transparent;box-shadow:none}
+.slot.hint{color:var(--warn);border-bottom-color:var(--warn);background:#ffb0201f}
+/* ---- 词组的空格（.slotsep）----
+   词库里有 15 个词组（keep an eye on / in my opinion …），但拼写判定走的是
+   norm()（抹掉所有非字母），所以空格在槽位里原本是完全看不见的：
+   keep an eye on 被排成 10 个连着的字母格子，看着像一个 10 字母长单词，
+   而 TTS.word() 念的却是带空格的完整短语 —— 看到和听到的不一致。
+
+   做法：在两个单词之间插一个 .slotsep 元素当视觉分隔。
+   ★ 它【不是 .slot】：没有 class="slot"，所以
+     - 不会被 #fSlots .slot 的任何查询/计数命中
+     - 不进 B.input，不占 B.input 的索引
+     - 不参与正确性判定（判定仍只看 norm(B.word.w)）
+     - 不会被算成「需要填的字母」
+   宽度压到 9px 并配 align-self:stretch + 居中，
+   实测 320px 上最长的 living conditions(16字母+1间隔) 也不横向溢出。
+   竖线画在 ::before 上（细、短、居中），比纯间隙更容易看出「这里是空格」。 */
+.slotsep{flex:none;width:9px;align-self:stretch;position:relative}
+.slotsep::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+ width:2px;height:42%;border-radius:2px;background:#ffffff2e}
+@keyframes popin{0%{transform:scale(.5) translateY(9px)}60%{transform:scale(1.14)}100%{transform:scale(1)}}
+
+/* 字母盘：JS 会写 maxWidth = cols*66，grid 容器一旦有 maxWidth 就会脱离父宽度的居中，
+   必须显式 margin-inline:auto，否则整盘字母贴着左边（实测 768px 时偏左 198px）。 */
+.bank{display:grid;gap:8px;justify-content:center;margin:6px auto 4px}
+.key{aspect-ratio:1;min-height:46px;border-radius:var(--r2);border:1px solid var(--line2);
+ background:linear-gradient(160deg,#ffffff1f,#ffffff08);color:var(--fg);font-size:21px;font-weight:800;
+ text-transform:lowercase;cursor:pointer;display:flex;align-items:center;justify-content:center;
+ transition:transform .1s var(--ease),box-shadow .16s,background .16s,border-color .16s;
+ font-family:inherit;box-shadow:0 3px 0 #0006,var(--sh1)}
+.key:hover{border-color:#ffffff4d;background:linear-gradient(160deg,#ffffff2b,#ffffff10)}
+.key:active{transform:translateY(3px);box-shadow:0 0 0 #0006,var(--sh1)}
+.key.out{opacity:.16;cursor:not-allowed;background:#00000030}
+.key.gone{opacity:.13;background:#ff547026;border-color:#ff547044;cursor:not-allowed;box-shadow:none}
+.key.bad{background:#ff54701f;border-color:#ff547055;opacity:.45}
+.key.bad:hover{opacity:.65}
+.key.flash{animation:kbad .32s}
+@keyframes kbad{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px);background:#ff547055}75%{transform:translateX(8px)}}
+.key.good{animation:kgood .3s}
+@keyframes kgood{0%{transform:scale(1)}45%{transform:scale(1.2);background:#3ddc8466}100%{transform:scale(1)}}
+
+/* ---- 字母盘：键盘布局模式（QWERTY 三行阶梯）----
+   .bank.kb 用 flex 纵向排 .kbrow（每行一个），彻底绕开 gridTemplateColumns。
+   阶梯缩进用 --kbw（键宽）+ 固定比例 padding，避免不同屏宽下错位。
+   max-width 交给 JS 按最长行算，保证 320px 起不溢出。 */
+.bank.kb{display:flex;flex-direction:column;align-items:center;gap:7px;
+ margin:8px auto 4px;width:100%;max-width:100%!important}
+.bank.kb .kbrow{display:flex;justify-content:center;gap:7px;width:100%}
+.bank.kb .kbrow.r1{padding-left:calc(var(--kbw,44px)*.42)}
+.bank.kb .kbrow.r2{padding-left:calc(var(--kbw,44px)*.84)}
+/* 键盘模式下键更大更规整：字母位置有规律，小孩好找 */
+.bank.kb .key{width:var(--kbw,44px);height:var(--kbw,44px);min-height:0;aspect-ratio:1;
+ font-size:clamp(19px,calc(var(--kbw,44px)*.52),26px);flex:0 0 auto}
+/* 大写显示（纯显示层，判定仍走 norm() 小写） */
+.bank.kb .key.uc,.bank.grid .key.uc{text-transform:uppercase}
+
+/* ---- 字母盘模式切换按钮（放在字母盘正上方，不挡字母点击）---- */
+.bankbar{display:flex;justify-content:center;align-items:center;gap:7px;margin:9px 0 1px;flex-wrap:wrap}
+.bkbtn{background:#ffffff0d;border:1px solid var(--line2);border-radius:99px;
+ padding:5px 12px;color:var(--mut);font-size:11.5px;font-weight:700;letter-spacing:.3px;
+ cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s,color .15s;
+ display:inline-flex;align-items:center;gap:5px;line-height:1.4;white-space:nowrap}
+.bkbtn:hover{border-color:#ffffff40;color:var(--fg)}
+.bkbtn:active{transform:scale(.95)}
+.bkbtn .dot{width:7px;height:7px;border-radius:50%;background:#ffffff26;flex:0 0 auto;transition:background .15s,box-shadow .15s}
+.bkbtn.on{color:#fff;border-color:var(--acc2);background:#22d3ee1f;box-shadow:0 0 0 2px #22d3ee1a}
+.bkbtn.on .dot{background:var(--acc2);box-shadow:0 0 8px var(--acc2)}
+.bkbtn b{font-weight:800;font-variant-numeric:tabular-nums}
+/* ---- 「听读音」按钮：和字母盘模式开关同排，但视觉上是「主操作」 ---- */
+.bkbtn.say{border-color:#22d3ee4d;background:#22d3ee1a;color:#eaffff;padding:6px 14px;font-size:12.5px}
+.bkbtn.say .spk{font-size:14px;line-height:1}
+.bkbtn.say small{font-size:9px;color:#7ee7f5;font-weight:600;letter-spacing:.3px}
+.bkbtn.say:hover{border-color:#22d3ee99;background:#22d3ee2e}
+.bkbtn.say:active{transform:scale(.95)}
+.bkbtn.say.off{opacity:.42;border-color:#ffffff26;background:#ffffff0d;color:var(--mut)}
+.bkbtn.say.off small{color:var(--dim)}
+/* 发声时喇叭做一次脉冲：无声环境（含降级）下不会有任何动画，避免「假反馈」 */
+.bkbtn.say.on2 .spk{animation:spkpop .45s ease-out}
+@keyframes spkpop{0%{transform:scale(1)}40%{transform:scale(1.45);filter:drop-shadow(0 0 6px #22d3ee)}100%{transform:scale(1)}}
+
+.combo{text-align:center;font-size:13.5px;font-weight:800;letter-spacing:2px;min-height:20px;color:var(--gold)}
+.combo.hot{animation:cpop .35s}
+@keyframes cpop{0%{transform:scale(1)}45%{transform:scale(1.4);filter:drop-shadow(0 0 9px #ffce4d)}100%{transform:scale(1)}}
+.tools{display:flex;gap:8px;margin-top:10px}
+/* ---- 主动道具栏 ---- */
+.items{display:flex;gap:7px;margin:9px 0 2px;justify-content:center;flex-wrap:wrap;min-height:44px}
+.item{
+ flex:1 1 0;min-width:86px;max-width:130px;position:relative;
+ background:linear-gradient(165deg,#ffffff1a,#ffffff06);
+ border:1px solid var(--line2);border-radius:13px;padding:9px 5px 8px;
+ color:var(--fg);cursor:pointer;font-family:inherit;text-align:center;transition:.14s
+}
+.item:active{transform:scale(.94)}
+.item .ic{font-size:21px;line-height:1.15;display:block}
+.item .nm{font-size:10.5px;font-weight:700;margin-top:2px;letter-spacing:.3px}
+.item .ct{position:absolute;top:4px;right:6px;font-size:10px;font-weight:800;color:var(--gold);
+ font-variant-numeric:tabular-nums;background:#0006;border-radius:6px;padding:1px 5px}
+.item .kb{position:absolute;top:4px;left:6px;font-size:9px;color:var(--dim)}
+.item:hover:not(.off){border-color:var(--acc2);box-shadow:0 0 0 2px #22d3ee28;transform:translateY(-2px)}
+.item.off{opacity:.28;cursor:not-allowed}
+.item.fire{border-color:var(--gold);box-shadow:0 0 0 2px #ffce4d3a,0 0 16px #ffce4d33}
+.item.fire::after{content:'';position:absolute;inset:-1px;border-radius:13px;
+ border:1px solid var(--gold);animation:ringpulse 1.1s ease-in-out infinite;pointer-events:none}
+@keyframes ringpulse{0%,100%{opacity:.3}50%{opacity:1}}
+.items .none{font-size:11px;color:var(--dim);text-align:center;padding:12px 0;letter-spacing:1px}
+.tool{flex:1;background:#ffffff10;border:1px solid var(--line);border-radius:var(--r2);padding:10px 6px;
+ color:var(--fg);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;
+ transition:.16s var(--ease);min-width:0}
+.tool:hover:not(:disabled){background:#ffffff1a;border-color:var(--line2);transform:translateY(-1px)}
+.tool:active:not(:disabled){transform:translateY(1px) scale(.98)}
+.tool:disabled{opacity:.3;cursor:not-allowed}
+.tool small{display:block;font-size:9.5px;color:var(--dim);font-weight:400;letter-spacing:.5px;margin-top:2px}
+/* 窄屏：听读音按钮收紧（bankbar 本身 flex-wrap，换行也不会溢出） */
+.bkbtn.say{padding:5px 10px;font-size:11.5px}
+.bkbtn.say .spk{font-size:12.5px}
+.bkbtn.say small{font-size:8.5px}
+.bkbtn.say{white-space:nowrap}
+
+/* 独立纪念卡：与战斗中的可选奖励卡分开，不影响地图节点。 */
+.reward-collection{margin-top:14px}
+.reward-collection summary{cursor:pointer;color:var(--gold);font-size:14px;font-weight:800;min-height:32px;line-height:32px}
+.reward-card{position:relative;border:1px solid #ffce4d80;border-radius:var(--r3);padding:20px 16px;margin:12px 0 16px;text-align:left;
+ background:radial-gradient(ellipse at top right,#ffce4d24,transparent 70%),linear-gradient(135deg,#261b4a,#101b32);
+ box-shadow:inset 0 0 0 4px #ffce4d0d,0 8px 24px #0006;overflow-wrap:anywhere}
+.reward-card::before{content:'★  EXPEDITION  ★';display:block;font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:10px}
+.reward-card h3{font-size:18px;color:var(--gold);margin:0 0 10px;line-height:1.5}
+.reward-card p{font-size:13px;line-height:1.8;margin:6px 0}
+.reward-card small{display:block;font-size:10.5px;color:var(--mut);line-height:1.7;margin-top:10px}

@@ -16,7 +16,8 @@
     "check:data": "node scripts/validate-word-data.mjs",
     "check": "npm run check:data && npm test && npm run build && npm run test:build && npm run test:e2e && npm run test:release",
     "test:build": "node --test tests/build/*.test.js",
-    "test:release": "playwright test --config=playwright.release.config.js"
+    "test:release": "playwright test --config=playwright.release.config.js",
+    "verify:public": "node scripts/verify-public.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

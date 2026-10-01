@@ -1,0 +1,186 @@
+/* 战斗页渲染：HUD（两条血条）、敌人形象、词信息、槽位、字母盘、道具栏、按钮状态。
+ *
+ * 契约：
+ *  - 状态只从 getRun() / getBattle() / getDB() 取，绝不偷读模块级 DB/G/B。
+ *  - 只画不结算：伤害、掌握、连击、背包消耗都在父层；这里只读快照 + 发回调。
+ *  - renderFight 可写 B.keyEls（字母索引 → DOM 按钮的视觉缓存），供父层做动画定位。
+ *  - onPress(i) 由父层负责设置 B.sel 再判定；本模块只把索引交出去。
+ *
+ * bankCols / bankRows / bankPosOf 住在 src/domain/letter-bank.js（纯规则、无 DOM）。
+ * 这里只做 re-export，让战斗页的调用点不必知道它住在哪一层；
+ * 「字母索引 ↔ 视觉行列」永远只有一份实现，渲染与键盘导航不会各算各的。
+ */
+export { bankCols, bankRows, bankPosOf } from '../../domain/letter-bank.js';
+import { bankCols, bankRows } from '../../domain/letter-bank.js';
+import { ITEMS } from '../../data/items.js';
+import { clamp } from '../../domain/math.js';
+import { norm, wordGapBefore } from '../../domain/text.js';
+import { comboRate as calculateComboRate } from '../../domain/damage.js';
+import { foeArtHTML } from '../components/monster-art.js';
+import { HERO_DEFAULT, heroById } from '../components/hero.js';
+import { paintHpBar } from '../components/hp-bar.js';
+import { fitPhraseSlots } from '../components/phrase-slots.js';
+
+const itemById = id => ITEMS.filter(x => x.id === id)[0];
+
+export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn }) {
+  const $ = id => document.getElementById(id);
+  const isKbMode = () => !!getDB().kbMode;
+  const isKbUpper = () => !!getDB().kbUpper;
+  const hasR = id => getRun().relics.indexOf(id) >= 0;
+  const comboRate = () => calculateComboRate(getRun());
+
+  /* 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键 */
+  function renderItems() {
+    const G = getRun(), B = getBattle();
+    const box = $('fItems'); if (!box) return;
+    box.innerHTML = ''; box._kids = [];
+    const held = Object.keys(G.bag || {}).filter(id => (G.bag[id] | 0) > 0);
+    if (!held.length) {
+      box.innerHTML = '<div class="none">🎒 背包是空的 —— 商店和精英战会掉落道具</div>';
+      return;
+    }
+    held.forEach((id, idx) => {
+      const it = itemById(id); if (!it) return;
+      const left = G.bag[id] | 0;
+      const usedInFight = (B.usedThisFight[id] | 0);
+      const capped = usedInFight >= it.max;
+      const b = document.createElement('button');
+      b.className = 'item' + (left <= 0 || capped ? ' off' : '') + (B.rageLeft > 0 && id === 'rage' ? ' fire' : '');
+      b.title = it.d + '\n' + it.tip + (capped ? '\n（本场已用满 ' + it.max + ' 次）' : '');
+      b.innerHTML = '<span class="kb">' + (idx + 1) + '</span><span class="ct">×' + left + '</span>' +
+        '<span class="ic">' + it.ic + '</span><span class="nm">' + it.n + '</span>';
+      if (!capped) b.onclick = () => onUseItem(id);
+      box.appendChild(b);
+    });
+  }
+
+  // 同步字母盘模式按钮的高亮状态与文案（renderFight 每次都会调）
+  function syncBankBar() {
+    const mb = $('tBankMode'), cb = $('tBankCase'), mv = $('tBankModeV'), cv = $('tBankCaseV');
+    if (mb) mb.className = 'bkbtn' + (isKbMode() ? ' on' : '');
+    if (cb) cb.className = 'bkbtn' + (isKbUpper() ? ' on' : '');
+    if (mv) mv.textContent = isKbMode() ? '开' : '关';
+    if (cv) cv.textContent = isKbUpper() ? '开' : '关';
+    try { paintSayBtn(); } catch (e) { }     // 语音按钮状态跟着战斗渲染一起刷新
+  }
+
+  function renderFight() {
+    const G = getRun(), B = getBattle(), DB = getDB();
+    const enPct = clamp(B.enHp / B.enMax * 100, 0, 100);
+    $('fEn').style.width = enPct + '%';
+    $('fEnT').textContent = B.boss ? ('词汇之王 ' + Math.max(0, B.enHp) + '/' + B.enMax) : (Math.max(0, B.enHp) + '/' + B.enMax);
+    paintHpBar('fMy', 'fMyS', 'fMyT', B.myHp, B.shield, G.maxhp);
+    // 角色形象：只更新外形数据属性 + 名字（血条统一由上面的 HUD 负责）
+    const H = heroById(G.heroId || HERO_DEFAULT), pc = $('fPc');
+    if (pc) pc.dataset.h = H.id;
+    const nm = $('fMyName'); if (nm) nm.textContent = H.n;
+    $('fAv').innerHTML = foeArtHTML(B.foe, B.boss, B.elite);
+    $('fName').textContent = B.foe.n + (B.boss ? '（首领）' : B.elite ? '（精英）' : '');
+    $('fZh').textContent = B.word.z;
+    // 字符数按 norm() 的字母数算（否则 keep an eye on 会显示「14 字符」，
+    // 而槽位只有 11 个，对不上）；词组额外标一个「词组」标签。
+    // ★ 长度与 isPhrase 都先算成局部变量再拼进文案：信息栏绝不能回显单词本身。
+    const nLetters = norm(B.word.w).length;
+    const isPhrase = /\s/.test(String(B.word.w || ''));
+    $('fCat').textContent = 'Unit ' + B.word.u + ' · ' + nLetters + ' 字符' + (isPhrase ? ' · 词组' : '') + (B.word.d >= 3 ? ' · 困难' : '');
+    // tags
+    const tg = $('fTags'); tg.innerHTML = '';
+    const add = (txt, cls) => { const s = document.createElement('span'); s.className = 'tg ' + (cls || ''); s.textContent = txt; tg.appendChild(s); };
+    if (B.combo > 0) add('连击 ' + B.combo, 'ok');
+    if (B.dmgBonus > 0) add('增伤 +' + B.dmgBonus + '%', 'ok');
+    if (B.hintTotal > 0) add('已用提示 ' + B.hintTotal, 'bad');
+    if (B.boss) add('首领', 'bad');
+    // slots
+    const sl = $('fSlots'); sl.innerHTML = '';
+    const tgt = norm(B.word.w);
+    // 词组：单词边界表。gapBefore[i]=true 表示第 i 个字母是一个新单词的首字母
+    //（也就是它前面在原文里是个空格）。判定完全不看这张表 —— 仍只用 norm() 的 tgt。
+    const gapBefore = wordGapBefore(B.word.w, tgt.length);
+    // 提示窗口是「相对当前位置」的：从当前进度往后 hintUsed 个字母。
+    const absFrom = B.input.length;
+    const absTo = Math.min(absFrom + Math.max(0, B.hintUsed), tgt.length);
+    for (let i = 0; i < tgt.length; i++) {
+      // 空格分隔：画在【前一个单词的最后一个字母之后】。
+      // 用 i>0 && gapBefore[i] 触发，保证不会多出一个头部间隔。
+      if (i > 0 && gapBefore[i]) {
+        const sep = document.createElement('div');
+        sep.className = 'slotsep';           // 故意不带 'slot'：不进索引、不参与判定
+        sep.setAttribute('aria-hidden', 'true');
+        sl.appendChild(sep);
+      }
+      const d = document.createElement('div');
+      let cls = 'slot';
+      if (i < absFrom) cls += B.input[i] === tgt[i] ? ' f' : ' w';
+      else if (i < absTo) cls += ' hint';
+      d.className = cls;
+      d.textContent = (i < absFrom) ? B.input[i] : (i < absTo ? tgt[i] : '');
+      sl.appendChild(d);
+    }
+    fitPhraseSlots(sl, gapBefore);
+    // bank —— 两种排布共用同一份数据（used/bad/sel 全在 B 上，切模式不会丢进度）
+    const bank = $('fBank');
+    const n = B.letters.length;
+    const kb = isKbMode(), upper = isKbUpper();
+    const rows = bankRows(B.letters, kb);   // 视觉行：键盘模式=qwer 三行，字母盘模式=原 grid 分行
+    bank.className = 'bank ' + (kb ? 'kb' : 'grid');
+    if (kb) {
+      // 键宽自适应：让「最长行」正好塞进容器宽，绝不溢出、也尽量不缩得太小。
+      // 行宽 = 行内键数×键宽 + (n-1)×间距，而阶梯缩进 padding-left 也会吃掉一点宽度，
+      // 所以要解 kw = (可用宽 - (n-1)×间距) / (n + 阶梯系数)，多行取最小值。
+      const GAP = 7, STAIR = [0, .42, .84];        // 与 CSS 里 .kbrow.r1/.r2 的 padding 保持一致
+      const pe = bank.parentElement;
+      const availW = bank.clientWidth || (pe && pe.clientWidth) || (typeof innerWidth === 'number' && innerWidth) || 390;
+      let kw = 52;
+      rows.forEach((row, ri) => {
+        const n2 = row.length || 1, k = STAIR[ri] !== undefined ? STAIR[ri] : .84;
+        kw = Math.min(kw, Math.floor((availW - (n2 - 1) * GAP) / (n2 + k)));
+      });
+      kw = Math.max(20, Math.min(52, kw || 44));   // 最坏情况（320px + 满行 qwerty）也不会溢出
+      bank.style.setProperty('--kbw', kw + 'px');
+      bank.style.gridTemplateColumns = '';    // 键盘模式不用 grid，避免与 CSS 的 flex 打架
+      bank.style.maxWidth = '';
+    } else {
+      // 列数随字母数增加，但限制最多 6 列，窄屏才不会挤
+      const cols = bankCols(n);
+      bank.style.gridTemplateColumns = 'repeat(' + cols + ',minmax(0,1fr))';
+      bank.style.maxWidth = (cols * 66) + 'px';
+    }
+    bank.innerHTML = '';
+    const keyEls = B.keyEls = [];             // 字母索引 → DOM 按钮（键盘模式 children 是行，索引对不上）
+    const mkKey = (ch, i) => {
+      const b = document.createElement('button');
+      let cls = 'key';
+      if (B.used[i]) cls += ' gone';
+      else if (B.bad[i]) cls += ' bad';
+      if (upper) cls += ' uc';
+      b.className = cls;
+      b.textContent = upper ? ch.toUpperCase() : ch;   // 纯显示层；判定仍读小写的 B.letters[i]
+      b.disabled = B.used[i];
+      b.title = B.used[i] ? '已填入' : B.bad[i] ? '已试过，不是这个字母' : '';
+      b.onclick = () => onPress(i);
+      keyEls[i] = b;
+      return b;
+    };
+    if (kb) {
+      rows.forEach((row, ri) => {           // 每行一个 .kbrow，行内居中 + 阶梯缩进（r0/r1/r2）
+        const r = document.createElement('div');
+        r.className = 'kbrow r' + ri;
+        row.forEach(i => r.appendChild(mkKey(B.letters[i], i)));
+        bank.appendChild(r);
+      });
+    } else {
+      rows.forEach(row => row.forEach(i => bank.appendChild(mkKey(B.letters[i], i))));
+    }
+    syncBankBar();
+    $('tHintN').textContent = B.hints + ' 次';
+    $('tHint').disabled = B.hints <= 0;
+    $('tSkip').textContent = hasR('ghost') && !B.ghostUsed ? '影分身' : '跳过';
+    $('tFlee').disabled = G.gold < 10;
+    $('fCombo').textContent = B.combo > 0 ? ('连击 ' + B.combo + '  ✦ 伤害 ×' + (1 + B.combo * comboRate()).toFixed(1)) : '';
+    renderItems();
+    return B.keyEls;
+  }
+
+  return { renderFight, renderItems, syncBankBar };
+}

@@ -4,7 +4,7 @@
 
 - `README.md`、`docs/architecture.md`、`docs/baseline.json`。
 - 不要把桌面旧单文件覆盖仓库最新代码。
-- 当前 `src/app/runtime.js` 是迁移协调层，不是长期放置新功能的默认地点。
+- 当前 `src/app/runtime.js` 是启动与模块装配层，新功能优先进入所属controller/domain/ui模块。
 
 ## 所有权与依赖
 

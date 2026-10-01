@@ -1,0 +1,133 @@
+
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+:root{
+ --bg:#0a0a14;--card:#ffffff0e;--line:#ffffff20;--line2:#ffffff33;
+ --fg:#f0f2ff;--mut:#9aa1c4;--dim:#8b93b8;
+ --gold:#ffce4d;--acc:#8b5cf6;--acc2:#22d3ee;
+ --warn:#ffb020;--bad:#ff5470;--ok:#3ddc84;
+ /* 圆角 / 阴影 / 节奏 */
+ --r1:10px;--r2:14px;--r3:18px;--r4:24px;
+ --sh1:0 2px 8px #0006;--sh2:0 8px 24px #0007;--sh3:0 14px 40px #0009;
+ --ease:cubic-bezier(.2,.9,.3,1);
+ /* --vh：移动端「真实可视高度」。
+    100vh 在手机浏览器里包含地址栏/工具栏的占位，实测比 window.innerHeight
+    高 60-120px —— 用它算高度会把底部按钮推到地址栏后面（看不见也点不到）。
+    支持 dvh 的用 dvh（地址栏收起/展开自动重算）；不支持的老 Safari 退回 100vh。 */
+ --vh:100vh;
+}
+/* dvh 动态视口：整个「装得下」体系（战斗页高度预算、底部安全区）都基于它 */
+@supports (height:100dvh){:root{--vh:100dvh}}
+/* 安全区内边距：iPhone 底部横条 / 安卓手势条。老浏览器 env() 无效即 0。 */
+/* --padT/--padB：body 的上下内边距。抽成变量的唯一原因是 ——
+   战斗页要按「视口高 - body 上下内边距」精确占满，两者必须是同一个数，
+   写成两处字面量就会漂移（实测按 24px 算、实际是 12+30=42px，
+   390x844 上会多出 18px 的残余滚动，底部按钮看着还是贴着屏幕边）。 */
+:root{--sab:env(safe-area-inset-bottom,0px);--padT:12px;--padB:calc(30px + var(--sab) + var(--verh,0px))}
+/* overflow-x 必须用 clip 而不是 hidden：hidden 会把同轴的 overflow-y 从 visible
+   强制计算成 auto，body 就变成了滚动容器，.hud 的 position:sticky 随之失效
+   （实测 390x700 滚到底时 HUD 顶部跑到 -49px，血条整条滚出屏幕）。 */
+html,body{margin:0;padding:0;min-height:100%;overflow-x:clip}
+body{
+ background:radial-gradient(1100px 620px at 50% -12%,#2a1b5e 0%,transparent 62%),
+            radial-gradient(800px 500px at 100% 8%,#073a4a 0%,transparent 58%),
+            radial-gradient(700px 600px at -10% 70%,#3b1247 0%,transparent 60%),var(--bg);
+ background-attachment:fixed;
+ color:var(--fg);
+ font-family:"PingFang SC","Microsoft YaHei","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+ -webkit-font-smoothing:antialiased;
+ display:flex;justify-content:center;padding:var(--padT) 12px var(--padB);position:relative}
+/* ★ z-index 必须是 auto，不能给 #app 一个具体层级 ——
+   一旦 #app 自己成了层叠上下文，.hud 里面的 z-index 就只在 #app 内部比较，
+   而战斗特效（canvas#fx 60 / .flashfx 55 / .float 70 / .finword 71 / #verbar 80）
+   全都是挂在 body 上的兄弟节点，在根层叠上下文里排序 —— 于是不管 .hud 写多大的
+   z-index，它都永远赢不了那些浮层，血条会被特效整片盖住（实测 z55/60/70/71/80
+   的浮层都能盖住血条 100% 面积）。改成 auto 后 .hud 的 90 才真正升到根层级。 */
+#app{width:100%;max-width:660px;position:relative}
+/* 微妙背景装饰：淡出的点阵网格（纯 CSS，无图片） */
+#app::before{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+ background-image:radial-gradient(#ffffff1f 1px,transparent 1px);
+ background-size:24px 24px;opacity:.6;
+ -webkit-mask-image:radial-gradient(130% 95% at 50% 0%,#000 0%,transparent 76%);
+ mask-image:radial-gradient(130% 95% at 50% 0%,#000 0%,transparent 76%)}
+canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60}
+.screen{display:none}
+.screen.on{display:block;animation:fade .3s var(--ease)}
+@keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.card{position:relative;background:linear-gradient(160deg,#ffffff14,#ffffff08);
+ border:1px solid var(--line);border-radius:var(--r3);padding:18px;
+ backdrop-filter:blur(12px);box-shadow:var(--sh2)}
+h1{font-size:30px;margin:8px 0 6px;letter-spacing:2px;line-height:1.2}
+h1 em{font-style:normal;background:linear-gradient(100deg,var(--acc2),var(--acc));
+ -webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);font-size:13.5px;line-height:1.8;margin:6px 0 20px}
+.btn{position:relative;display:block;width:100%;border:1px solid #ffffff1f;border-radius:var(--r2);padding:15px 16px;
+ background:linear-gradient(100deg,var(--acc),#5b8cff);color:#fff;font-size:16.5px;font-weight:800;
+ cursor:pointer;font-family:inherit;letter-spacing:1.5px;box-shadow:0 8px 22px #8b5cf64d,inset 0 1px 0 #ffffff33;
+ transition:transform .12s var(--ease),box-shadow .18s,filter .18s;overflow:hidden}
+#oNext[hidden]{display:none}
+.btn::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+ background:linear-gradient(180deg,#ffffff1f,transparent 55%)}
+.btn:hover{filter:brightness(1.08);box-shadow:0 10px 26px #8b5cf666,inset 0 1px 0 #ffffff40}
+.btn:active{transform:translateY(2px) scale(.99);box-shadow:0 3px 10px #8b5cf640}
+.btn.g{background:#ffffff0f;border:1px solid var(--line2);box-shadow:none;font-size:14px;padding:13px;font-weight:700;
+ letter-spacing:1px;color:var(--fg)}
+.btn.g:hover{background:#ffffff1a;border-color:#ffffff44;filter:none}
+.btn.gold{background:linear-gradient(100deg,#f59e0b,#f97316);box-shadow:0 8px 22px #f59e0b4d,inset 0 1px 0 #ffffff33}
+.btn:disabled{opacity:.34;cursor:not-allowed;filter:none;transform:none}
+.row{display:flex;gap:10px;margin-top:10px}
+.lbl{font-size:11.5px;color:var(--dim);letter-spacing:2.5px;margin:18px 0 8px;font-weight:800}
+.note{font-size:12.5px;color:var(--dim);line-height:1.75;margin-top:8px}
+.back{background:#ffffff0f;border:1px solid var(--line);color:var(--fg);border-radius:var(--r1);
+ min-width:44px;height:44px;padding:0 12px;
+ font-size:19px;cursor:pointer;flex:none;font-family:inherit;line-height:1;transition:.16s var(--ease)}
+.back:hover{background:#ffffff1c;border-color:var(--line2)}
+.back:active{transform:scale(.92)}
+.hdrtitle{font-size:17px;font-weight:800;flex:1;letter-spacing:.5px}
+.hdr{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.crumbs{font-size:11px;color:var(--dim);letter-spacing:.6px;line-height:1.6}
+
+/* ---- HUD ---- */
+/* ★ z-index:90 是硬要求，不是「越大越好」——
+   它必须高于全部战斗特效层：canvas#fx 60 / .flashfx 55 / .float 70 /
+   .finwave 70 / .finword 71 / #verbar 80。只要有任何一个比它高，
+   命中闪白、伤害飘字、终结技大字就会盖在两条血条上（实测盖住 100% 面积）。
+   前提是 #app 不再是层叠上下文（见上面 #app 的 z-index:auto）。 */
+.hud{position:sticky;top:0;z-index:90;background:rgba(10,10,20,.9);backdrop-filter:blur(16px) saturate(1.3);
+ border-bottom:1px solid var(--line);margin:-12px -12px 14px;padding:10px 12px;
+ box-shadow:0 8px 24px #0006}
+.hudrow{display:flex;align-items:center;gap:8px}
+.bar{height:18px;background:#ffffff14;border-radius:99px;overflow:hidden;position:relative;flex:1;
+ border:1px solid var(--line);box-shadow:inset 0 1px 3px #0006}
+.bar>i{display:block;height:100%;transition:width .35s var(--ease);border-radius:99px;
+ box-shadow:inset 0 1px 0 #ffffff33}
+.bar.hp>i{background:linear-gradient(90deg,#2ecc71,#3ddc84)}
+/* 护盾层：画在生命层**右侧**的一段额外缓冲（左边界 = 生命层的右边界）。
+   宽度由 paintHpBar 给 —— 它是「血条整体百分比 − 生命百分比」的差值，
+   所以血条总宽永远等于「还能挨多少打 / 最多能挨多少打」。 */
+.bar>i.sh{background:linear-gradient(90deg,#0891b2,#22d3ee);box-shadow:inset 0 1px 0 #ffffff44;
+  position:absolute;top:0;transition:width .35s var(--ease),left .35s var(--ease)}
+.bar.en>i{background:linear-gradient(90deg,#e0344f,#ff6b8a)}
+.bar .t{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ font-size:11px;font-weight:800;text-shadow:0 1px 3px #000,0 0 8px #0009;letter-spacing:.5px;
+ font-variant-numeric:tabular-nums}
+/* 小标签：让「我 / 敌」在手机上也能一眼分开 */
+.hlab{flex:none;width:34px;font-size:11px;font-weight:800;letter-spacing:.5px;text-align:center;
+ padding:3px 0;border-radius:8px;background:#ffffff0f;border:1px solid var(--line);color:var(--mut)}
+.hlab.l-me{color:#7fe6b0;border-color:#3ddc8433;background:#3ddc8412}
+.hlab.l-en{color:#ff9db0;border-color:#ff547033;background:#ff547012}
+/* 提示文字的专用一行：高度恒定、平时透明，toast 落在这里。
+   它在文档流里，所以永远不会盖住血条、敌人名字或状态标签。 */
+.hudmsg{display:flex;align-items:center;justify-content:center;min-height:19px;max-height:38px;margin-top:7px;
+  padding:0 4px;font-size:12px;font-weight:700;letter-spacing:.3px;line-height:1.35;
+  color:var(--warn);text-align:center;opacity:0;transition:opacity .22s var(--ease);
+  pointer-events:none;overflow:hidden;overflow-wrap:anywhere}
+.hudmsg.on{opacity:1}
+.hudmsg.bad{color:#ff9db0}
+.hudmsg.ok{color:#7fe6b0}
+.chip{background:#ffffff0f;border:1px solid var(--line);border-radius:var(--r1);padding:6px 11px;font-size:11px;
+ text-align:center;min-width:48px;flex:none;line-height:1.25}
+.chip i{display:block;font-style:normal;font-size:10px;color:var(--dim);letter-spacing:1px}
+.chip b{font-size:14px;font-variant-numeric:tabular-nums}
+.chip.gold{border-color:#ffce4d33;background:#ffce4d0f}
+.chip.gold b{color:var(--gold)}
+

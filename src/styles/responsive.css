@@ -1,0 +1,598 @@
+/* ==================================================================
+   移动端「不裁切」高度预算
+   ------------------------------------------------------------------
+   实测（Chrome CDP 移动端模拟，6 组真机视口）修之前的真实数据：
+     视口        文档总高   .tools 底边超出视口   最下面被裁掉的元素
+     320x568       938px          +346px          字母盘 + 提示/跳过/逃跑
+     360x640       892px          +228px          同上
+     375x667       880px          +183px          同上
+     390x700       811px           +81px          同上（带地址栏的真实情形）
+     390x844       844px           -63px          刚好（余量仅 63px）
+     414x896       896px          -112px          刚好
+   根因：战斗页把「敌人形象 + 释义 + 道具 + 字母盘 + 按钮」全按内容自然高度
+   竖着堆，文档总高 880-938px，而矮屏可视高只有 568-700px。页面本身能滚，
+   但用户反馈的正是「滚下去也费劲 / 看着像被切掉」，而且滚到底时 sticky 的
+   HUD 还占着顶部，等于可视区更矮。
+   做法分两层，全部纯 CSS，不引 JS、不加 resize 监听：
+     1) 矮屏媒体查询（max-height）—— 敌人头像/角色/释义/道具栏逐级缩小，
+        把省下的 150-250px 全部让给字母盘和按钮；
+     2) 战斗页改成「视口等高的 flex 列」—— 字母盘 + 提示/跳过/逃跑 用 flex:none
+        钉在底部，信息区（.fmid）超高就自己滚，
+        保证任何屏高下这三个按钮和字母盘永远可见可点。
+   视口高度基准是 :root 上的 --vh（见文件头），它自带 100vh 兜底。
+   修完之后实测：7 组视口（320/360/375/390/414 + 横屏 844x390）
+   战斗页全部一屏装下、页面 scrollTop 恒为 0、按钮底部还留 27-33px 余量。
+   ================================================================== */
+
+/* 矮屏（横屏手机、小尺寸设备、以及带地址栏的竖屏）统一压缩。
+      阈值取 900px，而不是更矮的 760px —— 因为 CSS 媒体查询用的是「布局视口」高度，
+      390x844 的 iPhone 在 Safari 里布局视口仍是 844（地址栏不计入），
+      可用户实际看到的只有约 700-720px。取 900 能把「真机带地址栏」和
+      「小窗口笔记本」两种情形一起覆盖；更高的视口本来也装得下。
+
+   核心结构：战斗页改成「视口等高的 flex 列」——
+     .hud   固定（顶部血条，本来就是 sticky）
+     .fmid  可滚动（敌人形象 + 释义 + 字母槽 + 道具栏；信息区，超高就内部滚）
+     .bankbar/.bank/.tools  固定在底部（字母盘 + 提示/跳过/逃跑，永远可见可点）
+   这样「拼单词的核心交互」被钉死在屏幕上，屏高再小也不会被裁掉；
+   而释义、敌人、道具这些辅助信息在极窄屏上内部滚动，不影响可玩性。 */
+@media (max-height:900px){
+  /* 战斗页占满可视高度，body 的上下 padding 之外不再产生额外文档高度。
+     ★ 必须写成 #s-fight.on：裸 #s-fight 的 ID 特指度会盖过 .screen{display:none}，
+     导致战斗页在其他每一页上都常驻显示、把别的页面整体顶到折叠线以下。 */
+  #s-fight.on{display:flex;flex-direction:column;
+    height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px));
+    max-height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px))}
+  #s-fight .hud{flex:none}
+  /* 中段滚动区：矮屏上这块内容天然比可视区高，让它自己滚 */
+  #s-fight .fmid{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  #s-fight .fmid::-webkit-scrollbar{display:none}
+  /* 底部交互区：永不压缩、永不滚动 */
+  #s-fight .bankbar,#s-fight .bank,#s-fight .tools{flex:none}
+
+  /* 敌人头像 64 → 46，.vsrow 整行矮 18px；--avatar 同时驱动字号。
+     对峙行 / 我方角色 / 敌人间距一律走变量（.vsrow/.foe/.myside/.pc 只允许 1-2 条规则）。 */
+  #s-fight{--avatar:46px;--msw:72px;--pcw:72px;--pch:88px;--foegap:9px;--vsm:0 0 9px}
+  /* 释义卡的内边距收紧 */
+  #s-fight .q{padding:13px 10px 11px}
+  #s-fight .q .zh{font-size:clamp(23px,7.4vw,32px);margin-bottom:5px}
+  #s-fight .q .cat{margin-bottom:9px}
+  /* 字母槽矮一点，省 8px */
+  #s-fight .slots{min-height:38px;margin-bottom:8px}
+  #s-fight .slot{width:27px;height:38px;font-size:18px}
+  #s-fight .combo{min-height:17px;font-size:12.5px}
+  /* 道具栏：矮屏只留一行高度（min-height 44 → 0），多个道具换行也不额外顶高 */
+  #s-fight .items{min-height:0;margin:6px 0 1px}
+  #s-fight .item{padding:6px 4px 5px}
+  #s-fight .item .ic{font-size:17px}
+  /* 切换按钮条收紧 */
+  #s-fight .bankbar{margin:6px 0 0;gap:5px}
+  #s-fight .bkbtn{padding:4px 9px;font-size:10.5px}
+  #s-fight .bkbtn.say{padding:4px 9px;font-size:11px}
+  /* 字母键：矮屏允许降到 44px（仍高于 44px 触摸目标下限，不牺牲手感） */
+  #s-fight .key{min-height:44px;font-size:19px}
+  #s-fight .bank{gap:6px;margin:5px auto 3px}
+  /* 底部按钮：留出 iPhone home indicator / 安卓手势条的安全区 */
+  #s-fight .tools{margin-top:7px;
+    padding-bottom:calc(3px + var(--sab,0px))}
+}
+/* 极矮屏（320x568 / 横屏）：再挤一轮，保住字母盘和按钮 */
+@media (max-height:620px){
+  #s-fight{--avatar:40px;--msw:62px;--pcw:62px;--pch:76px;--vsm:0 0 7px}
+  #s-fight .q{padding:10px 9px 9px}
+  #s-fight .q .zh{font-size:clamp(21px,6.8vw,28px);margin-bottom:4px}
+  #s-fight .q .cat{margin-bottom:7px;font-size:10.5px}
+  #s-fight .slots{min-height:33px;margin-bottom:6px;gap:5px}
+   #s-fight .slot{width:24px;height:33px;font-size:16px;border-radius:6px}
+   #s-fight .slotsep{width:6px}
+   #s-fight .slotsep::before{width:2px;height:46%}
+  #s-fight .key{min-height:40px;font-size:17px;border-radius:var(--r1)}
+  #s-fight .bank{gap:5px;margin:4px auto 2px}
+  #s-fight .bankbar{margin:5px 0 0}
+  #s-fight .tools{margin-top:5px}
+  #s-fight .tool{padding:7px 3px;font-size:11px}
+  #s-fight .tool small{font-size:8.5px}
+}
+
+/* 地图页：#map 的高度由 JS 的 mapMetrics() 按节点数算好（实测 650px），内部 SVG
+   用 1:1 的像素 viewBox 映射、节点是绝对定位 —— 给它加 max-height 会把 SVG 压扁、
+   让底部的节点溢出重叠。所以这里不动地图高度：节点图本来就是「往下走」的内容，
+   页面正常滚动即可，放映/放弃按钮都能滚到。真正必须钉在屏幕内的是战斗页。 */
+@media (max-height:760px){
+  #s-map .mapbar{margin-bottom:0}
+  #s-map #mQuit{margin-top:8px}
+}
+
+/* 标题页：6 张角色卡 + 单位选择让文档高 1274-1319px，所有按钮都在折叠线以下。
+   矮屏上把角色卡压缩成两行三列的小卡、并收窄纵向间距，让「开始远征」上移。 */
+@media (max-height:760px){
+  /* 角色卡形象缩小（--hcpcw/--hcpch 驱动 .hcard .pc，不新增选择器规则） */
+  #s-title{--hcpcw:42px;--hcpch:52px;--hcpcmb:3px}
+  #s-title .sub{margin:4px 0 12px}
+  #s-title .lbl{margin:12px 0 6px}
+  #s-title .heroes{gap:7px}
+  #s-title .hcard{padding:8px 5px 9px}
+  #s-title .hcard b{font-size:11.5px;margin-bottom:2px}
+  #s-title .hcard .hs{font-size:8.5px;line-height:1.4}
+  #s-title .card{padding:14px}
+  #s-title .stats{gap:8px}
+  #s-title .note{margin-top:9px!important}
+}
+/* 窄屏：单位选择从 2 列改 3 列。实测 320px 下 2 列要 3 行共 389px，
+   改 3 列后只剩 2 行约 210px，「开始远征」按钮上移约 180px。 */
+@media (max-width:430px){
+  #s-title .units{grid-template-columns:repeat(3,1fr);gap:6px}
+  #s-title .unit{padding:9px 6px}
+  #s-title .unit b{font-size:11.5px;margin-bottom:2px;padding-right:0}
+  #s-title .unit span{font-size:9.5px;line-height:1.4}
+  #s-title .unit em{font-size:9px;margin-top:3px}
+}
+@media (max-height:620px){
+  #s-title{--hcpcw:36px;--hcpch:44px}
+  #s-title .hcard .hs{display:none}
+  #s-title .unit{padding:11px 9px}
+  #s-title .units{gap:7px}
+}
+
+/* 结算页 / 奖励页 / 导入页：内容天然高于矮屏，但它们是纯卡片流，
+   只要保证底部按钮不被安全区吞掉即可。 */
+@media (max-height:760px){
+  #s-over .card{padding:15px}
+  #s-over #oIcon{font-size:42px!important;margin:4px 0!important}
+  #s-over #oText{line-height:1.55!important;margin-bottom:10px!important}
+  #s-import textarea{min-height:96px}
+}
+
+/* ---- 窄屏适配：320px 起不溢出 ---- */
+@media (max-width:360px){
+ /* 窄屏 body 内边距同步收窄：--padT/--padB 必须一起改，
+    否则战斗页按旧值算高度、又冒出残余滚动。 */
+ :root{--padT:10px;--padB:calc(24px + var(--sab) + var(--verh,0px))}
+ body{padding-left:10px;padding-right:10px}
+ .hud{margin:-10px -10px 12px;padding:9px 10px}
+ .card{padding:15px;border-radius:var(--r2)}
+ h1{font-size:26px}
+ .btn{padding:14px 12px;font-size:15.5px}
+ .key{font-size:19px;min-height:42px;border-radius:var(--r1)}
+ .q{padding:16px 10px 14px}
+ .q .zh{letter-spacing:.5px}
+ .slot{width:26px;height:39px;font-size:18px;border-radius:7px}
+ .slots{gap:5px}
+ .slotsep{width:7px}
+ .node::after{letter-spacing:0}
+ .picks > .pick{padding:14px 12px 14px 17px}
+ .picks > .pick b{font-size:14.5px}
+ .picks > .pick i.ctag{font-size:9.5px;letter-spacing:.4px;padding:3px 7px;margin-bottom:8px}
+ .stats>div b{font-size:17px}
+ .stats>div i{font-size:9.5px}
+ .tool{font-size:11.5px;padding:9px 4px}
+ .tool small{font-size:9px;letter-spacing:0}
+ /* 键盘布局模式窄屏：键缩小、间距收紧，阶梯同步收窄（--kbw 由 JS 覆写） */
+ .bank.kb{gap:5px}
+ .bank.kb .kbrow{gap:5px}
+ .bank.kb .key{border-radius:var(--r1)}
+ .bankbar{gap:6px}
+ .bkbtn{padding:5px 10px;font-size:11px}
+ .gcell b{font-size:19px}
+ .unit b{font-size:12.5px}
+ .evhead .ic{font-size:38px}
+ .evhead h2{font-size:16.5px}
+ /* 窄屏对峙行：敌人信息优先，角色缩到 76px 免得把名字挤没 */
+ .myside{width:var(--msw,76px)}
+ .myside .pc{width:var(--pcw,76px);height:var(--pch,94px)}
+ .myname{font-size:9.5px;letter-spacing:.5px}
+ .vsrow{gap:var(--vsgap,6px)}
+ .hcard .pc{width:var(--hcpcw,48px);height:var(--hcpch,59px)}
+ .hcard b{font-size:11.5px}
+ .hcard .hs{font-size:9px}
+}
+@media (max-width:330px){
+ .stats{grid-template-columns:repeat(2,1fr);gap:10px}
+ .tools{gap:6px}
+}
+/* 大屏：键盘玩更舒服 */
+@media (hover:hover) and (pointer:fine){
+ .key:hover{transform:translateY(-1px)}
+}
+@media (prefers-reduced-motion:reduce){
+ *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+
+/* ============================================================
+   版本更新提示条（APP_VERSION 检测到线上版本变了才出现）
+   ------------------------------------------------------------
+   这个游戏是单文件 HTML + GitHub Pages，浏览器/CDN 都会缓存 ——
+   发新版后用户看到的仍是旧文件，于是每次都反馈「改动没生效」。
+   所以：页面启动后延迟几秒拉一次「线上自己」的 HTML，比对里面的
+   APP_VERSION，不同就在底部挂这条提示，点按钮强制刷新。
+
+   位置为什么是底部、且不靠 z-index 压内容：
+     顶部是 .hud（position:sticky 吸顶，两条血条 + 提示行都在那儿），
+     底部是 #s-fight 的字母盘与 提示/跳过/逃跑（按 --vh 精确算高钉在底部）。
+     任何 fixed 浮层都会盖住其中之一 —— 这正是旧 toast 压住血条那个 bug。
+   改法：条子占的高度走 --verh，body 的 --padB 把它算进去，
+     而 #s-fight 的等高 calc(100dvh - --padT - --padB) 同步收紧 ——
+     内容是被真实顶上来的，物理上不可能被遮住。
+   ============================================================ */
+:root{--verh:0px}                       /* 默认不占位：没有新版本时布局零变化 */
+:root.hasver{--verh:60px}               /* 提示条出现时才撑开底部 */
+#verbar{display:none}
+#verbar.on{display:flex;position:fixed;left:0;right:0;bottom:var(--sab);z-index:80;
+ height:var(--verh);align-items:center;gap:9px;padding:0 10px 0 13px;
+ background:linear-gradient(180deg,#241c58,#141033);
+ border-top:1px solid #8b5cf666;box-shadow:0 -10px 30px #000a,0 -1px 0 #ffffff14 inset;
+ backdrop-filter:blur(14px) saturate(1.25);-webkit-backdrop-filter:blur(14px) saturate(1.25);
+ color:var(--fg);font-size:12.5px;line-height:1.35}
+#verbar::before{content:'';flex:none;width:7px;height:7px;border-radius:50%;
+ background:var(--gold);box-shadow:0 0 0 3px #ffce4d26,0 0 10px #ffce4d80}
+#verbar .vmsg{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#verbar .vmsg b{color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+#verbar .vbtn{flex:none;min-height:34px;border:1px solid #ffffff2e;border-radius:var(--r1);
+ padding:0 12px;font-family:inherit;font-size:12.5px;font-weight:800;letter-spacing:.6px;
+ color:#fff;cursor:pointer;background:linear-gradient(100deg,var(--acc),#5b8cff);
+ box-shadow:0 4px 14px #8b5cf659;transition:transform .12s var(--ease),filter .18s}
+#verbar .vbtn:hover{filter:brightness(1.1)}
+#verbar .vbtn:active{transform:translateY(1px) scale(.985)}
+#verbar .vx{flex:none;width:32px;height:32px;border:1px solid #ffffff1f;border-radius:50%;
+ background:#ffffff0f;color:var(--mut);font-family:inherit;font-size:14px;line-height:1;
+ cursor:pointer;padding:0;transition:color .16s,background .16s}
+#verbar .vx:hover{color:var(--fg);background:#ffffff1f}
+#verbar .vx:active{transform:scale(.92)}
+@media (max-width:360px){
+ :root.hasver{--verh:68px}              /* 窄屏文字要两行，条子跟着长高 */
+ #verbar{font-size:12px;padding:0 8px 0 11px;gap:7px}
+ #verbar .vmsg{white-space:normal;overflow:visible}
+ #verbar .vbtn{padding:0 10px;font-size:12px}
+}
+/* ---- 音量控制：只在标题页底部，低调不显眼 ---- */
+.volrow{display:flex;align-items:center;justify-content:center;gap:10px;
+ margin:14px 0 2px;opacity:.55;transition:opacity .2s var(--ease)}
+.volrow:hover{opacity:.9}
+.vollbl{font-size:11px;color:var(--dim);letter-spacing:.5px}
+.volbtn{width:34px;height:28px;padding:0;border-radius:9px;
+ border:1px solid #ffffff1f;background:#ffffff0d;color:#fff;font-size:14px;line-height:1;
+ cursor:pointer;display:flex;align-items:center;justify-content:center;
+ -webkit-tap-highlight-color:transparent}
+.volbtn:active{transform:scale(.94)}
+.volval{font-size:11px;color:var(--dim);min-width:34px;text-align:left;font-variant-numeric:tabular-nums}
+/* 词星小队 / reference-v2 — REPLACES vocab-hero-cartoon.css, after original CSS.
+   Hero-only repaint: no DOM edits, shell dimensions, animation, transform or keyframe overrides.
+   Wide 84% head / 62% height; huge offset black eye cores; flat fills / pure black ink.
+   Socks + shoes are torso pseudo-elements. All six original profession identifiers retained. */
+.pc.pc[data-h] {
+  --ink:#000;
+  --stroke:clamp(1.5px,calc(var(--pcw,104px) * .029),3.2px);
+  --detail:clamp(1px,calc(var(--pcw,104px) * .017),1.9px);
+  --skin:#ffe0cf;--iris:#8571e8;
+}
+.hcard .pc.pc[data-h] {
+  --stroke:clamp(1.35px,calc(var(--hcpcw,58px) * .029),2px);
+  --detail:clamp(.8px,calc(var(--hcpcw,58px) * .017),1.2px);
+}
+.pc.pc[data-h=scholar]{--hair:#49365b;--c1:#7872de;--c2:#51469e;--acc:#ffc65b;--iris:#aa80ea;}
+.pc.pc[data-h=warrior]{--hair:#743d32;--c1:#ed6260;--c2:#a83040;--acc:#ffc949;--iris:#e88354;}
+.pc.pc[data-h=scout]{--hair:#85532c;--c1:#40b78e;--c2:#24735e;--acc:#e9c76b;--iris:#5ed3ae;}
+.pc.pc[data-h=lucky]{--hair:#be663a;--c1:#ffc64b;--c2:#cb852a;--acc:#70cba0;--iris:#f2bb42;}
+.pc.pc[data-h=healer]{--hair:#8e6aa8;--c1:#ddfff1;--c2:#65b7a7;--acc:#269b87;--iris:#72ccd9;}
+.pc.pc[data-h=ranger]{--hair:#304957;--c1:#a3cf61;--c2:#588244;--acc:#e6c66c;--iris:#a3d85a;}
+
+/* Remove the old rendered shadow without touching pcSh or its animation target. */
+.pc.pc[data-h] .pc-shadow{background:none;filter:none;box-shadow:none;}
+.pc.pc[data-h] .pc-head{
+  left:8%;top:4%;width:84%;height:62%;z-index:9;
+  border-radius:49% 49% 46% 46% / 48% 48% 52% 52%;
+  border:var(--stroke) solid var(--ink);background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-blush{background:none;opacity:0;}
+.pc.pc[data-h] .pc-blush::before,.pc.pc[data-h] .pc-blush::after{content:none;}
+
+/* Eye area is 67% of the shell across, with just a 3% centre gap.
+   The black core is offset to the left/top: NOT concentric spectacle rings.
+   Iris remains a broad side crescent; each eye has ONE circular white highlight. */
+.pc.pc[data-h] .pc-eye{
+  top:26%;width:32%;height:30%;z-index:11;
+  border:var(--stroke) solid var(--ink);border-radius:49% 49% 47% 47%;
+  background:var(--iris);box-shadow:none;overflow:hidden;
+}
+.pc.pc[data-h] .pc-eyeL{left:16.5%;}
+.pc.pc[data-h] .pc-eyeR{left:51.5%;}
+.pc.pc[data-h] .pc-eye::before{
+  content:'';position:absolute;left:-1%;top:-2%;width:84%;height:87%;
+  border:0;border-radius:50%;background:var(--ink);box-sizing:border-box;
+}
+.pc.pc[data-h] .pc-eye::after{
+  content:'';position:absolute;left:15%;top:13%;width:34%;height:auto;aspect-ratio:1;
+  border:0;border-radius:50%;background:#fff;box-shadow:none;
+}
+/* scaleY eye pivot remains the original 52%; closed-eye centre is 41.6% shell.
+   Lid widths/positions are expressed directly in the same 67%-wide eye envelope. */
+.pc.pc[data-h] .pc-lid{left:16.5%;top:40.5%;width:67%;height:2.4%;z-index:12;}
+.pc.pc[data-h] .pc-lid::before,.pc.pc[data-h] .pc-lid::after{
+  content:'';top:0;width:47.7612%;height:100%;
+  border:0;border-radius:0 0 70% 70%;background:var(--ink);
+}
+.pc.pc[data-h] .pc-lid::before{left:0;}
+.pc.pc[data-h] .pc-lid::after{left:52.2388%;}
+.pc.pc[data-h] .pc-mouth{
+  left:46%;top:58%;width:8%;height:3.5%;border-radius:45%;
+  border:0;background:var(--ink);box-shadow:none;
+}
+.pc.pc[data-h] .pc-mouth::after{background:#ef8d97;}
+
+/* No neck, compact rectangular tunic and bold black horizontal band. */
+.pc.pc[data-h] .pc-torso{
+  left:33%;top:62%;width:34%;height:20%;z-index:3;
+  border:var(--stroke) solid var(--ink);border-radius:10% 10% 15% 15%;
+  background:var(--c1);box-shadow:none;overflow:visible;
+}
+/* Two independently outlined white socks; thick solid bottom borders form black shoes.
+   From top 80% to bottom <98% of shell, even at the 58x71 card size. */
+.pc.pc[data-h] .pc-torso::before,.pc.pc[data-h] .pc-torso::after{
+  content:'';position:absolute;top:90%;width:35%;height:80%;
+  box-sizing:border-box;border:var(--detail) solid var(--ink);
+  border-bottom-width:calc(var(--stroke) * 2.7);
+  border-radius:18% 18% 48% 48%;background:#fff;
+}
+.pc.pc[data-h] .pc-torso::before{left:6%;}
+.pc.pc[data-h] .pc-torso::after{right:6%;}
+.pc.pc[data-h] .pc-sash{
+  left:34%;top:73%;width:32%;height:5%;z-index:5;
+  clip-path:none;border:0;border-radius:0;background:var(--ink);opacity:1;box-shadow:none;
+}
+.pc.pc[data-h] .pc-sash::before{
+  content:'';position:absolute;right:-62%;top:-130%;width:34%;height:320%;
+  box-sizing:border-box;border:var(--stroke) solid var(--ink);
+  border-radius:50%;background:var(--skin);
+}
+.pc.pc[data-h] .pc-sash::after{content:none;}
+.pc.pc[data-h] .pc-arm{
+  left:20%;top:66.5%;width:12%;height:16%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;
+  background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hand{
+  left:18%;top:78%;width:12%;height:9%;border-radius:50%;
+  border:var(--detail) solid var(--ink);background:var(--skin);box-shadow:none;
+}
+.pc.pc[data-h] .pc-cape{
+  left:22%;top:60%;width:56%;height:27%;
+  border:var(--stroke) solid var(--ink);border-radius:18% 18% 30% 30%;
+  background:var(--c2);box-shadow:none;
+}
+
+/* Front hair and hats end at/before 22%, safely above the eyes at 26%.
+   Polygon shapes are black silhouettes with a smaller coloured inset, not clipped borders. */
+.pc.pc[data-h] .pc-hair{
+  left:8%;top:3%;width:84%;height:20%;z-index:14;
+  border:var(--stroke) solid var(--ink);border-radius:60% 60% 12% 12%;
+  background:var(--hair);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairb{
+  left:6%;top:8%;width:88%;height:54%;opacity:1;
+  border:var(--stroke) solid var(--ink);border-radius:45% 45% 12% 12%;
+  background:var(--hair);box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairt{
+  left:12%;top:12%;width:76%;height:11%;background:none;
+  border:0;border-radius:0;box-shadow:none;
+}
+.pc.pc[data-h] .pc-hairt::before,.pc.pc[data-h] .pc-hairt::after{
+  content:'';display:block;position:absolute;top:0;width:34%;height:100%;
+  border:0;border-radius:0;background:var(--ink);box-sizing:border-box;
+  clip-path:polygon(0 0,100% 0,70% 100%);
+}
+.pc.pc[data-h] .pc-hairt::before{left:0;}
+.pc.pc[data-h] .pc-hairt::after{right:0;clip-path:polygon(0 0,100% 0,25% 100%);}
+.pc.pc[data-h] .pc-gear{
+  background:none;border:0;box-shadow:none;
+}
+.pc.pc[data-h] .pc-gear::before,.pc.pc[data-h] .pc-gear::after,
+.pc.pc[data-h] .pc-prop::before,.pc.pc[data-h] .pc-prop::after{
+  box-sizing:border-box;box-shadow:none;
+}
+.pc.pc[data-h] .pc-prop{box-shadow:none;}
+
+/* SCHOLAR: square-cut bob + high side bun; no spectacle frames over the eyes. */
+.pc.pc[data-h=scholar] .pc-hairb{
+  left:5%;top:1%;width:89%;height:67%;border-radius:48% 48% 14% 14%;
+}
+.pc.pc[data-h=scholar] .pc-hairb::after{
+  content:'';position:absolute;right:3%;top:0;width:25%;height:24%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:var(--hair);
+}
+.pc.pc[data-h=scholar] .pc-hair{height:18%;border-radius:60% 60% 8% 8%;}
+.pc.pc[data-h=scholar] .pc-hairt{
+  left:13%;top:14%;width:74%;height:9%;background:var(--ink);
+  clip-path:polygon(0 0,100% 0,100% 75%,73% 75%,62% 100%,47% 75%,0 75%);
+}
+.pc.pc[data-h=scholar] .pc-hairt::before{
+  inset:var(--detail);width:auto;height:auto;background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=scholar] .pc-hairt::after{content:none;}
+.pc.pc[data-h=scholar] .pc-gear{opacity:0;border:0;}
+.pc.pc[data-h=scholar] .pc-gear::before,.pc.pc[data-h=scholar] .pc-gear::after{content:none;}
+.pc.pc[data-h=scholar] .pc-prop{
+  opacity:1;left:0%;top:71%;width:34%;height:19%;
+  border:var(--stroke) solid var(--ink);border-radius:8%;background:#fff0c8;
+}
+.pc.pc[data-h=scholar] .pc-prop::before{
+  content:'';position:absolute;left:47%;top:0;width:6%;height:100%;background:var(--ink);
+}
+.pc.pc[data-h=scholar] .pc-prop::after{
+  content:'';position:absolute;left:9%;top:26%;width:26%;height:40%;
+  border-top:var(--detail) solid #8976ac;border-bottom:var(--detail) solid #8976ac;background:none;
+}
+
+/* WARRIOR: short blocky hair behind a silver helmet and warm gold plume. */
+.pc.pc[data-h=warrior] .pc-hair{height:17%;}
+.pc.pc[data-h=warrior] .pc-hairb{
+  left:5%;top:16%;width:90%;height:48%;border-radius:34% 34% 10% 10%;
+}
+.pc.pc[data-h=warrior] .pc-gear{
+  opacity:1;left:8%;top:2%;width:84%;height:21%;
+  border:var(--stroke) solid var(--ink);border-radius:60% 60% 8% 8%;background:#b9c8d9;
+}
+.pc.pc[data-h=warrior] .pc-gear::after{
+  content:'';left:46%;top:-8%;width:11%;height:47%;
+  border:var(--detail) solid var(--ink);border-radius:40%;background:#ffc949;
+}
+.pc.pc[data-h=warrior] .pc-gear::before{
+  content:'';position:absolute;left:47%;top:30%;width:6%;height:52%;background:#61748e;
+}
+.pc.pc[data-h=warrior] .pc-prop{
+  opacity:1;left:1%;top:31%;width:8%;height:52%;
+  border:var(--detail) solid var(--ink);border-radius:70% 70% 8% 8%;background:#e5edf5;
+}
+.pc.pc[data-h=warrior] .pc-prop::after{
+  left:-58%;top:80%;width:220%;height:8%;
+  border:var(--detail) solid var(--ink);border-radius:20%;background:#ffc949;
+}
+.pc.pc[data-h=warrior] .pc-prop::before{
+  content:'';position:absolute;left:5%;top:90%;width:90%;height:13%;
+  border:var(--detail) solid var(--ink);border-radius:15%;background:var(--hair);
+}
+
+/* SCOUT: outward saw-tooth back hair and a high, broad expedition hat. */
+.pc.pc[data-h=scout] .pc-hair{height:17%;}
+.pc.pc[data-h=scout] .pc-hairb{
+  left:2%;top:7%;width:96%;height:60%;border:0;border-radius:0;background:var(--ink);
+  clip-path:polygon(16% 0,84% 0,92% 43%,100% 76%,85% 72%,92% 100%,70% 88%,30% 88%,8% 100%,15% 72%,0 76%,8% 43%);
+}
+.pc.pc[data-h=scout] .pc-hairb::before{
+  content:'';position:absolute;inset:var(--stroke);background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=scout] .pc-hairt{top:12%;height:9%;}
+.pc.pc[data-h=scout] .pc-hairt::before{left:0;width:27%;}
+.pc.pc[data-h=scout] .pc-hairt::after{right:0;width:27%;}
+.pc.pc[data-h=scout] .pc-gear{
+  opacity:1;left:23%;top:1%;width:54%;height:15%;
+  border:var(--stroke) solid var(--ink);border-radius:48% 48% 10% 10%;background:#3a957b;
+}
+.pc.pc[data-h=scout] .pc-gear::before{
+  content:'';position:absolute;left:8%;top:48%;width:84%;height:23%;background:var(--acc);
+}
+.pc.pc[data-h=scout] .pc-gear::after{
+  left:-35%;top:70%;width:170%;height:36%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#4fbb90;
+}
+.pc.pc[data-h=scout] .pc-prop{
+  opacity:1;left:4%;top:63%;width:7%;height:24%;
+  border:var(--detail) solid var(--ink);border-radius:65% 65% 8% 8%;background:#e6edf2;
+}
+.pc.pc[data-h=scout] .pc-prop::after{
+  content:'';position:absolute;left:-40%;top:78%;width:180%;height:13%;
+  border:var(--detail) solid var(--ink);background:var(--acc);border-radius:20%;
+}
+
+/* LUCKY: rounded side tufts, offset broad fringe, shallow straw hat and solid coin. */
+.pc.pc[data-h=lucky] .pc-hair{height:19%;border-radius:65% 45% 20% 10%;}
+.pc.pc[data-h=lucky] .pc-hairb{
+  left:4%;top:10%;width:92%;height:49%;border-radius:48%;
+}
+.pc.pc[data-h=lucky] .pc-hairt{left:12%;top:11%;width:76%;height:12%;}
+.pc.pc[data-h=lucky] .pc-hairt::before{left:0;width:47%;clip-path:polygon(0 0,100% 0,75% 100%,10% 67%);}
+.pc.pc[data-h=lucky] .pc-hairt::after{right:0;width:20%;}
+.pc.pc[data-h=lucky] .pc-gear{
+  opacity:1;left:20%;top:1%;width:60%;height:11%;
+  border:var(--stroke) solid var(--ink);border-radius:55% 55% 15% 15%;background:#ffdf93;
+}
+.pc.pc[data-h=lucky] .pc-gear::before{
+  content:'';position:absolute;left:8%;top:41%;width:84%;height:26%;background:var(--acc);
+}
+.pc.pc[data-h=lucky] .pc-gear::after{
+  left:-27%;top:73%;width:154%;height:49%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#efbb54;
+}
+.pc.pc[data-h=lucky] .pc-prop{
+  opacity:1;left:72%;top:69%;width:20%;height:16%;
+  border:var(--stroke) solid var(--ink);border-radius:50%;background:#ffd34e;
+}
+.pc.pc[data-h=lucky] .pc-prop::before{
+  content:'';position:absolute;inset:12%;border:var(--detail) solid #bd8125;border-radius:50%;
+}
+.pc.pc[data-h=lucky] .pc-prop::after{
+  content:'';position:absolute;left:42%;top:20%;width:16%;height:60%;background:#bd8125;border-radius:20%;
+}
+
+/* HEALER: long straight lavender sides, white medical cap and unmistakable cross staff. */
+.pc.pc[data-h=healer] .pc-hair{height:18%;}
+.pc.pc[data-h=healer] .pc-hairb{
+  left:4%;top:7%;width:92%;height:65%;border-radius:44% 44% 10% 10%;
+}
+.pc.pc[data-h=healer] .pc-hairt{left:12%;top:12%;width:76%;height:11%;}
+.pc.pc[data-h=healer] .pc-hairt::before{left:0;width:19%;}
+.pc.pc[data-h=healer] .pc-hairt::after{right:0;width:19%;}
+.pc.pc[data-h=healer] .pc-gear{
+  opacity:1;left:15%;top:2%;width:70%;height:18%;
+  border:var(--stroke) solid var(--ink);border-radius:50% 50% 10% 10%;background:#f1fff8;
+}
+.pc.pc[data-h=healer] .pc-gear::before{
+  content:'';position:absolute;left:44%;top:17%;width:12%;height:64%;background:var(--acc);
+}
+.pc.pc[data-h=healer] .pc-gear::after{
+  content:'';position:absolute;left:34%;top:36%;width:32%;height:26%;background:var(--acc);border:0;border-radius:0;
+}
+/* Retain original translateX(-50%) on healer sash, but match everyone else's belt geometry. */
+.pc.pc[data-h=healer] .pc-sash{left:50%;top:73%;width:32%;height:5%;background:var(--ink);}
+.pc.pc[data-h=healer] .pc-prop{
+  opacity:1;left:3%;top:37%;width:7%;height:49%;
+  border:var(--detail) solid var(--ink);border-radius:30%;background:#e8b958;
+}
+.pc.pc[data-h=healer] .pc-prop::before{
+  content:'';position:absolute;left:-42%;top:0;width:184%;height:25%;
+  border:var(--detail) solid var(--ink);border-radius:10%;background:#effff7;
+}
+.pc.pc[data-h=healer] .pc-prop::after{
+  left:-135%;top:8%;width:370%;height:9%;border:var(--detail) solid var(--ink);
+  border-radius:10%;background:#effff7;
+}
+
+/* RANGER: asymmetrical wedge fringe, tall side ponytail, leaf headband, bow + string. */
+.pc.pc[data-h=ranger] .pc-hair{height:19%;border-radius:65% 40% 8% 10%;}
+.pc.pc[data-h=ranger] .pc-hairb{
+  left:72%;top:3%;width:25%;height:66%;border:0;border-radius:0;background:var(--ink);
+  clip-path:polygon(0 0,70% 8%,100% 42%,80% 100%,15% 79%,30% 42%);
+}
+.pc.pc[data-h=ranger] .pc-hairb::before{
+  content:'';position:absolute;inset:var(--stroke);background:var(--hair);clip-path:inherit;
+}
+.pc.pc[data-h=ranger] .pc-hairb::after{
+  left:10%;top:8%;width:65%;height:8%;border:var(--detail) solid var(--ink);background:var(--acc);
+}
+.pc.pc[data-h=ranger] .pc-hairt{left:12%;top:10%;width:76%;height:13%;}
+.pc.pc[data-h=ranger] .pc-hairt::before{left:0;width:48%;clip-path:polygon(0 0,100% 0,80% 100%);}
+.pc.pc[data-h=ranger] .pc-hairt::after{right:0;width:18%;}
+.pc.pc[data-h=ranger] .pc-gear{
+  opacity:1;left:15%;top:15%;width:70%;height:5%;
+  border:var(--detail) solid var(--ink);border-radius:20%;background:#a9c875;
+}
+.pc.pc[data-h=ranger] .pc-gear::after{
+  content:'';position:absolute;left:80%;top:-170%;width:20%;height:230%;
+  border:var(--detail) solid var(--ink);border-radius:80% 0 80% 0;background:var(--acc);
+}
+.pc.pc[data-h=ranger] .pc-prop{
+  opacity:1;left:2%;top:61%;width:16%;height:30%;background:none;
+  border:var(--stroke) solid #000;border-right:0;border-radius:80% 0 0 80%;
+}
+.pc.pc[data-h=ranger] .pc-prop::before{
+  content:'';position:absolute;right:0;top:0;width:0;height:100%;border-right:var(--detail) solid var(--ink);
+}
+.pc.pc[data-h=ranger] .pc-prop::after{
+  left:-20%;top:47%;width:155%;height:7%;border-radius:0;
+  border:0;border-bottom:var(--detail) solid var(--ink);background:var(--acc);
+}
+
+/* 仅替换敌人头像底色与边框颜色。沿用原 .avatar 的宽高、圆角、
+   box-shadow、idle / hurt / finhurt 动画与 transform，保留粒子锚点。 */
+#fAv {
+  background: #f4eaff;
+  border-color: #24152f;
+}
+/* 百分比随 --avatar 缩放；不重置外壳或 SVG 的动画、transform、滤镜。 */
+#fAv > svg.foe-cartoon {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+

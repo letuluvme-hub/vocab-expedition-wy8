@@ -23,8 +23,13 @@ domain -> explicit parameters / pure math
 - `src/services/audio.js`：注入 getCombo；不注册 DOM 交互事件，由 runtime 调用。
 - `src/services/version.js`：读取小清单，失败静默；提示条渲染仍在 runtime。
 - `src/ui/components/monster-art.js`：可信静态 SVG，不插入未知怪物名或颜色。
-- `src/styles/game.css`：首次完整搬出，精确保留规则顺序，尚未按屏拆 CSS。
-- `src/app/runtime.js`：**过渡协调层**。状态仍为闭包 DB/G/B；地图、抽词、战斗转移、奖励、页面渲染和视觉效果尚未完全解耦。
+- `src/styles/game.css`：按base/map/combat/hero/controls/cards/responsive导入，原始规则与覆盖顺序精确对照。
+- `src/ui/screens/{title,map,fight,over}.js`：读取显式getters，点击交回动作；共享角色、血条、纪念卡与词组槽位组件。
+- `src/ui/effects.js`：Canvas、飘字和角色/终结动画，显式初始化。
+- `src/app/{combat,encounters}.js`：战斗输入、伤害反馈与事件/商店/奖励流程，通过state getters和ports协作；奖励只兑现一次。
+- `src/domain/{map,word-selection,letter-bank,run}.js`：地图、抽词、字母盘与远征结转规则，无DOM/存储。
+- `src/app/lifecycle.js`：run/battle epoch归属与旧延迟回调取消。
+- `src/app/runtime.js`：启动、状态唯一所有权、浏览器事件、音频入口及模块装配；不再包含大段屏幕渲染或重复战斗控制器实现。
 
 ## 兼容和安全
 
@@ -35,13 +40,8 @@ domain -> explicit parameters / pure math
 - 现有字符串模板/innerHTML 不在本阶段整体重写。怪物 SVG 和输入释义的关键路径分别保持可信常量和 textContent；未来改模板必须单独测试输入安全。
 - 当前不支持远征跨刷新恢复；DB 才是持久存档，G.done 的 Set 留在内存。
 
-## 下一阶段顺序
+## 后续产品演进
 
-1. 提取 title、fight、map、reward 渲染器与 view model，每次做一屏。
-2. 抽取字母盘/抽词策略与可注入随机数，进行固定 seed 对照。
-3. 抽取战斗 action -> state/effects；整词、末击和荆棘统一结算。
-4. 抽取远征与奖励事务，替代回调直接改状态。
-5. 增加旧延迟任务取消/代号，退出和新远征不受旧 setTimeout 影响。
-6. 稳定契约后渐进引入 TypeScript，多教材 ID 与间隔复习另立功能任务。
+页面、地图/抽词、战斗与奖励控制器、远征结转和生命周期边界已提取。当前仍保留原地状态与旧调用顺序，不宣称所有函数纯化或玩法状态机已重新设计。后续暂停快照、攻击状态机、轮次主线和角色平衡按 `docs/product-backlog.md` 逐项实施，每功能独立Agent、先失败测试、整合者独立验收；共享状态协议串行变更。稳定后可渐进TypeScript，多教材ID与教学策略另立任务。
 
-第一次迁移不要同时改变伤害、学会判据、教学策略和存档格式。后续并行任务使用独立 worktree，所有共享接口由整合者串行处理。
+上线与回滚见 `docs/release.md`，结构重构不同时调整伤害、学会判据和存档格式。

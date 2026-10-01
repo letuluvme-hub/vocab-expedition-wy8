@@ -25,7 +25,9 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
-  const actual = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
+  const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
+  const imports = [...entry.matchAll(/@import\s+['"](.+?)['"]/g)].map(match=>match[1]);
+  const actual = imports.length ? imports.map(path=>readFileSync(new URL(`../../src/styles/${path}`,import.meta.url),'utf8')).join('') : entry;
   assert.equal(actual, expected);
 });
 

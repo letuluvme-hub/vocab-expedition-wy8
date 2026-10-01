@@ -1,0 +1,82 @@
+/* ---- map ---- */
+/* --nd / --ndb 由 JS 按容器宽度与层数实时写入，--ndb 为 BOSS 直径
+   节点尺寸必须等于 JS 假设的直径（圆→同尺寸圆角方块），否则会与连线错位/重叠。
+   emoji 图标改为纯 CSS 几何图形：::before 画符号，::after 出中文标签。 */
+.map{position:relative;height:452px;margin:8px 0 0;--nd:52px;--ndb:64px}
+.map svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+.node{position:absolute;width:var(--nd);height:var(--nd);
+ margin:calc(var(--nd) / -2) 0 0 calc(var(--nd) / -2);
+ border-radius:26%;border:2px solid var(--line2);
+ background:linear-gradient(160deg,#ffffff1a,#ffffff06);backdrop-filter:blur(6px);
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+ font-size:0;line-height:1;cursor:default;transition:border-color .18s,box-shadow .18s,background .18s;
+ z-index:2;box-shadow:var(--sh1)}
+/* 纯 CSS 符号 */
+.node::before{content:'';display:block;width:38%;height:38%;border-radius:4px;
+ background:var(--nc,var(--mut));flex:none;
+ box-shadow:0 0 10px color-mix(in srgb,var(--nc,#fff) 55%,transparent)}
+/* 中文标签：字号随节点直径缩放，但有下限保证可读 */
+.node::after{content:attr(data-l);font-size:clamp(9px,calc(var(--nd) * .2),12px);font-weight:800;letter-spacing:.5px;
+ color:var(--nc,var(--mut));white-space:nowrap;text-shadow:0 1px 3px #000c}
+
+.node[title="遭遇词灵"]{--nc:#ff6b8a}
+.node[title="遭遇词灵"]::before{clip-path:polygon(38% 0,50% 8%,62% 0,62% 62%,50% 100%,38% 62%);
+ border-radius:2px;width:44%;height:44%}
+.node[title="遭遇词灵"]::after{content:"战斗"}
+
+.node[title="精英战"]{--nc:#c084fc}
+.node[title="精英战"]::before{border-radius:50%;
+ background:radial-gradient(circle at 34% 38%,#1a1330 0 15%,transparent 16%),
+            radial-gradient(circle at 66% 38%,#1a1330 0 15%,transparent 16%),
+            linear-gradient(180deg,var(--nc),#7c3aed)}
+.node[title="精英战"]::after{content:"精英"}
+
+.node[title="未知事件"]{--nc:#22d3ee}
+.node[title="未知事件"]::before{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);border-radius:2px;
+ background:linear-gradient(160deg,#67e8f9,var(--nc))}
+.node[title="未知事件"]::after{content:"事件"}
+
+.node[title="营火"]{--nc:#ffb020}
+.node[title="营火"]::before{clip-path:polygon(50% 0,72% 34%,100% 72%,78% 100%,22% 100%,0 72%,28% 34%);
+ border-radius:3px;background:linear-gradient(180deg,#fde68a,#f97316)}
+.node[title="营火"]::after{content:"营火"}
+
+.node[title="商店"]{--nc:#3ddc84}
+.node[title="商店"]::before{border-radius:50% 50% 22% 22%;
+ background:radial-gradient(circle at 50% 34%,#0f2a1c 0 12%,transparent 13%),linear-gradient(180deg,#6ee7b7,#16a34a)}
+.node[title="商店"]::after{content:"商店"}
+
+.node[title="词汇之王"]{--nc:#ffce4d}
+.node[title="词汇之王"]::before{clip-path:polygon(0 100%,0 22%,25% 62%,50% 8%,75% 62%,100% 22%,100% 100%);
+ background:linear-gradient(180deg,#fff3c4,#f59e0b)}
+.node[title="词汇之王"]::after{content:"首领"}
+
+.node.pick{border-color:var(--nc,var(--acc2));cursor:pointer;
+ background:#22d3ee1f;
+ background:linear-gradient(160deg,color-mix(in srgb,var(--nc,#22d3ee) 26%,transparent),#ffffff08);
+ box-shadow:0 0 0 4px #22d3ee33,0 0 22px #22d3ee55,var(--sh2);
+ box-shadow:0 0 0 4px color-mix(in srgb,var(--nc,#22d3ee) 20%,transparent),
+            0 0 22px color-mix(in srgb,var(--nc,#22d3ee) 45%,transparent),var(--sh2);
+ animation:bob 1.7s ease-in-out infinite}
+.node.pick::after{color:#fff}
+.node.pick:active{box-shadow:0 0 0 7px color-mix(in srgb,var(--nc,#22d3ee) 34%,transparent),var(--sh2)}
+.node.done{opacity:.32;border-style:dashed;box-shadow:none}
+.node.done::before,.node.done::after{opacity:.6}
+.node.cur{border-color:var(--gold);box-shadow:0 0 0 4px #ffce4d33,0 0 20px #ffce4d44}
+.node.boss{width:var(--ndb);height:var(--ndb);
+ margin:calc(var(--ndb) / -2) 0 0 calc(var(--ndb) / -2);border-width:2px}
+.node.boss::before{width:32%;height:32%}
+.node.boss::after{font-size:12px}
+.node.lock{opacity:.16;box-shadow:none}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:2px}
+/* 地图页脚信息条 */
+.floor{font-size:12.5px;color:var(--mut);letter-spacing:1px;white-space:nowrap}
+.floor b{color:var(--gold);font-size:16px;font-variant-numeric:tabular-nums}
+.relics{display:flex;gap:6px;flex-wrap:wrap}
+.relic{width:32px;height:32px;border-radius:9px;background:#ffffff12;border:1px solid var(--line2);
+ display:flex;align-items:center;justify-content:center;font-size:15px;cursor:help;
+ transition:.16s var(--ease);box-shadow:var(--sh1)}
+.relic:hover{background:#ffffff1f;transform:translateY(-2px);border-color:var(--line2)}
+.relic:active{transform:scale(.92)}
+
