@@ -39,9 +39,20 @@ async function typeCurrentWord(page) {
   return w;
 }
 
-// 真实点地图上第一个可选战斗节点，回到一场战斗（厚血，保证不会顺手打死怪）
+// Traverse the actual seeded map; the first available node may be rest/event.
 async function enterBattle(page) {
-  await page.locator('#map .node.pick').first().click();
+  for (let step = 0; step < 9 && !(await page.locator('#s-fight').isVisible()); step++) {
+    const fights = page.locator('#map .node.pick[title="遭遇词灵"],#map .node.pick[title="精英战"],#map .node.pick[title="词汇之王"]');
+    await (await fights.count() ? fights.first() : page.locator('#map .node.pick').first()).click();
+    if (await page.locator('#s-event').isVisible()) {
+      await page.locator('#ePicks .pick').last().click();
+      await expect(page.locator('#s-map')).toBeVisible();
+    } else if (await page.locator('#s-rest').isVisible()) {
+      const leave = page.locator('#rPicks [data-opt="shop:leave"]');
+      await (await leave.count() ? leave : page.locator('#rPicks .pick').first()).click();
+      await expect(page.locator('#s-map')).toBeVisible();
+    }
+  }
   await expect(page.locator('#s-fight')).toBeVisible();
   await page.evaluate(() => {
     const t = window.__gameTest;
@@ -368,7 +379,8 @@ test('re-entering a map node after the unit is complete shows the same checkpoin
   // 直接走公开入口：再点一次同一个战斗节点
   const nodeCount = await page.evaluate(() => {
     const t = window.__gameTest;
-    const n = t.G.rows[0][0];
+    const n = t.B.node; // The known battle node, not an arbitrary rest/event.
+    if (!['battle', 'elite', 'boss'].includes(n.type)) throw new Error('Expected the restored battle node');
     t.enterNode(n);
     return t.G.rows[0].length;
   });
