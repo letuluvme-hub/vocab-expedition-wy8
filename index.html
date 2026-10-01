@@ -1107,6 +1107,17 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
  #verbar .vmsg{white-space:normal;overflow:visible}
  #verbar .vbtn{padding:0 10px;font-size:12px}
 }
+/* ---- 音量控制：只在标题页底部，低调不显眼 ---- */
+.volrow{display:flex;align-items:center;justify-content:center;gap:10px;
+ margin:14px 0 2px;opacity:.55;transition:opacity .2s var(--ease)}
+.volrow:hover{opacity:.9}
+.vollbl{font-size:11px;color:var(--dim);letter-spacing:.5px}
+.volbtn{width:34px;height:28px;padding:0;border-radius:9px;
+ border:1px solid #ffffff1f;background:#ffffff0d;color:#fff;font-size:14px;line-height:1;
+ cursor:pointer;display:flex;align-items:center;justify-content:center;
+ -webkit-tap-highlight-color:transparent}
+.volbtn:active{transform:scale(.94)}
+.volval{font-size:11px;color:var(--dim);min-width:34px;text-align:left;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -1125,6 +1136,12 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
   <div class="row">
     <button class="btn g" id="toRelics">遗物图鉴</button>
     <button class="btn g" id="toImport">导入词表</button>
+  </div>
+  <!-- 音量控制：放在标题页最底部、低调不显眼（原先固定在右上角，窄屏会挡住界面） -->
+  <div class="volrow">
+    <span class="vollbl">音量</span>
+    <button class="volbtn" id="volBtn" type="button" title="点击切换音量">🔊</button>
+    <span class="volval" id="volVal">55%</span>
   </div>
   <div class="card" style="margin-top:16px">
     <div class="stats">
@@ -1315,7 +1332,7 @@ textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px #8b5cf633}
 //    3) 提示条不许压住游戏内容 —— 靠 --verh 撑 --padB 把内容真实顶上来，
 //       而不是靠 z-index 盖在字母盘/血条上面（那正是旧 toast 的坑）。
 // ============================================================
-const APP_VERSION='2026.10.01-c';
+const APP_VERSION='2026.10.01-d';
 // 记录「已经提示过哪个版本」。用户关掉提示条时写入，同一版本不再反复弹；
 // 版本一变就重新提示。用独立 key，不进存档 DB（存档 key 仍是 wy8a_rogue_v1）。
 const VER_SEEN_KEY='wy8a_ver_seen_v1';
@@ -2030,21 +2047,32 @@ let volStep=0;
   AU.vol=VOL_STEPS[volStep]; AU.muted=v<=0;
 })();
 const saveVol=()=>{ DB.vol=AU.vol; DB.mute=AU.muted; saveDB() };
-/* 音量按钮已按用户要求移除：它在窄屏手机上与语音按钮一起挤在右上角，遮挡界面。
-   音量逻辑本身（AU.vol / AU.muted / DB.vol / DB.mute）全部保留，
-   存档里的旧字段照常读取，删掉按钮不会影响已保存的音量设置。 */
-if(typeof document!=='undefined'&&document.getElementById&&document.getElementById('volBtn')){
-  try{ document.getElementById('volBtn').remove() }catch(e){}
-}
+/* 音量按钮：改为挂到「标题页」底部的 .volrow 里（不再是右上角浮层）。
+   音量逻辑与存档字段（AU.vol / AU.muted / DB.vol / DB.mute）保持不变。 */
+(function mountVolBtn(){
+  if(typeof document==='undefined'||!document.body) return;
+  const b=document.getElementById('volBtn'), v=document.getElementById('volVal');
+  if(!b) return;
+  const paint=()=>{
+    b.textContent=AU.muted?'🔇':(AU.vol>=.5?'🔊':'🔉');
+    if(v) v.textContent=AU.muted?'静音':(Math.round(AU.vol*100)+'%');
+    b.title='音量 '+(AU.muted?'静音':Math.round(AU.vol*100)+'%')+'（点击切换：55% → 30% → 12% → 静音）';
+  };
+  b.onclick=()=>{ volStep=(volStep+1)%VOL_STEPS.length; AU.setVol(VOL_STEPS[volStep]);
+    saveVol(); paint(); if(!AU.muted) sfx.ui() };
+  b.oncontextmenu=e=>{ e.preventDefault(); volStep=(volStep+VOL_STEPS.length-1)%VOL_STEPS.length;
+    AU.setVol(VOL_STEPS[volStep]); saveVol(); paint(); if(!AU.muted) sfx.ui() };
+  paint();
+})();
 /* UI 点击 / 悬停提示音（事件委托，只作用于主要按钮和地图节点） */
 if(typeof document!=='undefined'&&document.addEventListener){
   document.addEventListener('click',e=>{
     const t=e.target&&e.target.closest?e.target.closest('.btn,.node.pick'):null;
-    if(t&&t.id!=='volBtn') sfx.ui();
+    if(t) sfx.ui();
   });
   document.addEventListener('pointerover',e=>{
     const t=e.target&&e.target.closest?e.target.closest('.btn,.node.pick,.item'):null;
-    if(t&&t.id!=='volBtn') sfx.hover();
+    if(t) sfx.hover();
   });
 }
 
@@ -2965,6 +2993,7 @@ function nextWord(){
   B.bad=new Array(nl.letters.length).fill(false);
   B.freezeWord=false;   // 寒冰护符只保护一个词
   B.input=[]; B.sel=0; B.hintUsed=0; B.hintTotal=0;
+  B.saidFor=null; B.saidCount=0; B.sayLastAt=0;   // 听读音计数：换词重置
   if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1 }   // 学者之书：揭示首字母
   renderFight();
 }
@@ -3135,6 +3164,10 @@ $('tBankMode').onclick=()=>{ DB.kbMode=!isKbMode(); saveDB(); if(B&&!B.over) ren
 // 切换大小写显示：纯显示层。判定走 norm()（转小写），所以两种显示都能正常判对
 $('tBankCase').onclick=()=>{ DB.kbUpper=!isKbUpper(); saveDB(); if(B&&!B.over) renderFight(); syncBankBar() };
 
+/* 听读音限制：每个单词最多听 3 遍（长按连读算 2 遍），两次之间至少隔 1.2 秒。
+   拼完单词的自动朗读走 TTS.word()，不受限制 —— 那是完成后的奖励，不是答题辅助。 */
+const SAY_MAX=3, SAY_COOLDOWN_MS=1200;
+
 /* ================= 「听读音」按钮 + 语音开关 =================
    · 独立于「提示」按钮：提示只揭示字母，这个只出声、不改任何游戏状态。
    · 慢速 0.7 朗读当前目标单词；长按 = 连读两遍（背单词时反复听最有用）。
@@ -3160,6 +3193,22 @@ function sayCurrentWord(times){
   if(!B||B.over||!B.word) { toast('还没有开始战斗'); return false }
   if(!TTS.supported){ toast('当前浏览器不支持语音朗读，不影响游戏'); return false }
   if(!TTS.on){ TTS.setOn(true); paintSayBtn(); }        // 死结保护：先开回来再念
+  /* ★ 限制：听读音不能无限点，否则「一个词反复听 20 遍」就直接听出答案了。
+     规则：每个单词最多 SAY_MAX 遍（长按连读算 2 遍），两次之间至少隔 SAY_COOLDOWN_MS；
+     换词后重置。拼完整词的自动朗读走 TTS.word()，不受此限制 —— 那是有回报的。 */
+  if(B.saidFor!==B.word.w){ B.saidFor=B.word.w; B.saidCount=0; B.sayLastAt=0; }   // 换词 → 重置
+  const used=B.saidCount||0;
+  if(used>=SAY_MAX){
+    toast('这个词已经听了 '+SAY_MAX+' 遍啦，试试自己拼出来');   // ★ 不写出完整单词，否则等于剧透
+    return false;
+  }
+  const _now=Date.now();
+  if(B.sayLastAt && _now-B.sayLastAt < SAY_COOLDOWN_MS){
+    toast('慢一点，'+Math.ceil((SAY_COOLDOWN_MS-(_now-B.sayLastAt))/1000)+' 秒后再听');
+    return false;
+  }
+  B.sayLastAt=_now;
+  B.saidCount=used+(times||1);
   const n=times||1;
   for(let i=0;i<n;i++){
     // 连读要错开：speak 内部每次都会 cancel，所以必须串行 setTimeout，
