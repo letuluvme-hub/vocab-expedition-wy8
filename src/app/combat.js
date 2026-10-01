@@ -8,12 +8,24 @@
  */
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 import { SKIP_HP_COST } from '../data/balance.js';
+import { applyDamage, canFinishFight } from '../domain/battle-rules.js';
 
 export function createCombatController({ state, ports }) {
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
     onWordWrong, centerOf, heroPoint, toast, sfx, TTS, burst, floatTxt, flash, ring, animHero,
     wordFinisher, foeCry, renderFight, nextWord, winFight, loseFight, finishNode, saveDB,
     scheduleBattle } = ports;
+
+  /* winFight 的本地闸门。判据**只用** domain/battle-rules.js 的 canFinishFight ——
+   * 不在这里另写一份 `B.over || B.finished`：本地判据一旦和 runtime 那份漂移，
+   * 就会出现「这里放行、那里拒绝」或反过来的授权不一致。两处共用同一个函数，
+   * 与 finishBattleNode 依赖的 battle.finished 标记自然对齐，防止同一场战斗重复发奖。 */
+  const tryWin = () => {
+    const B = state.B;
+    if (!canFinishFight(B)) return false;
+    winFight();
+    return true;
+  };
 
   // runtime 里这些是浏览器全局；Node 桩没有，必须退化成 0 而不是抛 ReferenceError。
   const vw = () => (typeof innerWidth === 'number' ? innerWidth : 0);
@@ -22,7 +34,9 @@ export function createCombatController({ state, ports }) {
   /* ---------- 伤害：敌人掉血 + 反馈包 ---------- */
   function dealDamage(d) {
     const B = state.B;
-    B.enHp -= d;
+    // ★ 非完整词伤害：不传 allowFinish → 敌人永远留 1 血，单字母打不死。
+    //   「最后一击必须拼完整词」这条规则的执行点就在这个默认参数上。
+    const hit = applyDamage(B, d);
     animHero('atk');                                   // ← 角色追加：每个正确字母都挥一下
     const av = $('fAv');
     if (av) {
@@ -32,13 +46,15 @@ export function createCombatController({ state, ports }) {
     }
     const c = centerOf(av);
     burst(c.x, c.y, B.foe.tint, 20, 5);
-    floatTxt(c.x, c.y, '-' + d, B.foe.tint);
+    // 反馈展示**实际**扣掉的血：1 血地板生效时报的是真的掉了几点，
+    // 不能报玩家按下去那个伤害值（否则会看到 -40 而敌人只掉了 3 点）。
+    floatTxt(c.x, c.y, '-' + hit.dealt, B.foe.tint);
     // 角色出手的火花：从角色位置飞向敌人，形成「攻击」的视觉因果
     const hp = heroPoint();
     if (hp.x > 0 && hp.x < vw()) burst((hp.x + c.x) / 2, (hp.y + c.y) / 2, '#ffffff', 6, 4.5);
     sfx.hit();
-    if (B.enHp <= 0 && B.enHp > -40) flash('#ff547033');
-    if (B.enHp <= 0) winFight();
+    // 这里**不再**判胜负。整场战斗唯一的胜利来源是 pressKey 里的整词大招分支；
+    // 单字母 / 荆棘即使把敌人压到 1 血也只继续战斗，不调 winFight。
   }
 
   /* ---------- 受伤：护盾 → 生命 → 荆棘 → 错词记录 ---------- */
@@ -72,12 +88,13 @@ export function createCombatController({ state, ports }) {
         } else if (B.myHp >= G.maxhp * 0.5) B._lowSaid = false;   // 回血后重置，下次濒死还能喊
       }
     }
-    // 荆棘护符：答错时反弹 5 血给敌人（只结算一次，且不影响胜负判定）
+    // 荆棘护符：答错时反弹 5 血给敌人（只结算一次）。
+    // ★ 反弹同样是非完整词伤害：可以削血，但永远打不死、也不触发胜负。
+    //   玩家答错一次就把 BOSS 打死，等于绕过了「必须拼完整个词」这条底线。
     if (hasR('thorn') && dmg > 0) {
-      B.enHp -= 5;
       const tc = centerOf($('fAv'));
-      floatTxt(tc.x, tc.y, '荆棘 -5', '#3ddc84');
-      if (B.enHp <= 0) winFight();
+      const thorn = applyDamage(B, 5);
+      floatTxt(tc.x, tc.y, '荆棘 -' + thorn.dealt, '#3ddc84');
     }
     // 错词记录：进本局复习队列，下一场优先出现。soft（顺序错）不算。
     if (!soft) {
@@ -250,8 +267,11 @@ export function createCombatController({ state, ports }) {
       if (hasR('focus') && B.combo > 0 && B.combo % 6 === 0) B.dmgBonus += 5;
       if (B.word.d >= 3 && B.combo > 0 && rnd(6) === 0) toast('💡 记住这个词！');
       if (wordComplete()) {
-        // ── 整词拼完：一次大招 ─────────────────────────────────────────────
-        // 判据用 wordComplete()（和掌握判定 winFight 里同一个函数），不用裸 input.length 比较。
+        // ── 整词拼完：一次大招，也是全游戏唯一的致命伤害 ───────────────────
+        // 判据用 wordComplete()（和 winFight 授权里同一个函数），不用裸 input.length 比较。
+        // ★ allowFinish=true：只有这一处允许把 enHp 压到 <=0。
+        //   dealDamage 里那个字母命中已经先把敌人扣到 1 血地板，所以这里
+        //   「最后一个字母的普通 hit」绝不会抢先赢 —— 赢一定发生在大招上。
         const bonus = wordDmg();       // 大招伤害：≥ 单字母 ×3.2
         creditWord(B.word.w);          // 整词拼完 → 记为学会（掌握表 + 本局退休）
         B.wordsDone = (B.wordsDone || 0) + 1;
@@ -261,14 +281,13 @@ export function createCombatController({ state, ports }) {
         foeCry('hit');
         TTS.word(B.word.w);
         if (hasR('battery') && B.wordsDone % 3 === 0) { B.myHp = Math.min(G.maxhp, B.myHp + 3); toast('🔋 永动电池：回复 3 生命'); }
-        B.enHp -= bonus;
-        if (B.enHp <= 0) { renderFight(); foeCry('die'); winFight(); return; }
+        const fin = applyDamage(B, bonus, { allowFinish: true });
+        if (fin.lethal) { renderFight(); foeCry('die'); tryWin(); return; }
         B.combo = 0;          // 换词时连击结算：防止伤害跨词无限叠加
         nextWord();
         return;
       }
       renderFight();
-      if (B.enHp <= 0) return winFight();
     } else {
       // ❌ 错误：区分「单词里根本没这个字母」和「字母对、只是顺序不对」
       const inWord = tgt.indexOf(ch) >= 0;

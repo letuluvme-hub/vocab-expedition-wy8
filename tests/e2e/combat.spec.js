@@ -33,7 +33,10 @@ test('click and physical keyboard yield identical repeated-letter combat outcome
   expect(undone.G.att).toBe(clicked.att + 1);
 });
 
-test('partial word kill never becomes mastered or retired', async ({ game, page }) => {
+// 归档旧页保留「半词击杀」行为（本项目已修，见 tests/e2e/whole-word.spec.js）。
+// 这里继续断言旧版事实，让基线可对照；新版跑的是新的验收标准。
+test('partial word kill never becomes mastered or retired', async ({ game, page }, testInfo) => {
+  test.skip(testInfo.project.metadata.target !== 'legacy', 'Legacy archived behavior only');
   await game.open();
   await game.start();
   await game.fight({ word: 'litre', enemyHp: 1 });
@@ -49,6 +52,20 @@ test('partial word kill never becomes mastered or retired', async ({ game, page 
   await expect(page.locator('#pSub')).toContainText('没拼完，不算学会');
   const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), STORAGE_KEY);
   expect(saved.mastered).not.toContain('litre');
+});
+
+test('a partial word no longer ends the fight in the current build', async ({ game, page }, testInfo) => {
+  test.skip(testInfo.project.metadata.target === 'legacy', 'New regression guard for bug-whole-word');
+  await game.open();
+  await game.start();
+  await game.fight({ word: 'litre', enemyHp: 1 });
+  await game.clickLetter('l');
+  const state = await game.state();
+  expect(state.B.over).toBe(false);
+  expect(state.B.won).toBe(false);
+  expect(state.DB.mastered).not.toContain('litre');
+  expect(state.G.kills).toBe(0);
+  await expect(page.locator('#s-fight')).toBeVisible();
 });
 
 test('complete phrase with repeated letters credits exactly one mastered word on killing blow', async ({ game, page }) => {

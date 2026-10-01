@@ -21,6 +21,7 @@ import { norm, wordGapBefore } from '../domain/text.js';
 import { comboRate as calculateComboRate, hitDmg as calculateHitDmg, wordDmg as calculateWordDmg,
   finTier as calculateFinTier, WORD_RATIO, WORD_COMBO_BOOST } from '../domain/damage.js';
 import { hpBarGeom } from '../domain/hp.js';
+import { canFinishFight } from '../domain/battle-rules.js';
 import { wordComplete as isWordComplete, creditWordProgress, onWordWrongProgress } from '../domain/learning.js';
 import { createSpeech } from '../services/speech.js';
 import { createAudio } from '../services/audio.js';
@@ -709,30 +710,36 @@ function wordDmg(){ return calculateWordDmg(G,B) }
      所以这里必须在插入 DOM 后量一次宽度再夹一次 x，词永远完整可见。 */
 function dealDamage(d){return combat.dealDamage(d)}
 function hurtPlayer(d,wrongCh,rightCh,opt){return combat.hurtPlayer(d,wrongCh,rightCh,opt)}
+// ★ winFight 是「战斗胜利」的唯一结算入口，也是唯一的授权点。
+//   canFinishFight 的四道闸门缺一不可（判据收在 domain/battle-rules.js）：
+//     1) over / finished —— 本场已经结算过：连点 / 重复 damage / 迟到回调都无效，
+//                        金币 / kills / 掌握表 / 奖励面板只发一次。
+//     2) 整词拼完     —— 半个词绝不算赢，也绝不可能走 win 绕过掌握判定。
+//     3) enHp 合法    —— NaN / undefined 一律 fail closed，不当成「已打空」。
+//     4) enHp <= 0    —— 敌人真的被打空；而非完整词伤害有 1 血地板，
+//                        所以「打空」这件事本身只可能由整词大招造成。
+//   单字母 / 荆棘 / 道具路径现在都不再调 winFight，这几道是纵深防御：
+//   即使将来新增伤害来源、或测试探针直接调 winFight，也绕不过去。
+// ★ 走到这里时当前词必然已经拼完（见 combat.js pressKey 的 wordComplete 分支），
+//   而「学会」也已经在那个分支里 creditWord 过一次 —— 所以这里**不再**重复
+//   creditWord，也不再需要「没拼完」的补救提示：那是授权闸门之前的旧语义。
+//   「学会一个词」的唯一入口是 combat 的整词分支，不在本文件。
 function winFight(){
-  if(B.over) return;
+  if(!canFinishFight(B)) return false;
   B.over=true; B.won=true;
   sfx.win();
   // 语音：胜利台词强制发声（force=true 绕过限流 —— 这一刻是整局的高潮）
   lifecycle.scheduleBattle(()=>TTS.line('win',null,{force:true}), 260);
   burst(innerWidth/2,innerHeight*0.4,B.foe.tint,44,7);
   ring(innerWidth/2,innerHeight*0.4,'#ffce4d');
-  // 标记掌握：只认「整词答完」，不认「打赢了」。
-  // 敌人可能死于收尾一击（最后一个字母 / 荆棘反弹 / 道具直伤），
-  // 那一刻当前单词往往只拼了一半 —— 半个词绝不能进掌握表，
-  // 否则下次复习时这个没真学会的词就再也不会出现了。
-  // 精英的额外门槛（必须打出连击）保留。
-  // 记下「这局有个词没答完」，900ms 后的结算面板要如实告诉玩家（提示语 + 结算副标题）
-  const unfinished = wordComplete()? null : B.word.w;
-  if(wordComplete() && (!B.elite || B.combo>0)) creditWord(B.word.w);
-  if(unfinished) toast('⚔️ 敌人倒下了，但「'+unfinished+'」还没拼完，下次继续');
   G.kills++;
   let g=25+(B.boss?120:B.elite?60:0)+Math.floor(G.floor*4);
   if(B.boss) g+=50;
   if(hasR('purse')) g+=25;
   // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
   goldGain(Math.round(g*(B.goldMult||1)));   // 贪婪钱币 ×3
-  lifecycle.scheduleBattle(()=>encounters.showBattleRewards(g,unfinished),900);
+  // 走到这里时当前词一定已整词拼完并已 creditWord，所以没有「没拼完」要如实上报。
+  lifecycle.scheduleBattle(()=>encounters.showBattleRewards(g,null),900);
 }
 function markMastered(w){
   if(DB.mastered.indexOf(w)<0){ DB.mastered.push(w); saveDB() }
