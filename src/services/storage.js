@@ -24,6 +24,10 @@ export function createStorage(storageLike) {
   // Resolve inside a guard, never through a localStorage default argument.
   if (storageLike === undefined) storageLike = resolveStorage();
   return {
+    // Whether a real Storage-like object exists. Callers use it to tell
+    // "this device cannot persist" apart from "this write failed" so the
+    // player is told the truth instead of a generic save error.
+    get available() { return !!storageLike; },
     load() {
       try {
         return JSON.parse(storageLike.getItem(STORAGE_KEY)) || null;

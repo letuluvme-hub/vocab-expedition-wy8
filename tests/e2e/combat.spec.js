@@ -16,6 +16,10 @@ test('click and physical keyboard yield identical repeated-letter combat outcome
   await game.clickLetter('t');
   const clicked = combatOutcome(await game.state());
   await page.reload();
+  // The new build keeps the unfinished run. This comparison deliberately starts
+  // a fresh run, so accept its explicit discard confirmation rather than silently
+  // bypassing the progress UI. The archived page has no such dialog.
+  page.once('dialog', dialog => dialog.accept());
   await game.start();
   await game.fight({ word: 'cotton' });
   await page.keyboard.type('Cott');

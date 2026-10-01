@@ -5,3 +5,6 @@
 @import './controls.css';
 @import './cards.css';
 @import './responsive.css';
+/* 暂停屏样式：只追加在最后，只作用于 #s-pause / #continueRow，
+   不改任何既有选择器，因此原有层叠顺序与规则逐字不变。 */
+@import './pause.css';

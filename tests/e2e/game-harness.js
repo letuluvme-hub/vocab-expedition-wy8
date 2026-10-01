@@ -119,9 +119,25 @@ export const test = base.extend({
               shopHints: G.shopHints || 0 },
             B: B && { word: B.word.w, input: B.input, used: B.used, bad: B.bad, myHp: B.myHp,
               enHp: B.enHp, shield: B.shield, combo: B.combo, over: B.over,
-              won: !!B.won, wordsDone: B.wordsDone, boss: B.boss },
+              won: !!B.won, wordsDone: B.wordsDone, boss: B.boss,
+              // 暂停恢复要逐位对照字母盘与提示次数，所以这两项也读出来。
+              letters: B.letters, hints: B.hints, rewardTaken: !!B.rewardTaken },
           };
         });
+      },
+      // 存档原文：断言「快照与学习记录确实是同一次写入的内容」。
+      async saved() {
+        return page.evaluate(key => JSON.parse(localStorage.getItem(key) || 'null'), STORAGE_KEY);
+      },
+      async writeSaved(db) {
+        await page.evaluate(({ key, db }) => localStorage.setItem(key, JSON.stringify(db)),
+          { key: STORAGE_KEY, db });
+      },
+      // 真正的刷新：读回同一台设备上由应用自己写下的存档。
+      async reload() {
+        await page.reload();
+        await expect(page.locator('#s-title')).toBeVisible();
+        await expect.poll(() => page.evaluate(() => !!window.__gameTest)).toBe(true);
       },
     };
     await use(game);
