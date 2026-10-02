@@ -65,12 +65,17 @@ test('BOSS victory collects one reward card and next unit starts without stale b
   await expect(page.locator('#oTitle')).toHaveText('远征成功！');
   await expect(page.locator('#oReward .reward-card')).toHaveCount(1);
   await expect(page.locator('#oReward')).toContainText('不代表已掌握全部词汇');
-  await expect(page.locator('#oAgain')).toHaveText('复习本单元');
   const isLegacy = testInfo.project.metadata.target === 'legacy';
+  // C1 有意漂移：「复习本单元」→「重新开始本单元（进度清零）」。
+  // ⚠️ 这条 spec 同时跑 legacy 与 new 两个 project，而 legacy 跑的是**归档旧页** ——
+  //   旧页当然还写着「复习本单元」。所以必须按 project 分支，不能只写新文案
+  //   （我第一版漏了 legacy 那一支，legacy 侧当场变红）。
+  await expect(page.locator('#oAgain')).toHaveText(isLegacy ? '复习本单元' : /重新开始/);
   // Legacy starts a fresh next-unit run; the campaign build continues this unit
   // until its vocabulary is complete. Preserve both actual target contracts.
   await expect(page.locator('#oNext')).toBeVisible();
-  await expect(page.locator('#oNext')).toHaveText(isLegacy ? '继续 Unit 2' : '继续本单元词汇');
+  // C1 有意漂移：legacy 逐字保留旧措辞，new 只咬「继续」这个动作词。
+  await expect(page.locator('#oNext')).toHaveText(isLegacy ? '继续 Unit 2' : /继续/);
   const win = await game.state();
   expect(win.DB.wins).toBe(1);
   expect(win.DB.rewards).toHaveLength(1);

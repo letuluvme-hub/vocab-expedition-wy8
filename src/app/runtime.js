@@ -42,6 +42,8 @@ import { createSpeech } from '../services/speech.js';
 import { createAudio } from '../services/audio.js';
 import { checkVersion } from '../services/version.js';
 import { HEROES } from '../data/heroes.js';
+import { itemById } from '../data/lookup.js';
+// ITEMS 本身仍被引用：DEV 探针 window.__gameTest 要把整张表交给 e2e 用例断言。
 import { ITEMS } from '../data/items.js';
 import { RELICS } from '../data/relics.js';
 import { relicRarityLabel, relicPrice, victoryGoldBonus, winHealBonus,
@@ -331,8 +333,10 @@ const campaignState = () => unlockProgress({ units: UNITS.map(u=>u.n), wordsFor:
    设计原则：每个道具都有明确代价，不能无脑全带。
    吸血类回复少、爆发类消耗连击、防御类牺牲伤害。 */
 
-const relicById = id => RELICS.filter(r=>r.id===id)[0];
-const itemById=id=>ITEMS.filter(x=>x.id===id)[0];
+// itemById 来自 src/data/lookup.js（VE-20 统一索引）。查不到返回 undefined，
+// combat 那一侧是 `if (!it) return;`，与旧的 `.filter(...)[0]` 语义逐字相同。
+// ★ 这里原来还并排定义过一个 relicById —— 审计确认它**定义了却从未被引用**，
+//   属于死代码，已一并删除（RELICS 本身仍在 toRelics 的遗物图鉴里使用）。
 
 /* 角色没有 voice 字段时（老数据 / 未来新增角色）也能拿到安全默认值 */
 const HERO_VOICE_DEFAULT={rate:0.9, pitch:1.0, prefer:null};

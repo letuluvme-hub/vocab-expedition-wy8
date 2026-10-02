@@ -4,12 +4,13 @@
  * show(id) 与 onTitle() 是回调：切屏与标题页重绘都归父层编排。
  */
 import { UNITS } from '../../data/units.js';
-import { RELICS } from '../../data/relics.js';
+import { relicById } from '../../data/lookup.js';
 import { clamp } from '../../domain/math.js';
 import { rewardScope, rewardRoundLine, renderRewardCard } from '../components/reward-card.js';
 import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
 
-const relicById = id => RELICS.filter(r => r.id === id)[0];
+// relicById 来自 src/data/lookup.js（VE-20 统一索引）；查不到返回 undefined，
+// 调用点是 `if (!r) return;`，与旧的 `.filter(...)[0]` 语义逐字相同。
 
 export function renderOver({ run, db, win, campaign, onTitle, show,
   onNextUnit, onContinueUnit, onAgain, onHome }) {
@@ -40,9 +41,26 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   const bookLast = win && unitComplete && lastByCatalog;
 
   const again = $('oAgain');
-  again.textContent = win ? (G.unit === 0 ? '复习自定义词表' : '复习本单元') : '再来一次';
-  // 「复习」永远是**新开一轮**去重练，不是「继续」。把两个语义混在一起会让玩家
-  // 以为复习能顺带推进单元。
+  /* ★ C1：文案必须说清后果。
+   *
+   * 旧措辞「复习本单元」有个隐蔽的歧义：「复习」同时暗示了"接着练"和"重来"，
+   * 而它实际的行为是**后者** —— onAgain 走的是 startRunFromUi → newRun()，
+   * 也就是新开一轮：金币、道具、遗物、本轮进度全部清零。
+   * 玩家拿它和旁边的「继续本单元词汇」（同一轮继续、物资全留）一比，
+   * 两句话长得几乎一样，差别完全看不出来。用户原话：
+   * 「一关结束时，复习本单元和继续本单元有点搞不懂有什么区别」。
+   *
+   * 所以改成「重新开始本单元 / 我的词表」，并在**可见文本**里直说会清空什么 ——
+   * 不能只挂在 title 上：手机上没有 hover，title 等于不存在。
+   * ⚠️ 只改文案，**不动回调**：这是两个不同的流程，混淆它们才是真正的 bug。*/
+  again.textContent = win
+    ? (custom ? '重新开始我的词表（进度清零）' : '重新开始本单元（进度清零）')
+    : '再来一次';
+  again.title = win
+    ? (custom
+      ? '新开一轮：金币、道具、遗物与本轮进度都会清零。想保留物资请用下面的「继续」。'
+      : '新开一轮：金币、道具、遗物与本轮进度都会清零。想保留物资请用下面的「继续本单元词汇」。')
+    : '';
   again.onclick = onAgain ? () => { onAgain(); } : null;
   const home = $('oHome');
   if (home) home.onclick = onHome ? () => { onHome(); } : () => { onTitle(); show('s-title'); };
@@ -56,7 +74,10 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   } else if (continueOpen) {
     const left = uc && uc.remaining ? uc.remaining : 0;
     next.hidden = false;
-    next.textContent = '继续本单元词汇';
+    // ★ C1：可见文本就说清"还剩几个词 + 物资保留"，与 #oAgain 的"进度清零"形成对照。
+    //   「继续本单元词汇」原本只靠 title 解释语义，而 title 在触屏上不存在 ——
+    //   于是玩家只看到两个都带"本单元"的按钮，分不清哪个保物资。
+    next.textContent = '继续练剩下 ' + left + ' 个词（物资保留）';
     next.title = '本单元还有 ' + left + ' 个词没完成。点它会在同一轮学习里换一段地图继续练；'
       + '金币、道具、遗物都保留，也不算新开一次远征。';
     next.onclick = onContinueUnit ? () => { onContinueUnit(); } : null;

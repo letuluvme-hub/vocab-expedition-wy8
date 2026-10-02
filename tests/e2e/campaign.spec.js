@@ -315,7 +315,9 @@ test('the second BOSS of the next segment settles for real without a second win 
 
   // --- 结算屏 → 「继续本单元词汇」（同一单元，第 2 段） ---
   const nextBtn = page.locator('#oNext');
-  await expect(nextBtn).toHaveText('继续本单元词汇');
+  // C1 有意漂移：见 docs/optimization-plan-2026-10.md 的 C1。
+  // 「继续练剩下 N 个词（物资保留）」—— N 会变，所以只咬「继续」这个动作词。
+  await expect(nextBtn).toHaveText(/继续/);
   await nextBtn.click();
   await expect(page.locator('#s-map')).toBeVisible();
   st = await game.state();
@@ -436,7 +438,9 @@ test('the custom list shows real progress and stays continuable in the same run'
   await expect(page.locator('#s-over')).toBeVisible();
   const nextBtn = page.locator('#oNext');
   await expect(nextBtn, '自定义单元也绝不能卡住').toBeVisible();
-  await expect(nextBtn).toHaveText('继续本单元词汇');
+  // C1 有意漂移：见 docs/optimization-plan-2026-10.md 的 C1。
+  // 「继续练剩下 N 个词（物资保留）」—— N 会变，所以只咬「继续」这个动作词。
+  await expect(nextBtn).toHaveText(/继续/);
   await expect(nextBtn).not.toContainText('Unit 1');
 
   await nextBtn.click();
@@ -477,7 +481,9 @@ test('beating the boss first keeps this unit playable without another win or car
   await expect(page.locator('#s-over')).toBeVisible();
   const nextBtn = page.locator('#oNext');
   await expect(nextBtn).toBeVisible();
-  await expect(nextBtn).toHaveText('继续本单元词汇');
+  // C1 有意漂移：见 docs/optimization-plan-2026-10.md 的 C1。
+  // 「继续练剩下 N 个词（物资保留）」—— N 会变，所以只咬「继续」这个动作词。
+  await expect(nextBtn).toHaveText(/继续/);
   await expect(nextBtn).not.toContainText('Unit 2');
   const won = await game.state();
   expect(won.DB.wins).toBe(1);

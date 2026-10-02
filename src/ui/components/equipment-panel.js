@@ -19,14 +19,14 @@
  * 与道具栏（#fItems）的分工：#fItems 是**操作**区（点一下就消耗道具），
  * 这里是**只读**清单。两者共用同一份 G.bag / B.usedThisFight，不重复记账。
  */
-import { ITEMS } from '../../data/items.js';
-import { RELICS } from '../../data/relics.js';
+import { itemByIdOrNull as itemById, relicByIdOrNull as relicById } from '../../data/lookup.js';
 import { HERO_DEFAULT, heroById, heroStatLines } from './hero.js';
 import { relicRarity, relicRarityLabel, activeSynergies, synergyLabel } from '../../domain/relic-rules.js';
 import { pixelIconSVG, relicIconKey } from './pixel-art.js';
 
-const itemById = id => ITEMS.filter(x => x.id === id)[0] || null;
-const relicById = id => RELICS.filter(x => x.id === id)[0] || null;
+// itemById / relicById 来自 src/data/lookup.js（VE-20 统一索引）。
+// 这里用的是 **OrNull** 变体：本模块的既有约定是查不到返回 null 而不是 undefined
+// （`if (!r)` 两者都成立，但下面的 unknownRelic 会把 null 与 undefined 走成不同分支）。
 
 /* 未知 id 的安全降级：文案里带上原始 id 是有意的 —— 玩家能看出「存档里有个我
    不认识的编号」，但它只是 textContent，永远不会被解析成元素。 */

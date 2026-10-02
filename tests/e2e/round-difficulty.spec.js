@@ -207,7 +207,8 @@ test('★ 同轮跨单元/续段走真实路径：unit 真变，轮号/次数/�
   }));
   expect(settled.result, '★ 真的是成功结算的一局（continueUnit 的来源闸门要求它）').toBe(true);
 
-  await expect(game.page.locator('#oNext')).toHaveText('继续本单元词汇');
+  // C1 有意漂移：同上。
+  await expect(game.page.locator('#oNext')).toHaveText(/继续/);
   await game.page.locator('#oNext').click();
   await expect(game.page.locator('#s-map')).toBeVisible();
   const afterCont = await facts(game.page);

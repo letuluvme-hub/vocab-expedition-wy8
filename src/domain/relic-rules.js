@@ -15,6 +15,7 @@
  */
 import { RELIC_RARITY, RELIC_RARITY_ORDER, RELIC_SYNERGY, BASE_PURSE_GOLD } from '../data/balance.js';
 import { RELICS } from '../data/relics.js';
+import { RELIC_BY_ID } from '../data/lookup.js';
 
 /* ================= 稀有度 ================= */
 
@@ -116,7 +117,7 @@ export function hasSynergy(relicIds, id) {
 /** 「🌵 荆棘壁垒 · 护盾符文 + 荆棘护符」—— 面板与提示条直接用这句。 */
 export function synergyLabel(syn) {
   const names = syn.need.map(id => {
-    const r = RELICS.filter(x => x.id === id)[0];
+    const r = RELIC_BY_ID.get(id);          // VE-20：统一索引，取代旧的 RELICS.filter(...)[0]
     return r ? r.n : id;
   });
   return `${syn.ic} ${syn.n} · ${names.join(' + ')}`;

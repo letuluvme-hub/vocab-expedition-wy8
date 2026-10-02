@@ -833,8 +833,14 @@ test('over.renderOver draws the win screen with the current run reward', async (
   // 那一格整段排除在对照之外（旧版是 "🛡️"，新版是一整段 SVG，没有可比性），
   // 图标本身在下面单独断言 —— 否则这条对照会因为美术换代而永远红。
   const stripRelicArt = s => s.replace(/oRelics→[^\n]*/, 'oRelics→<art>');
-  assert.equal(stripRelicArt(stripRound(snapDoc(doc, OVER_IDS))),
-    stripRelicArt(snapDoc(docOld, OVER_IDS)));
+  // C1 的**有意漂移**：#oAgain 的文案从「复习本单元」改成「重新开始本单元（进度清零）」。
+  // 两个都带"本单元"、语义却相反（一个清零、一个保留），玩家分不清 ——
+  // 见 docs/optimization-plan-2026-10.md 的 C1 与用户实机反馈。
+  // 归一化只把这一格抹平，其余骨架仍要求逐字相同；新文案另有具名断言
+  // （tests/unit/over-screen-copy.test.js）。
+  const stripAgainCopy = s => s.replace(/oAgain→[^\n]*/, 'oAgain→<copy>');
+  assert.equal(stripAgainCopy(stripRelicArt(stripRound(snapDoc(doc, OVER_IDS)))),
+    stripAgainCopy(stripRelicArt(snapDoc(docOld, OVER_IDS))));
   // 遗物格确实换成了像素图标，而且每个都带着 hover 说明。
   const relicCells = doc.getElementById('oRelics').children;
   assert.equal(relicCells.length, 2);
@@ -849,7 +855,9 @@ test('over.renderOver draws the win screen with the current run reward', async (
   assert.equal(doc.getElementById('oFloor').textContent, '9');
   assert.equal(doc.getElementById('oKill').textContent, '21');
   assert.equal(doc.getElementById('oAcc').textContent, '90%');
-  assert.equal(doc.getElementById('oAgain').textContent, '复习本单元');
+  // C1 有意漂移：「复习本单元」→「重新开始本单元（进度清零）」。
+  // 仍要求按钮文案以「重新开始」开头，防止它被换成别的按钮。
+  assert.match(doc.getElementById('oAgain').textContent, /^重新开始/);
   // 任务 7 的**有意漂移**：旧版在胜利屏上无条件预告「继续 Unit N+1」，那正是
   // 「打完 BOSS 就算掌握了这个单元」的谎话。现在没有 campaign 视图就没有解锁依据，
   // 于是这里退回本单元的诚实入口（真实运行期 runtime 一定传 campaign）。
