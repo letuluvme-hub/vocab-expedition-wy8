@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>完整词连胜分层播报 · 独立夹具</title>
+<link rel="stylesheet" href="/src/styles/streak-feedback.css">
+<style>
+  body { margin:0; background:#12151d; color:#e8ecf4; font-family: system-ui, sans-serif; padding:16px; }
+  #state { font-size:12px; opacity:.75; margin-bottom:10px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  button { padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:#1d2331; color:#e8ecf4; }
+  /* 战斗页文档流里的一个真实位置：toast 只能待在这里，不能浮起来盖住下面。 */
+  #fightHud { border:1px dashed rgba(255,255,255,.2); border-radius:10px; padding:12px; }
+  #fightHud::before { content:'战斗 HUD（血条/词框/底部按钮）'; display:block; font-size:11px; opacity:.6; margin-bottom:6px; }
+  #streakHost { min-height:0; }
+  #log { margin-top:10px; font-size:11px; line-height:1.6; opacity:.8; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<!-- 独立夹具：只挂 word-streak（domain）+ word-streak-feedback（controller）
+     + streak-announcement（ui）三个模块，语音与战斗状态都是**假注入**。
+     它**不是**游戏页面：真实接线（runtime.js / combat.js / speech.js）由整合者负责。
+     这里只证明「模块在真浏览器里真的能画、真的能被驱动、真的按优先级让路」。 -->
+<div id="state">state: <span id="stateText">-</span></div>
+
+<div class="row">
+  <button id="btnWordBusy">词正忙: <span id="busyText">false</span></button>
+  <button id="btnComplete">完成一个完整词</button>
+  <button id="btnMistake">打错一个字母</button>
+  <button id="btnPause">暂停</button>
+  <button id="btnResume">继续</button>
+  <button id="btnNewRun">新开一轮</button>
+</div>
+
+<div id="fightHud">
+  <div id="streakHost"></div>
+</div>
+<div id="log"></div>
+
+<script type="module">
+import { createWordStreakState } from '/src/domain/word-streak.js';
+import { createWordStreakFeedback } from '/src/app/word-streak-feedback.js';
+import { showStreakAnnouncement } from '/src/ui/components/streak-announcement.js';
+
+let cell = createWordStreakState();
+let wordBusy = false;
+let paused = false;
+const spoken = [];   // 注入的假 speaker：记录它「真的被请求播报」的时刻
+const logEl = document.getElementById('log');
+const log = m => { logEl.textContent = m + '\n' + logEl.textContent; };
+
+const params = new URLSearchParams(location.search);
+const reduced = params.get('reduced') === '1';
+
+const fb = createWordStreakFeedback({
+  getState: () => cell,
+  setState: s => { cell = s; paint(); },
+  /* 约定签名 {text, priority:'feedback'}：返回 false = 这一路真的没播出来。
+     绝不在这里 cancel 词朗读 —— 本夹具里也压根没有「取消词」这个接口。 */
+  speakAnnouncement(req) {
+    spoken.push({ text: req.text, priority: req.priority, at: Date.now() });
+    log('speak ' + req.text + ' (' + req.priority + ')');
+    return true;
+  },
+  onAnnounce(a) { showStreakAnnouncement(document.getElementById('streakHost'), { count: a.count, label: a.label, reducedMotion: reduced, autoHideMs: 2500 }); },
+  isPaused: () => paused,
+  isBattleLive: () => true,
+  getWordPriorityBusy: () => wordBusy,
+});
+
+function paint() {
+  document.getElementById('stateText').textContent =
+    'count=' + cell.count + ' last=' + cell.lastEventId + ' busy=' + wordBusy + ' paused=' + paused;
+  document.getElementById('busyText').textContent = String(wordBusy);
+}
+let seq = 0;
+const nextId = () => 'r1:' + (++seq);   // 真实接线时这是 roundId + wordsDone 之类
+
+document.getElementById('btnWordBusy').onclick = () => { wordBusy = !wordBusy; paint(); };
+document.getElementById('btnComplete').onclick = () => {
+  const r = fb.complete({ eventId: nextId(), complete: true, correct: true, word: 'apple' });
+  log('complete -> count=' + r.state.count + ' speech=' + (r.speech || '-'));
+  paint();
+};
+document.getElementById('btnMistake').onclick = () => { fb.mistake({ eventId: nextId() }); log('mistake -> count=' + cell.count); paint(); };
+document.getElementById('btnPause').onclick = () => { paused = true; fb.pause(); paint(); };
+document.getElementById('btnResume').onclick = () => { paused = false; fb.resume(); paint(); };
+document.getElementById('btnNewRun').onclick = () => { fb.newRun(); log('newRun'); paint(); };
+
+/* 测试探针（只读，不进生产 bundle：本文件不在 src/ 内） */
+window.__probe = {
+  state: () => cell,
+  spoken,
+  complete: e => fb.complete(e),
+  setBusy: v => { wordBusy = !!v; paint(); },
+  pause: () => { paused = true; fb.pause(); paint(); },
+  newRun: () => { fb.newRun(); paint(); },
+  clearSpoken: () => { spoken.length = 0; },
+};
+paint();
+</script>
+</body>
+</html>

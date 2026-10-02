@@ -1,0 +1,50 @@
+/* 完整词连胜的播报 toast（.streak-toast / #streakAnnouncement）。
+ *
+ * 只作用于本模块自己的 class，不触碰任何既有选择器，因此原有层叠顺序与线上
+ * 外观逐字不变（与 pause / mastery-growth 同样的追加策略）。
+ *
+ * 约束（docs/feature-word-streak.md）：
+ *  - **留在文档流里**：position:static。不浮在 HUD 上 —— 战斗页的血条、词框、
+ *    底部按钮是移动端操作区，被盖住就是误触。
+ *  - **不盖住点击**：显示时不设 pointer-events:none，隐藏时靠 [hidden] 彻底
+ *    display:none（不留半透明残影）。
+ *  - 320px 窄屏安全：min-width:0 + overflow-wrap:anywhere，长 label 换行而不是
+ *    撑破布局；不使用固定像素宽度，不禁止换行。
+ *  - 不联网、不引外部字体、不引外部音频：本模块只用系统 TTS（由父层注入），
+ *    绝不加载任何远程音频/字体资源。
+ *  - 动画只在 .streak-toast--anim 上，且系统 prefers-reduced-motion:reduce 时
+ *    全部关掉（组件也会去掉该 class，两道保险）。
+ *  - 封顶（Godlike）后不再有新的 toast，所以这里没有「越来越亮」的层级色。
+ */
+.streak-toast {
+  position: static;
+  display: block;
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 217, 138, .35);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .28);
+  color: #ffd98a;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-align: center;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.streak-toast[hidden] {
+  display: none;
+}
+.streak-toast--anim {
+  animation: streak-toast-in .18s ease-out;
+}
+@keyframes streak-toast-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .streak-toast--anim {
+    animation: none;
+  }
+}

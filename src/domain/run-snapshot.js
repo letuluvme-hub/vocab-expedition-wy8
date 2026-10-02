@@ -16,8 +16,51 @@
 import { norm } from './text.js';
 import { ADV_LOCK_MS } from './run.js';
 import { encodeFoeAttack, decodeFoeAttack } from './foe-attack.js';
+import { normalizeWordStreakState, STREAK_STAGE_LIMIT } from './word-streak.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
+
+/* 完整词连胜（docs/feature-word-streak.md）的快照编解码。
+ *
+ * 编码只写**两个事实**：count（0..8 的整数）与 lastEventId（原样字符串或 null）。
+ * 绝不写 UI 状态、utterance 句柄、定时器句柄 —— 那些跨刷新全是死的，写进去
+ * 只会让「这份存档长出第二种形状」。缺字段/脏值在解码侧显式回落。
+ *
+ * ★ 编码侧**绝不**用 normalizeWordStreakState 掩坏：它会把 {count:99} 夹成
+ *   {count:8}，让一份内存态已经坏掉的存档**看起来合法**地落盘 —— 玩家凭空
+ *   得了满级连胜，而存档本身看不出被动过。脏值一律整份拒绝（见 encodeSnapshot
+ *   的原值守卫，与 growth / foeAttack 同一口径）：宁可明确存不下，
+ *   也不写一份内容说谎的存档。lastEventId 原样保留（身份按字面，不归一）。
+ */
+function encodeWordStreak(s) {
+  if (s === undefined || s === null) return normalizeWordStreakState(null);
+  // 已由 encodeSnapshot 的守卫判过合法：原样拷贝，绝不规范化身份。
+  return { count: s.count, lastEventId: s.lastEventId };
+}
+function decodeWordStreak(s) {
+  // 缺失（旧快照）合法 → 0 / null。脏值已被 validRun 整份拒掉，不在这里猜。
+  if (s === undefined || s === null) return normalizeWordStreakState(null);
+  return normalizeWordStreakState(s);
+}
+function validWordStreak(s) {
+  if (!isObj(s) || Array.isArray(s)) return false;
+  if (!isInt(s.count) || s.count < 0 || s.count > STREAK_STAGE_LIMIT) return false;
+  // lastEventId 只判**类型**：合法字符串（含控制符、含空格）一律原样保留 ——
+  //   本模块从不把它渲染进 DOM（播报通道只走 label），所以不存在 XSS 面，
+  //   也不该在这里替父层归一身份（' a ' 与 'a' 是两个不同的事件身份）。
+  if (s.lastEventId !== null && typeof s.lastEventId !== 'string') return false;
+  return true;
+}
+/* wordEventSeq：事件身份靠它单调递增，所以必须是**安全整数**且非负。
+   ★ 只查 isInt 不够：1e21 通过 Number.isInteger，而 `++1e21 === 1e21` ——
+     事件身份从此永久重复，域层的单槽去重会把之后每一次真实完成都误判成
+     「重复投递」，连胜彻底卡死。
+   ★ 上界刻意留一格（MAX_SAFE_INTEGER - 1）：正好卡在 MAX_SAFE_INTEGER 上的
+     存档，其下一次 ++ 就会溢出成同一个值。宁可这一局明确存不下，
+     也不写一份「下一次必然重复身份」的存档。publisher 侧另有明确降级
+     （runtime 的 wordEventId 到顶就换身份，绝不重复 token）。 */
+const WORD_EVENT_SEQ_MAX = Number.MAX_SAFE_INTEGER - 1;
+const validWordEventSeq = v => Number.isSafeInteger(v) && v >= 0 && v <= WORD_EVENT_SEQ_MAX;
 
 export const PHASE = {
   MAP: 'map',                 // 地图上等玩家选节点
@@ -138,6 +181,14 @@ function encodeRun(run) {
     roundId: (typeof run.roundId === 'string' && run.roundId) ? run.roundId : '',
     roundNumber: (isInt(run.roundNumber) && run.roundNumber > 0) ? run.roundNumber : 0,
     completedUnits: encodeCompletedUnits(run.completedUnits),
+    // ★ 完整词连胜（可选新字段，docs/feature-word-streak.md）：
+    //   wordStreak  = {count,lastEventId}，只序列化**事实**，绝不带上
+    //                 UI 状态 / utterance 句柄 / 定时器句柄（那些跨刷新全是死的）。
+    //   wordEventSeq = run 级自增事件序号（整词完成或真实打错 +1），快照缺省 0。
+    //   两个键**总是**写出来（缺字段回落成 0 / 空身份），这样内存信封与
+    //   JSON 往返后的信封形状永远一致。
+    wordStreak: encodeWordStreak(run.wordStreak),
+    wordEventSeq: (run.wordEventSeq === undefined || run.wordEventSeq === null) ? 0 : run.wordEventSeq,
     campaign: encodeCampaign(run.campaign, run.unit),
     countedStart: !!run.countedStart, clearedRun: !!run.clearedRun,
     // clearedSegment（可缺）：旧 run 没有就按 clearedRun 保守回落 —— 宁可少结算一次，
@@ -231,6 +282,14 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   //   玩家会发现刷新后攻击时机凭空变了，这比明确存不下更糟。
   if (env.battle && env.battle.foeAttack !== undefined && env.battle.foeAttack !== null
     && encodeFoeAttack(env.battle.foeAttack) === undefined) return null;
+  // 完整词连胜同样**按原值** fail closed（与 growth / foeAttack 同一口径）：
+  //   绝不 normalize 掩坏 —— {count:99} 被夹成 {count:8} 会让存档看起来正常，
+  //   却凭空记了一个满级连胜；1e21 这类不安全序号会让 ++ 之后身份永久重复。
+  //   内存态解不开时明确「这一局存不下」，比写一份内容说谎的存档诚实。
+  if (run.wordStreak !== undefined && run.wordStreak !== null
+    && !validWordStreak(run.wordStreak)) return null;
+  if (run.wordEventSeq !== undefined && run.wordEventSeq !== null
+    && !validWordEventSeq(run.wordEventSeq)) return null;
   const savedAt = isStr(env && env.savedAt) ? env.savedAt : new Date(now).toISOString();
   const envelope = {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -297,6 +356,11 @@ function validRun(r) {
   // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
   // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
   if (r.growth !== undefined && r.growth !== null && !validGrowth(r.growth)) return false;
+  // wordStreak / wordEventSeq 同样可选：旧快照完全没有它们是合法的（解码后
+  // 回落成 0）。一旦出现就必须形状合法 —— 「count 是字符串」「序号是负数」
+  // 这类脏值整份 fail closed，绝不静默夹成 0（那会凭空抹掉玩家真实的连胜）。
+  if (r.wordStreak !== undefined && r.wordStreak !== null && !validWordStreak(r.wordStreak)) return false;
+  if (r.wordEventSeq !== undefined && r.wordEventSeq !== null && !validWordEventSeq(r.wordEventSeq)) return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -345,6 +409,9 @@ function decodeRun(r, byId) {
     // growth：缺失就是 undefined（旧快照），**绝不由当前 DB 或 mastered 现算补填** ——
     //   恢复必须原样尊重盘上的 maxhp，否则「中途退出重进」会白赚一次上限。
     growth: encodeGrowth(r.growth),
+    // 旧快照缺这两个字段 → 规范回落（0 / 空身份），绝不从当前 DB 现算。
+    wordStreak: decodeWordStreak(r.wordStreak),
+    wordEventSeq: validWordEventSeq(r.wordEventSeq) ? r.wordEventSeq : 0,
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,

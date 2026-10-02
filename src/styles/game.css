@@ -18,3 +18,5 @@
 @import './mastery-growth.css';
 /* 蓄力条（清单 13）：只作用于 #fFoeAtk 及其自有类名，追加在最后。 */
 @import './foe-attacks.css';
+/* 完整词连胜的播报（只作用于 .streak-toast / #streakAnnouncement），追加在最后。 */
+@import './streak-feedback.css';

@@ -23,6 +23,10 @@ const ADDED = [
   // 前缀必须是 \.foeAtk（不带 \b）：自有类名形如 .foeAtkBar / .foeAtkTxt，
   // 加 \b 会把它们全部判成越界，逼着这条断言放宽成「什么都不许写」。
   ['./foe-attacks.css', /^\.foeAtk/, '战斗页蓄力条'],
+  // 完整词连胜的播报：只落在战斗页词框下方的 #streakFeedbackHost 内。
+  // 允许本表自己的 @keyframes（动画名同样只在 .streak-toast 上生效，
+  // 没有任何既有选择器能被它改到）。
+  ['./streak-feedback.css', /^\.streak-toast\b|^@keyframes streak-toast-|^\d+%$|^from$|^to$/, '完整词连胜播报'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

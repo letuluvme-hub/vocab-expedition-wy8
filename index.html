@@ -126,6 +126,11 @@
     <div class="cat" id="fCat">Unit 1</div>
     <div class="slots" id="fSlots"></div>
     <div class="combo" id="fCombo"></div>
+    <!-- 完整词连胜的播报宿主（docs/feature-word-streak.md）：
+         留在词框**下面**的文档流里（position:static），绝不用 fixed/absolute
+         浮在 HUD 上 —— 战斗页的血条、词框、底部按钮是移动端操作区，被盖住就是误触。
+         320px 窄屏上它只是多高 30px 的一行字，不挤字母盘与工具条。 -->
+    <div id="streakFeedbackHost"></div>
   </div>
   <div class="items" id="fItems"></div>
   </div><!-- /.fmid -->

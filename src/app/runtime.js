@@ -16,6 +16,9 @@ import { createLearningCompleteScreen } from '../ui/screens/learning-complete.js
 import { createProgressStore } from '../services/progress.js';
 import { PHASE } from '../domain/run-snapshot.js';
 import { createProgressController } from './progress.js';
+import { createWordStreakFeedback } from './word-streak-feedback.js';
+import { showStreakAnnouncement } from '../ui/components/streak-announcement.js';
+import { normalizeWordStreakState } from '../domain/word-streak.js';
 import { renderOver } from '../ui/screens/over.js';
 import { paintHpBar } from '../ui/components/hp-bar.js';
 import { pcHTML, heroStatLines, heroById, HERO_DEFAULT } from '../ui/components/hero.js';
@@ -468,6 +471,9 @@ function newRun(){
   registerRunStart(DB,G);applyRelicInit();saveDB();
   ENCOUNTER=null; setPhase(PHASE.MAP);
   show('s-map');renderMap();
+  // 新一轮：连胜清零 + 解冻。放在 show/commit 之前，且**解冻**是必须的 ——
+   // 上一局可能在暂停态结束（放弃/结算），不清这个冻结标志新局第一词就不计数。
+  streakFeedback.newRun();
   // 完整建好 G 与相位之后才提交：快照必须是一局**可玩**的远征，
   // 不能是「次数已 +1、地图还没建出来」的那一帧。force=true：无条件写一次。
   commit(true);
@@ -761,6 +767,9 @@ function nextUnit(){
   curUnit=G.unit;
   reopenRun();
   lifecycle.resetBattle();       // 上一场的迟到回调作废
+  // 跨单元继续同一轮：解冻（结算/暂停时冻结过），但**不清零** ——
+  // 连胜是 run 级事实，跨单元必须原样接上。
+  streakFeedback.resume();
   B=null;
   setPhase(PHASE.MAP);
   show('s-map'); renderMap();
@@ -781,6 +790,7 @@ function continueUnit(){
   carryLiveHp();
   reopenRun();
   lifecycle.resetBattle();
+  streakFeedback.resume();        // 同上：继续本单元词汇不清零
   B=null;
   setPhase(PHASE.MAP);
   show('s-map'); renderMap();
@@ -1009,7 +1019,9 @@ function winFight(){
   foeAttackCtl.stop();          // 怪已死：相位转defeated，迟到的定时回调不再结算伤害
   sfx.win();
   // 语音：胜利台词强制发声（force=true 绕过限流 —— 这一刻是整局的高潮）
-  lifecycle.scheduleBattle(()=>TTS.line('win',null,{force:true}), 260);
+  const wonBattle=B;
+  lifecycle.scheduleBattle(()=>TTS.line('win',null,{force:true,
+    isCurrent:()=>B===wonBattle&&!!B.won&&!B.finished&&PHASE_STATE===PHASE.REWARD&&!progress.isPaused()}),260);
   burst(innerWidth/2,innerHeight*0.4,B.foe.tint,44,7);
   ring(innerWidth/2,innerHeight*0.4,'#ffce4d');
   G.kills++;
@@ -1298,6 +1310,68 @@ function restoreScreen(from){
   else if(from==='s-rest'||from==='s-event'||from==='s-pick') show(from)   // 原样回来
   else { show('s-map'); renderMap() }
 }
+/* ★ 完整词连胜的真实接线（docs/feature-word-streak.md）。
+ *
+ * 状态住在 G（run 级）：跨战斗、跨单元、跨刷新都保持；createRun 开局就是 0，
+ * 只有 fb.newRun() 与真实打错会清零。B.wordStreak 是**另一个**东西（每场战斗的
+ * 大招档位计数），两者绝不共用字段。
+ *
+ * 事件身份用 run 级自增序号：`${G.roundId||G.id}:${++G.wordEventSeq}`。
+ * ★ 绝不用 B.wordsDone —— 它每场战斗归零，跨战会撞 id，第二次真实完成会被
+ *   域层的单槽去重误判成「重复投递」而白吞一次连胜。token 按字面使用，不归一。
+ */
+const streakFeedback=createWordStreakFeedback({
+  getState:()=> (G?normalizeWordStreakState(G.wordStreak):null),
+  setState:s=>{ if(G) G.wordStreak=s },
+  /* 低优先级播报：只在「没有词/提示在念」时才可能真的出声，
+     且绝不 cancel 正在读的那句（见 speech.announcement）。 */
+  speakAnnouncement:req=>{ try{ return TTS.announcement(req&&req.text)===true }catch(e){ return false } },
+  getWordPriorityBusy:()=>{ try{ return TTS.wordPriorityBusy()===true }catch(e){ return false } },
+  /* 「这场战斗还配不配让低优先级播报出声」。
+   * ★ 判据**不是** `!B.over`：整词完成的瞬间里程碑刚排进队列，紧接着
+   *   applyDamage 打空敌人 → winFight 把 B.over 置真。旧判据（`B && !B.over`）
+   *   于是把「最后一击赢下整场战斗」这一局的里程碑判成「战斗没了」而丢掉 ——
+   *   玩家刚拼出 Godlike，却在结算屏上一个字都听不到。
+   *   所以这里显式放行**同一场战斗**的待领奖相位（B.won && !B.finished）：
+   *   词念完之后那条里程碑仍然能播，顺序仍是「词 → 里程碑 → 胜利台词」。
+   * ★ 只放行「同一场战斗赢了、且还在它的待领奖相位」这一种情况：
+   *   领完奖 / 结算 / 败局（B.won 为假）/ 地图 / 标题 / 词汇完成检查点
+   *   一律不活 —— 绝不让上一场战斗的播报串到别的相位里去。 */
+  isBattleLive:()=>{
+    if(!B) return false;
+    if(progress.isPaused()||progress.isFinished()) return false;
+    if(!B.over) return PHASE_STATE===PHASE.BATTLE;
+    return !!B.won && !B.finished && PHASE_STATE===PHASE.REWARD;
+  },
+  /* 作用域令牌 = 战斗对象 B 本身（身份，不是值）。延迟播报回来时若 B 已被
+     换掉（快速推进到新战斗），那条旧里程碑就地丢弃，绝不补播进新战斗。 */
+  getScopeToken:()=>B,
+  onAnnounce:a=>{
+    const host=$('streakFeedbackHost');
+    if(!host) return;
+    // 只落 label（First Blood…Godlike）：当前英文单词是学习答案，绝不进播报通道。
+    showStreakAnnouncement(host,{count:a.count,label:a.label});
+  },
+});
+/* 真实打错 / 整词完成的唯一发布点（由 combat 的可选 port 调用）。 */
+/* ★ 事件身份到顶时**显式降级**，绝不重复 token：G.wordEventSeq 停在
+ *   Number.MAX_SAFE_INTEGER 时，`++` 不再变化（++MAX_SAFE_INTEGER === MAX_SAFE_INTEGER）
+ *   → 之后每一次事件都拿到同一个身份 → 域层单槽去重把真实完成全误判成
+ *   「重复投递」，连胜彻底卡死。所以到顶就改用一次性身份（roundId + 随机后缀），
+ *   宁可身份格式变了，也绝不产出重复 token。
+ *   顺带说明编码侧为什么也留一格：到顶之后这一局已经存不下（快照 fail closed），
+ *   这比落一份「下一次必然重复身份」的存档诚实。 */
+const wordEventId=()=>{
+  const base=(G&&(G.roundId||G.id))||'R';
+  const seq=Number(G&&G.wordEventSeq);
+  if(Number.isSafeInteger(seq)&&seq>=0&&seq<Number.MAX_SAFE_INTEGER){
+    G.wordEventSeq=seq+1;
+    return base+':'+(seq+1);
+  }
+  return base+':x'+newRoundId();     // 到顶 / 脏值：一次性身份，绝不重复
+};
+const onWholeWordComplete=()=>{ streakFeedback.complete({eventId:wordEventId(),complete:true,correct:true}) };
+const onSpellingMistake=()=>{ streakFeedback.mistake({eventId:wordEventId()}) };
 /* 蓄力自主攻击控制器（清单 13）。必须建在 combat 之后 —— 它要调 combat.enemyHit。
    frozen 用函数而不是常量：词汇完成屏、奖励屏、结算屏上怪都不该再主动攻击，
    而这些相位是运行期才知道的。 */
@@ -1321,6 +1395,7 @@ const foeAttackCtl=createFoeAttackController({
 const combat=createCombatController({state,ports:{$,norm,clamp,rnd,hasR,itemById,hitDmg,wordDmg,wordComplete,
   creditWord,onWordWrong,centerOf,heroPoint,toast,sfx,TTS,burst,floatTxt,flash,ring,animHero,
   wordFinisher,foeCry,renderFight,nextWord,winFight,loseFight,finishNode,saveDB,
+  onWholeWordComplete,onSpellingMistake,
   scheduleBattle:lifecycle.scheduleBattle,
   // 有效字母尝试 → 蓄力打断（清单 13）。只在 pressKey 真正接受输入后调用。
   notifyLetterAttempted:()=>foeAttackCtl.notifyLetterAttempted()}});
@@ -1363,6 +1438,11 @@ const progress=createProgressController({state,api:{
   TTS, audio:{suspend:()=>{}, resume:()=>{}},
   confirm:m=>confirm(m),
   newRun:()=>newRun(),
+  /* 完整词连胜：暂停/继续/结算/放弃都作废在途的低优先级播报，
+     但**一个字节的连胜状态都不动**（只有真正的新一轮才清零）。
+     resume() 只解冻，绝不补播暂停期间丢掉的阶段。 */
+  onPauseFeedback:()=>streakFeedback.pause(),
+  onResumeFeedback:()=>streakFeedback.resume(),
   // 受闸门保护的动作：全部走 progress，暂停期间一律无效。
   pressLetter:i=>combat.pressKey(i), typeLetter:ch=>combat.typeLetter(ch),
   undoLetter:()=>combat.undoLetter(), useItem:id=>combat.useItem(id),
@@ -1488,6 +1568,10 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     // 蓄力自主攻击（清单 13）：只暴露动作与事实，不暴露定时器内部。
     foeAttack:foeAttackCtl, enemyHit:d=>combat.enemyHit(d),
     get phase(){return PHASE_STATE}, get encounter(){return ENCOUNTER},
+    // 完整词连胜的**事实**（不是内部实现）：只读 count / lastEventId / 事件序号。
+    get wordStreak(){ return G?{count:G.wordStreak?G.wordStreak.count:0,
+      lastEventId:G.wordStreak?G.wordStreak.lastEventId:null, seq:G.wordEventSeq|0} : null },
+    streakFeedback,
     get outcome(){return OUTCOME},
   };
 }

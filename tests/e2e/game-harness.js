@@ -18,6 +18,33 @@ if (window.__VOCAB_TEST__) window.__gameTest = {
 };
 `;
 
+/* 装一个**记录调用**的 speechSynthesis 平台桩（不合成任何声音）。
+ * 它只替代平台能力，游戏自己的 speech.js（含全部优先级闸门）逐字是真的：
+ * 测的是「utterance 的调用顺序与 cancel 次数」，**不是**真机可听性。 */
+const speechPlatformStub = () => {
+  const state = { spoken: [], cancels: 0, current: null,
+    end(i) { const rec = this.spoken[i]; if (!rec) return;
+      if (rec === this.current) this.current = null;
+      if (rec.u.onend) rec.u.onend({ target: rec.u }); },
+    fail(i, error) { const rec = this.spoken[i]; if (!rec) return;
+      if (rec === this.current) this.current = null;
+      if (rec.u.onerror) rec.u.onerror({ target: rec.u, error: error || 'network' }); },
+    texts() { return this.spoken.map(s => s.text); } };
+  window.__speech = state;
+  class UttStub { constructor(text) { this.text = text; this.onstart = null; this.onend = null; this.onerror = null; } }
+  Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: UttStub });
+  Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
+    paused: false, pending: false,
+    get speaking() { return !!state.current; },
+    speak(u) { const rec = { text: u.text, u }; state.current = rec; state.spoken.push(rec);
+      setTimeout(() => { if (u.onstart) u.onstart({ target: u }); }, 0); },
+    cancel() { state.cancels++; const c = state.current; state.current = null;
+      if (c && c.u.onerror) c.u.onerror({ target: c.u, error: 'canceled' }); },
+    getVoices: () => [{ lang: 'en-US', name: 'Samantha', localService: true }],
+    addEventListener() {},
+  } });
+};
+
 export function instrumentLegacy(mutation) {
   let source = legacySource;
   if (mutation === 'partial-mastery') {
@@ -43,7 +70,7 @@ export const test = base.extend({
     const meta = testInfo.project.metadata;
     const game = {
       page, errors,
-      async open({ saved = {}, seed = 0x51a7, noSpeech = false, mutation = process.env.E2E_MUTATION } = {}) {
+      async open({ saved = {}, seed = 0x51a7, noSpeech = false, voice = false, speechStub = false, mutation = process.env.E2E_MUTATION } = {}) {
         if (meta.target === 'legacy') {
           await page.route('**/tests/fixtures/legacy.html*', route => route.fulfill({
             status: 200, contentType: 'text/html; charset=utf-8', body: instrumentLegacy(mutation),
@@ -51,6 +78,10 @@ export const test = base.extend({
         } else if (mutation) {
           throw new Error('Mutation runs must target legacy only');
         }
+        // 朗读开关：默认 false（静音、只走文字通道）。voice:true 时把玩家的
+        // 偏好真的设成「开」—— 用来证明低优先级播报在**开着朗读**时也不抢词。
+        if (voice || speechStub) saved = Object.assign({}, saved, { voice: true });
+        if (speechStub) await page.addInitScript(speechPlatformStub);
         await page.addInitScript(({ saved, seed, noSpeech, key }) => {
           window.__VOCAB_TEST__ = true;
           let state = seed >>> 0;
@@ -62,7 +93,9 @@ export const test = base.extend({
           if (!sessionStorage.getItem('__e2e_seeded')) {
             localStorage.setItem(key, JSON.stringify({
               runs: 0, wins: 0, mastered: [], best: 0, custom: [], ...saved,
-              voice: false, mute: true, vol: 0,
+              // voice 放在 saved 之后：默认关（静音、只走文字通道），但调用方
+              // 显式要求「开着朗读」时必须真的开 —— 否则那条优先级测试是假绿。
+              voice: saved.voice === true, mute: true, vol: 0,
             }));
             sessionStorage.setItem('__e2e_seeded', '1');
           }

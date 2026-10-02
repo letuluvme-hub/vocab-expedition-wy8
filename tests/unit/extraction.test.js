@@ -38,7 +38,7 @@ test('relic catalog differs from legacy only in the ghost description', async ()
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css'];
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
@@ -105,6 +105,19 @@ const stripMasteryHost = html => {
   return out;
 };
 
+// 战斗页的完整词连胜播报宿主（docs/feature-word-streak.md）：归档里没有这一段，
+// 新版在 #fCombo 之后**纯新增**一个空容器 <div id="streakFeedbackHost"></div>
+//（里面的 toast 由 streak-announcement.js 建，带自己的 id=streakAnnouncement）。
+// 它是「新增」而非「替换」→ 归一化方式是整段删掉（连注释一起删），
+// 剩下的战斗页骨架仍要求与归档逐字相同。notEqual 保证这条不是静默空操作。
+const STREAK_HOST_ONLY_NEW = /    <!-- 完整词连胜的播报宿主[\s\S]*?<div id="streakFeedbackHost"><\/div>\n/;
+const stripStreakHost = html => {
+  const lf = html.replace(/\r\n/g, '\n');
+  const out = lf.replace(STREAK_HOST_ONLY_NEW, '');
+  assert.notEqual(out, lf, '新版必须真的包含连胜播报容器（否则归一化会假通过）');
+  return out;
+};
+
 // 主页声音设置区：归档里是写在 HTML 里的 .volrow（音量一行），现在是
 // <div id="audioSettings"></div> 空容器，按钮由 audio-settings.js 画进去
 // （音效与朗读两个独立开关）。这是**同一位置**的替换，不是整段新增，
@@ -128,10 +141,10 @@ test('page skeleton preserves approved character parts and all existing controls
   // 两边都要走 stripPause：暂停新增是本任务允许的唯一偏离，其余必须逐字相同。
   // 主页声音设置区是同位置的替换：把新版容器还原成归档的 .volrow 段再比。
   // 知识成长容器是纯新增：整段删掉再比（见 stripMasteryHost）。
-  assert.equal(strip(stripPause(stripMasteryHost(backToLegacyVolrow(html))).replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
+  assert.equal(strip(stripPause(stripStreakHost(stripMasteryHost(backToLegacyVolrow(html)))).replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '$1跳过代价$2')));
   // 去掉跳过文案的归一化后，仍然必须完全对齐
-  assert.equal(strip(stripPause(stripMasteryHost(backToLegacyVolrow(html))).replace(SKIP_COPY_DIFF, '')),
+  assert.equal(strip(stripPause(stripStreakHost(stripMasteryHost(backToLegacyVolrow(html)))).replace(SKIP_COPY_DIFF, '')),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '')));
   // 并且当前文案确实点明了 50 点生命
   assert.match(html, /id="tSkip">跳过<small>损失 50 生命<\/small>/);
