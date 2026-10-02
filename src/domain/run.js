@@ -35,10 +35,37 @@ export function isDuplicateRunStart(run) {
   return !!run && typeof run.result !== 'boolean';
 }
 
+// ★ 开局成长事实（docs/feature-mastery-growth.md）。
+// growth 是**开局那一刻**的成长快照，由调用方（runtime）从 growthSummary 事实转换而来：
+//   { version:1, masteredAtStart, bonusHp, baseMaxhp }
+// 契约：
+//   - **可选**：不传时逐字等于旧行为（maxhp = 70 + 角色），旧接线/旧测试台不受影响。
+//   - **只在新开一轮时读一次**：开局就把 bonusHp 加进 maxhp，之后本局内任何动作
+//     （达到 20 词、跨单元、续段）都不再重算 —— 所以「中途退出重进」不会白赚一次。
+//   - **脏值 fail closed**：bonusHp 必须是 0..12 的整数且与 masteredAtStart 一致，
+//     否则整体按 +0 开局。存档/探针是外部输入，绝不让 NaN 渗进生命值。
+//   - baseMaxhp 是**角色基础值**（遗物/成长之前），只作诊断留档，不参与任何计算 ——
+//     校验上限不许拿它反推 maxhp，因为进本局后 maxhp 可能被别的合法途径抬高。
+const MAX_BONUS = 12;
+const INTERVAL = 20;
+function readGrowth(g) {
+  if (!g || typeof g !== 'object' || Array.isArray(g)) return null;
+  const { version, masteredAtStart, bonusHp } = g;
+  if (version !== 1) return null;
+  if (!Number.isInteger(masteredAtStart) || masteredAtStart < 0 || masteredAtStart > 259) return null;
+  if (!Number.isInteger(bonusHp) || bonusHp < 0 || bonusHp > MAX_BONUS) return null;
+  // bonusHp 必须真的是 floor(n/20) 的结果，否则这份「事实」是伪造的。
+  if (Math.min(MAX_BONUS, Math.floor(masteredAtStart / INTERVAL)) !== bonusHp) return null;
+  return g;
+}
+
 // 开局：返回与旧 newRun() 等价的 run（含地图与首层可选节点）
-export function createRun(unit, hero, pool, random = Math.random) {
+export function createRun(unit, hero, pool, random = Math.random, growth = null) {
   const M = (hero && hero.mod) || {};
-  const maxhp = 70 + (M.hp || 0);           // 角色差异：生命上限
+  const baseMaxhp = 70 + (M.hp || 0);       // 角色差异：生命上限（成长之前的 base）
+  const g = readGrowth(growth);
+  const bonus = g ? g.bonusHp : 0;
+  const maxhp = baseMaxhp + bonus;         // ★ 成长只在这里加一次，之后本局不再重算
   const run = {
     unit, hp: maxhp, maxhp,
     id: 'R' + (++RUN_SEQ).toString(36),     // 诊断标识：区分这一次和上一次远征
@@ -82,6 +109,10 @@ export function createRun(unit, hero, pool, random = Math.random) {
     done: new Set(),      // 本局已答对的词：不再出现
     wrong: [],            // 答错过的词：下一场优先复习
     bag: { leech: 2 },    // 新手送 2 个吸血獠牙
+    // ★ 开局成长事实：合法时才带（脏值一律不写，run.growth 保持 undefined）。
+    //   它是**诊断留档**，不是重算入口 —— 恢复路径绝不拿它或当前 DB 重算 maxhp。
+    growth: g ? { version: 1, masteredAtStart: g.masteredAtStart,
+                  bonusHp: g.bonusHp, baseMaxhp } : undefined,
   };
   const rows = generateMap(random);
   run.rows = rows; run.cur = null; run.floor = 1; run.maxFloor = 1;

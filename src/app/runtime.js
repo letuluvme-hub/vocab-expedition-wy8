@@ -46,6 +46,19 @@ import { foeArtHTML } from '../ui/components/monster-art.js';
 import { createAudioSettings, nearestVolStep } from '../ui/components/audio-settings.js';
 import { createAudioCapability, CHANNEL } from '../services/audio-capability.js';
 import { createAudioCompatibility } from '../ui/components/audio-compatibility.js';
+import { growthSummary, GROWTH_VERSION } from '../domain/mastery-growth.js';
+import { createMasteryGrowth } from '../ui/components/mastery-growth.js';
+
+/* ★ 把成长摘要转换成 createRun 接受的开局事实（docs/feature-mastery-growth.md）。
+ *   规则全在 domain/mastery-growth.js，这里只做形状转换：规则算出的 bonusHp 原样带过去，
+ *   baseMaxhp 是「角色基础值」70 + 角色 hp（成长之前），只作诊断留档。
+ *   脏数据（mastered 非数组 / 词库为空）由 growthSummary 退化成 0，这里不会造出 NaN。 */
+const growthFact=(mastered,words,hero)=>{
+  const s=growthSummary(mastered,words);
+  const m=(hero&&hero.mod)||{};
+  return {version:GROWTH_VERSION,masteredAtStart:s.masteredCount,
+    bonusHp:s.bonusHp,baseMaxhp:70+(m.hp||0)};
+};
 
 // Transitional coordinator: preserve original event ordering during extraction.
 export function startGame() {
@@ -440,7 +453,11 @@ function newRun(){
   if(!pool.length){alert('这个单元还没有词，去「导入词表」添加吧');return false}
   lifecycle.resetRun();TTS.stop();B=null;
   OUTCOME=null;
-  G=createRun(curUnit,curHero(),pool);
+  // ★ 知识成长（docs/feature-mastery-growth.md）：**只在这里**读一次 DB.mastered，
+  //   把成长事实交给 createRun 加进 maxhp。读一次就够 —— 本局内达到 20 词、
+  //   跨单元、续段都不再重算（所以「中途退出重进」不会白赚一次上限）。
+  //   恢复存档的路径根本不经过 newRun，所以也绝不会被当前 DB 重算。
+  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.mastered,WORDS,curHero()));
   // ★ 轮次身份（docs/feature-rounds.md）：这里注入一个持久 roundId。
   //   它必须不同于进程内自增的 run.id（R1/R2…，刷新后会重复）。
   //   轮次**编号**不在这儿取：registerRunStart 在真正 +1 之后从 DB.runs 取，
@@ -915,6 +932,16 @@ audioCompatibility=createAudioCompatibility({
   onRetry:()=>{ try{ AU.unlock() }catch(e){} try{ TTS.unlock() }catch(e){} }
 });
 audioCompatibility.mount($('audioCompatibility'));
+// ★ 知识成长只读区（docs/feature-mastery-growth.md）：挂在主页的 #masteryGrowthHost 里。
+//   getSummary 每次 paint 都重新按**当前** DB.mastered 现算，所以本局学到新词、
+//   导入自定义词表、切换单元之后回到主页，数字都是当下的事实（不缓存第二套状态）。
+//   mount 幂等：renderTitle 被反复调用（继续远征 / 回主页 / 切后台）都复用同一个盒子。
+const masteryGrowthView=createMasteryGrowth({
+  getSummary:()=>growthSummary(DB.mastered,WORDS),
+});
+// ★ mount() 的返回值是**挂好的 DOM 盒子**，不是组件本身（与 audioSettings 同口径）：
+//   把组件另存一份，renderTitle 里要调的是它的 paint()。
+masteryGrowthView.mount(document.getElementById('masteryGrowthHost'));
 // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged 再重画一次
 // 设置区 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
 try{
@@ -1161,6 +1188,9 @@ $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){
 function renderHeroes(){return titleScreen.renderHeroes()}
 function renderTitle(){
   titleScreen.renderTitle();
+  // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.mastered
+  // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
+  try{ masteryGrowthView.paint() }catch(e){}
   // 存在快照（或存在解不开的快照）时，主页必须给出入口：
   // 刷新后玩家看到的是主页，不会被自动丢进战斗或听见语音。
   const row=$('continueRow'), btn=$('continueRun');

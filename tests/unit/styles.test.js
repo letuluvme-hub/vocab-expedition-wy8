@@ -17,6 +17,7 @@ const ADDED = [
   ['./audio-settings.css', /^#audioSettings\b/, '主页声音设置区'],
   ['./equipment-panel.css', /^\.equip\b/, '战斗页装备面板'],
   ['./audio-compatibility.css', /^#audioCompatibility\b/, '音频兼容提示条'],
+  ['./mastery-growth.css', /^#masteryGrowth\b/, '知识成长区'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{
