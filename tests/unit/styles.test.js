@@ -23,6 +23,9 @@ const ADDED = [
   // 前缀必须是 \.foeAtk（不带 \b）：自有类名形如 .foeAtkBar / .foeAtkTxt，
   // 加 \b 会把它们全部判成越界，逼着这条断言放宽成「什么都不许写」。
   ['./foe-attacks.css', /^\.foeAtk/, '战斗页蓄力条'],
+  // 遗物图鉴（遗物深度）。选择器前缀用 .rlc / .rl-rar / .rlc-syn ——
+  // 这几个类名只存在于图鉴屏 #rlBox 内，不与战斗页/主页共用。
+  ['./relic-depth.css', /^\.rlc|^\.rl-rar/, '遗物图鉴稀有度与组合技'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

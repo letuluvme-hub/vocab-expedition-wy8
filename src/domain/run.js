@@ -5,6 +5,7 @@
 import { clamp } from './math.js';
 import { generateMap } from './map.js';
 import { roundCompletion } from './campaign.js';
+import { floorHealBonus } from './relic-rules.js';
 
 /* ★ 轮次身份（docs/feature-rounds.md）。
  * roundId 是**持久化**的轮次身份，必须和进程内自增的 run.id（'R1'、'R2'…）区分开：
@@ -129,6 +130,10 @@ export function advanceRun(run, now = Date.now()) {
   run.floor++;
   run.maxFloor = Math.max(run.maxFloor, run.floor);
   if (run.relics.indexOf('battery') >= 0) run.hp = Math.min(run.maxhp, run.hp + 8);
+  // 铁血循环（永动电池 + 锻造台）在永动电池之外**额外**回这一份。
+  // 电池本身的 +8 留在上面不动 —— 两笔是叠加关系，不是同一笔被改写。
+  const floorHeal = floorHealBonus(run.relics);
+  if (floorHeal > 0) run.hp = Math.min(run.maxhp, run.hp + floorHeal);
   run.hp = clamp(run.hp, 1, run.maxhp);
   run.avail = (run.node && run.node.links.length) ? run.node.links.slice() : [];
   run.cur = run.node;

@@ -22,6 +22,7 @@
 import { ITEMS } from '../../data/items.js';
 import { RELICS } from '../../data/relics.js';
 import { HERO_DEFAULT, heroById, heroStatLines } from './hero.js';
+import { relicRarity, relicRarityLabel, activeSynergies, synergyLabel } from '../../domain/relic-rules.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0] || null;
 const relicById = id => RELICS.filter(x => x.id === id)[0] || null;
@@ -59,10 +60,23 @@ export function equipmentModel(G, B) {
   });
   const relics = [...tally.entries()].map(([id, count]) => {
     const r = relicById(id);
+    // 认不出的 id 走 unknownRelic：它连"稀有度"都不该有 ——
+    // 档位是数据表的事实，存档里凭空造出一个「普通」只会骗玩家。
     return r
-      ? { id, count, unknown: false, ic: r.ic, n: r.n, d: r.d }
+      ? { id, count, unknown: false, ic: r.ic, n: r.n, d: r.d,
+          rarity: relicRarity(r), rarityLabel: relicRarityLabel(r) }
       : unknownRelic(id, count);
   });
+
+  /* 组合技：只看已持有的 id，与存档字段无关（旧存档立刻生效）。
+     每条都要能指出「是哪两件凑成的」，否则玩家不知道自己走了哪条路。 */
+  const synergies = activeSynergies(run.relics).map(s => ({
+    id: s.id, ic: s.ic, n: s.n, d: s.d, label: synergyLabel(s),
+    members: s.need.map(mid => {
+      const def = relicById(mid);
+      return def ? { id: mid, ic: def.ic, n: def.n } : { id: mid, ic: '❔', n: mid };
+    }),
+  }));
 
   /* 道具：背包持有数 + 本场已用/上限。held 口径与 #fItems 一致（持有 > 0）。 */
   const used = (bat && bat.usedThisFight) || {};
@@ -86,7 +100,7 @@ export function equipmentModel(G, B) {
   /* 护盾：战斗中是 B.shield（真实剩余，可能已被打掉）；不在战斗才读 G.shield。 */
   const shield = { value: bat ? (bat.shield | 0) : (run.shield | 0), inFight: !!bat };
 
-  return { hero, heroLines: heroStatLines(hero), relics, items, ghost, shield, count: 1 + relics.length + items.length };
+  return { hero, heroLines: heroStatLines(hero), relics, synergies, items, ghost, shield, count: 1 + relics.length + items.length };
 }
 
 /* ---------------- 渲染：只读快照 → DOM ---------------- */
@@ -143,8 +157,16 @@ export function createEquipmentPanel({ getRun, getBattle }) {
       line(body, 'eq-empty', '遗物', '尚无遗物 —— 事件与精英战会掉落');
     } else {
       m.relics.forEach(r => line(body, 'eq-relic' + (r.unknown ? ' eq-unknown' : ''),
-        r.ic + ' ' + r.n + (r.count > 1 ? ' ×' + r.count : ''), r.d));
+        r.ic + ' ' + r.n + (r.count > 1 ? ' ×' + r.count : ''),
+        (r.rarityLabel ? '【' + r.rarityLabel + '】' : '') + r.d));
     }
+
+    /* 组合技：只在真的凑齐时出现，写明是哪两件凑成的 —— 这是整套系统
+       唯一的常驻展示位，藏起来就等于没有。纯只读：不补护盾、不发提示。 */
+    m.synergies.forEach(s => {
+      line(body, 'eq-synergy', s.ic + ' ' + s.n,
+        s.members.map(m2 => m2.n).join(' + ') + ' → ' + s.d);
+    });
 
     /* 影分身额度（只在本局持有该遗物时才有意义） */
     if (m.ghost.owned) {

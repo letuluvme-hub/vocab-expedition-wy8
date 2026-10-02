@@ -16,6 +16,9 @@
  */
 import { RELICS } from '../data/relics.js';
 import { ITEMS } from '../data/items.js';
+import { LEGACY_RELIC_SHOP_PRICE } from '../data/balance.js';
+import { relicPrice, relicRarityLabel, pickRelicWeighted, sampleRelicsWeighted,
+  activeSynergies } from '../domain/relic-rules.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 
 export function createEncounterController({ state, ports }) {
@@ -33,6 +36,42 @@ export function createEncounterController({ state, ports }) {
      这里所有会改状态的按钮回调都必须经过它 —— 否则买药扣钱、领遗物、选营火
      这些副作用只改了内存、从不落盘。Node 测试台不注入时回落成直接调用。 */
   const mutate = ports.mutate || (fn => fn());
+
+  /* 遗物候选池：排除已持有的那几件。
+     抽取一律走 relic-rules 的**稀有度加权**（common 62 / rare 30 / legendary 8），
+     均匀洗牌会让传说和「+2 次提示」一样常见，档位就只剩一个价格标签。
+     rnd 走端口注入：真实运行时用 Math.random，单测才能固定结果。 */
+  const relicRnd = ports.relicRnd || Math.random;
+  const ownedRelics = G => RELICS.filter(r => !has(G.relics, r.id));
+  /* 抽取口。默认按稀有度加权；单测可以用 relicDraw 端口指名要哪一件
+     （加权之后「这局一定出某件遗物」本来就不可能断言）。 */
+  const drawRelic = ports.relicDraw || (pool => pickRelicWeighted(pool, relicRnd));
+
+  /* 商店的遗物卡。**价格是卡面的一部分**：卡上写多少就扣多少，两者同源。
+     id 里带上价格（shop:relic:<id>:<price>）是为了让暂停恢复对得上号 ——
+     恢复路径靠 optionById 用 id 找回动作，id 不含价格时，一次跨版本刷新
+     （卡面还是旧价、代码已经是新价）就会对玩家凭空涨价。 */
+  function shopRelicOption(r, price) {
+    return {
+      id: 'shop:relic:' + r.id + ':' + price, cat: 'relic', ic: r.ic,
+      t: r.n + ' · ' + price + ' 金币',
+      d: relicRarityLabel(r) + ' · ' + r.d,
+      fn: () => {
+        const S = state.G;
+        if (S.gold < price) return '金币不够。';
+        S.gold -= price; S.relics.push(r.id); sfx.relic(); applyRelicInit();
+        return '你买下了 ' + r.n + '！';
+      },
+    };
+  }
+  /* 加稀有度之前的旧卡：id 不带价格、标价固定 80。旧快照里存的就是这个 id，
+     恢复时必须仍能映射回来 —— 并且按它**当时显示的** 80 收费。 */
+  function legacyShopRelicOption(r) {
+    return Object.assign({}, shopRelicOption(r, LEGACY_RELIC_SHOP_PRICE), {
+      id: 'shop:relic:' + r.id,
+      t: r.n + ' · ' + LEGACY_RELIC_SHOP_PRICE + ' 金币',
+    });
+  }
 
   // 当前已展开的描述：只存 id 与展示字段，绝不存闭包或 DOM。
   let currentDesc = null;
@@ -53,11 +92,11 @@ export function createEncounterController({ state, ports }) {
      保留原版逐字文案与数值（含赌局 / 迷路的词灵里那些手写的 return 串）。 */
   const EVENTS = [
     { ic: '🎁', t: '神秘的背包', x: '你捡到一个鼓鼓的背包，主人却不见了。', o: [
-      { id: 'pack:open', cat: 'relic', ic: '💎', t: '打开看看', d: '随机获得一个遗物', fn: () => {
+      { id: 'pack:open', cat: 'relic', ic: '💎', t: '打开看看', d: '随机获得一个遗物（越稀有越少见）', fn: () => {
         const G = state.G;
-        const av = RELICS.filter(r => !has(G.relics, r.id));
+        const av = ownedRelics(G);
         if (av.length) {
-          const r = pick(av);
+          const r = drawRelic(av);
           G.relics.push(r.id);
           applyRelicInit();
           sfx.relic();
@@ -91,9 +130,9 @@ export function createEncounterController({ state, ports }) {
       { id: 'book:study', cat: 'relic', ic: '🧠', t: '认真研读', d: '当前战斗下次的拼写正确率提升：回复 20 生命并获得遗物', fn: () => {
         const G = state.G;
         G.hp = Math.min(G.maxhp, G.hp + 20);
-        const av = RELICS.filter(r => !has(G.relics, r.id));
+        const av = ownedRelics(G);
         if (av.length) {
-          const r = pick(av);
+          const r = drawRelic(av);
           G.relics.push(r.id);
           sfx.relic();
           applyRelicInit();
@@ -205,7 +244,7 @@ export function createEncounterController({ state, ports }) {
     const rbox = $('rPicks');
     rbox.innerHTML = ''; rbox._kids = []; rbox._used = false;
     const healAmt = hasR('forge') ? 20 : 12;
-    const av = RELICS.filter(r => !has(G.relics, r.id));
+    const av = ownedRelics(G);
     const opts = [
       { id: 'rest:heal', cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
         const R = state.G; R.hp = Math.min(R.maxhp, R.hp + healAmt); return '你睡了个好觉。';
@@ -218,8 +257,9 @@ export function createEncounterController({ state, ports }) {
       } }
     ];
     if (av.length) {
-      const r = pick(av);
-      opts.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic, t: '冥想 · ' + r.n, d: r.d, fn: () => {
+      const r = drawRelic(av);
+      opts.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic, t: '冥想 · ' + r.n,
+          d: relicRarityLabel(r) + ' · ' + r.d, fn: () => {
         const R = state.G;
         R.relics.push(r.id);
         sfx.relic();
@@ -280,14 +320,10 @@ export function createEncounterController({ state, ports }) {
         S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
       } }
     ];
-    const av = RELICS.filter(r => !has(G.relics, r.id));
+    const av = ownedRelics(G);
     if (av.length) {
-      const r = pick(av);
-      opts.push({ id: 'shop:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n + ' · 80 金币', d: r.d, fn: () => {
-        const S = state.G;
-        if (S.gold < 80) return '金币不够。';
-        S.gold -= 80; S.relics.push(r.id); sfx.relic(); applyRelicInit(); return '你买下了 ' + r.n + '！';
-      } });
+      const r = drawRelic(av);
+      opts.push(shopRelicOption(r, relicPrice(r)));
     }
     // 卖道具：只卖玩家还没拿满的
     const shopItems = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max)).slice(0, 3);
@@ -357,15 +393,18 @@ export function createEncounterController({ state, ports }) {
         finishNode();
       } });
     }
-    if (hasR('scholar') && rnd(3) === 0) {
+    if (hasR('scholar') && (activeSynergies(G.relics).some(s => s.id === 'alchemist') || rnd(3) === 0)) {
       opts.push({ cat: 'boost', ic: '🃏', t: '先知卡', d: '下一场战斗开始时，自动揭示一个字母', id: 'reward:seer', fn: () => {
         state.G.nextHint = true;
         finishNode();
       } });
     }
-    const availRel = RELICS.filter(r => !has(G.relics, r.id));
+    const availRel = ownedRelics(G);
     if (availRel.length) {
-      shuffle(availRel).slice(0, 3).forEach(r => opts.push({ cat: 'relic', ic: r.ic, t: r.n, d: r.d, id: 'reward:relic:' + r.id, fn: () => {
+      // 加权不重复抽样：同一批候选里，传说出现的概率远低于普通，
+      // 而均匀洗牌会让它和「+2 次提示」一样常见。
+      sampleRelicsWeighted(availRel, 3, relicRnd).forEach(r => opts.push({
+        cat: 'relic', ic: r.ic, t: r.n, d: relicRarityLabel(r) + ' · ' + r.d, id: 'reward:relic:' + r.id, fn: () => {
         const S = state.G;
         S.relics.push(r.id);
         sfx.relic();
@@ -468,7 +507,7 @@ export function createEncounterController({ state, ports }) {
       ];
       // 营火同理：冥想卡按 id 全量铺开，快照里那张才能原样恢复。
             for (const r of RELICS) table.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic,
-              t: '冥想 · ' + r.n, d: r.d, fn: () => {
+              t: '冥想 · ' + r.n, d: relicRarityLabel(r) + ' · ' + r.d, fn: () => {
                 const R = state.G; R.relics.push(r.id); sfx.relic(); applyRelicInit();
                 return '你获得了 ' + r.n + '！';
               } });
@@ -491,12 +530,12 @@ export function createEncounterController({ state, ports }) {
       // 遗物/道具候选表按 id 全量铺开（而不是重新 pick 一个）：
             // 快照里记的是**当时那一张**，重新 pick 会得到别的 id，
             // 于是那张卡在恢复后凭空消失 —— 玩家会以为货变了。
-            for (const r of RELICS) table.push({ id: 'shop:relic:' + r.id, cat: 'relic', ic: r.ic,
-              t: r.n + ' · 80 金币', d: r.d, fn: () => {
-                const S = state.G; if (S.gold < 80) return '金币不够。';
-                S.gold -= 80; S.relics.push(r.id); sfx.relic(); applyRelicInit();
-                return '你买下了 ' + r.n + '！';
-              } });
+            // 商店遗物铺**两条** id：新格式（id 里带卡面价）与旧格式（无价格，
+            //   固定 80）。后者是加稀有度之前的老存档，缺了它就等于老快照整屏丢失。
+            for (const r of RELICS) {
+              table.push(shopRelicOption(r, relicPrice(r)));
+              table.push(legacyShopRelicOption(r));
+            }
       for (const it of ITEMS) table.push({
         id: 'shop:item:' + it.id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币',
         d: it.d, tip: it.tip, fn: () => {
@@ -515,7 +554,8 @@ export function createEncounterController({ state, ports }) {
       } }];
       table.push({ id: 'reward:seer', cat: 'boost', ic: '🃏', t: '先知卡',
         d: '下一场战斗开始时，自动揭示一个字母', fn: () => { state.G.nextHint = true; finishNode(); } });
-      for (const r of RELICS) table.push({ id: 'reward:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n, d: r.d, fn: () => {
+      for (const r of RELICS) table.push({ id: 'reward:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n,
+        d: relicRarityLabel(r) + ' · ' + r.d, fn: () => {
         const S = state.G; S.relics.push(r.id); sfx.relic(); toast('获得遗物：' + r.n);
         applyRelicInit(); finishNode();
       } });

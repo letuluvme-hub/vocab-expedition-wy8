@@ -40,6 +40,8 @@ import { checkVersion } from '../services/version.js';
 import { HEROES } from '../data/heroes.js';
 import { ITEMS } from '../data/items.js';
 import { RELICS } from '../data/relics.js';
+import { relicRarityLabel, relicPrice, victoryGoldBonus, winHealBonus,
+  activeSynergies, synergyLabel } from '../domain/relic-rules.js';
 import { UNITS } from '../data/units.js';
 import { ENEMIES, BOSS } from '../data/enemies.js';
 import { VOICE_LINES, FOE_LINES, ELITE_LINES } from '../data/voice-lines.js';
@@ -1015,7 +1017,12 @@ function winFight(){
   G.kills++;
   let g=25+(B.boss?120:B.elite?60:0)+Math.floor(G.floor*4);
   if(B.boss) g+=50;
-  if(hasR('purse')) g+=25;
+  // 聚宝盆单件 +25；凑成「点金术」（聚宝盆 + 学者之书）后抬到 +45。
+  g+=victoryGoldBonus(G.relics);
+  // 铁血循环（永动电池 + 锻造台）：战斗胜利额外回一点血。
+  //   加在 B.myHp 上 —— 加在 G.hp 上会被 finishNode 的结转整个覆盖掉。
+  const winHeal = winHealBonus(G.relics);
+  if(winHeal>0) B.myHp=Math.min(G.maxhp,B.myHp+winHeal);
   // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
   goldGain(Math.round(g*(B.goldMult||1)));   // 贪婪钱币 ×3
   // 相位切到待领奖：金币与击杀已经入账，900ms 只延迟展示。
@@ -1429,10 +1436,20 @@ $('continueRun').onclick=()=>{
 $('startRun').onclick=()=>{ startRunFromUi() };
 $('toRelics').onclick=()=>{
   const box=$('rlBox'); box.innerHTML='';
+  // 同一块版面同时展示：档位 + 标价 + 玩家已凑出的组合技。
+  // 组合技只靠 run.relics 里的 id 推导 —— 旧存档恢复后立刻就在这里亮出来。
+  const syns=activeSynergies(G&&G.relics);
+  if(syns.length){
+    const hint=document.createElement('div');
+    hint.className='rlc-syn';
+    hint.textContent='已激活的组合技：'+syns.map(synergyLabel).join('　/　');
+    box.appendChild(hint);
+  }
   RELICS.forEach(r=>{
     const d=document.createElement('div');
     d.className='rlc'+(G&&has(G.relics,r.id)?' sel':'');
-    d.innerHTML='<div class="ic">'+r.ic+'</div><b>'+r.n+'</b><span>'+r.d+'</span>';
+    d.innerHTML='<div class="ic">'+r.ic+'</div><b>'+r.n+'</b>'
+      +'<span class="rl-rar">'+relicRarityLabel(r)+' · 商店 '+relicPrice(r)+' 金币</span><span>'+r.d+'</span>';
     box.appendChild(d);
   });
   show('s-relics');
