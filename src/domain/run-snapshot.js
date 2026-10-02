@@ -16,6 +16,7 @@
 import { norm } from './text.js';
 import { ADV_LOCK_MS } from './run.js';
 import { encodeFoeAttack, decodeFoeAttack } from './foe-attack.js';
+import { comboMilestoneLadder } from './combo-milestones.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -124,6 +125,35 @@ function validGrowth(g) {
   return encodeGrowth(g) !== undefined;
 }
 
+/* milestones（docs/feature-combo-milestones.md）：**可选**的一轮事实 ——
+ *   「战意·连击里程碑」这一轮哪些阶已经发过（`id → true`）。
+ *
+ * ★ 它必须落盘。不落盘时「暂停 → 刷新 → 继续」会把整张表清空，接线层按
+ *   「本轮一阶都没发过」重新发一遍：护盾/生命被生命上限夹住，最坏只是顶满（无害），
+ *   而 **B.hints 没有任何上限** —— 那是可以无限白嫖的实质性漏洞。
+ *
+ * 合法形状是**普通对象**（不是 Set：AGENTS.md 不许把 Set 直接 JSON 保存），
+ * 每一项都必须是 `true`，键必须是规则层**校验过的**阶梯里真实存在的 id。
+ * ★ 形状与内存态逐字段相同，所以恢复出来的 run.milestones 可以直接交给
+ *   app/combat.js 与战意条 —— 接线层与展示层一行都不用改，也不会长出第二种形状。
+ *
+ * ★ id 取自 comboMilestoneLadder()（门槛严格递增的那一段前缀）而不是数据层原表：
+ *   数据漂移时宁可少认几个 id，也不把没登记的键原样带进游戏状态。
+ *   编码侧按阶梯顺序重建，键序固定 → JSON 往返前后字节一致，存档 diff / deepEqual 都稳。
+ */
+const MILESTONE_LADDER = comboMilestoneLadder();
+const MILESTONE_IDS = new Set(MILESTONE_LADDER.map(m => m.id));
+function validMilestones(m) {
+  if (!isObj(m)) return false;
+  return Object.keys(m).every(k => MILESTONE_IDS.has(k) && m[k] === true);
+}
+function encodeMilestones(m) {
+  if (!validMilestones(m)) return undefined;
+  const out = {};
+  for (const step of MILESTONE_LADDER) if (m[step.id] === true) out[step.id] = true;
+  return out;
+}
+
 function encodeRun(run) {
   // rewardId（可缺）：本轮纪念卡的 id。没有它就无法跨刷新认出同一张卡。
   //   旧内存态（卡在内存里但字段还没有）从 reward.id 取，绝不凭空造一个。
@@ -170,6 +200,12 @@ function encodeRun(run) {
   //   两个形状，深比较会因此恒假 —— 与 outcome 字段同一处理口径）。
   const growth = encodeGrowth(run.growth);
   if (growth) out.growth = growth;
+  // milestones 同样可选，但比 growth 多一条：**空表与缺失语义相同**（「这一轮
+  //   一阶都没发过」），所以两者都不写这个键。写成 undefined 经 JSON.stringify
+  //   后虽然也会消失，但内存态与落盘态会长出两个形状，深比较恒假 ——
+  //   与 growth / outcome 字段同一处理口径。
+  const milestones = encodeMilestones(run.milestones);
+  if (milestones && Object.keys(milestones).length) out.milestones = milestones;
   return out;
 }
 function encodeBattle(b) {
@@ -226,6 +262,13 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   const run = env && env.run;
   if (!run || typeof run.result === 'boolean') return null;
   if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
+  // milestones 脏值同理：内存态自己解不开时**不写整份快照**。照 growth 的口径 ——
+  //   如果还硬写一份「没有里程碑」的快照，恢复后接线层会把整张表当成空的，
+  //   于是每一阶都能再领一次（提示次数没有上限 = 无限白嫖）。
+  //   **把「认不出来」伪装成「还没发过」正是这个漏洞本身**，所以宁可明确存不下。
+  //   缺失 / null / 空表 {} 都是合法形状（这一轮确实一阶都没发过），不拦。
+  if (run.milestones !== undefined && run.milestones !== null
+    && encodeMilestones(run.milestones) === undefined) return null;
   // foeAttack 脏值同理：内存态自己解不开时**不写整份快照**（而不是写一份缺了
   //   攻击事实的快照）。缺了它看着能恢复，实际是把「蓄力还剩多久」丢掉 ——
   //   玩家会发现刷新后攻击时机凭空变了，这比明确存不下更糟。
@@ -297,6 +340,10 @@ function validRun(r) {
   // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
   // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
   if (r.growth !== undefined && r.growth !== null && !validGrowth(r.growth)) return false;
+  // milestones 同样可选：缺失合法（旧快照，解码回落成空表），出现就必须每一项都合法。
+  //   脏值整份 fail closed —— 绝不静默当成「本轮一阶都没发过」：静默丢弃一张
+  //   被改坏的「已发放」表，等于把每一阶奖励都退回成可再领一次的状态。
+  if (r.milestones !== undefined && r.milestones !== null && !validMilestones(r.milestones)) return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -345,6 +392,12 @@ function decodeRun(r, byId) {
     // growth：缺失就是 undefined（旧快照），**绝不由当前 DB 或 mastered 现算补填** ——
     //   恢复必须原样尊重盘上的 maxhp，否则「中途退出重进」会白赚一次上限。
     growth: encodeGrowth(r.growth),
+    // milestones：缺失（旧快照）/ null 回落成**空表**，而不是 undefined ——
+    //   接线层与战意条都直接读这个字段，空表是「本轮一阶都没发过」唯一诚实的表示，
+    //   undefined 只会把判空的责任推给每一个读者（而且 UI 一旦漏判就上屏 undefined）。
+    //   ★ 绝不按当前阶梯现算补填：补出来的 id 是「这一局发过」，不是「盘上写着发过」。
+    //   形状已在 validRun 里 fail closed 过，这里只做按阶梯顺序的规范化重建。
+    milestones: encodeMilestones(r.milestones) || {},
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,

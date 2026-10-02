@@ -8,8 +8,9 @@
  *  2) **一轮一次**：护盾会跨战斗结转（finishBattleNode 把 B.shield 写回 run.shield），
  *     所以第二次达到同一门槛绝不能再加一次护盾。
  *  3) **夹取在接线层也成立**：满血时回血里程碑的增量是 0，血量不得越上限。
- *  4) **不碰存档格式**：里程碑是本轮内存态，encodeSnapshot 的产物里**不许**
- *     出现 milestones 键；旧快照（没有这个字段）必须照常解码。
+ *  4) **跟着存档走**：已达成的阶必须落进快照。否则「暂停 → 刷新 → 继续」会把
+ *     整张表清空，玩家可以反复领取同一阶 —— 护盾/生命被上限夹住只是顶满，
+ *     而**提示次数没有上限**，那就是无限白嫖。形状与 growth 同款可选字段。
  *  5) **展示层**：战斗页画出「战意 n/3 · 下一个 10 连击」；
  *     容器缺席时（测试台 / 未接线）安静返回，绝不弄崩整屏渲染。
  *
@@ -18,7 +19,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCombatController } from '../../src/app/combat.js';
-import { createRun } from '../../src/domain/run.js';
+import { createRun, advanceRun } from '../../src/domain/run.js';
 import { WORDS } from '../../src/data/words.js';
 import { HEROES } from '../../src/data/heroes.js';
 import { encodeSnapshot, decodeSnapshot, PHASE } from '../../src/domain/run-snapshot.js';
@@ -212,7 +213,39 @@ test('战斗已结算（over）后到达的迟到回调不会再发里程碑', (
   assert.equal(h.B.shield, 0, 'pressKey 开头就 return 了，绝不在结算之后再加护盾');
 });
 
-/* ---------------- 4. 存档格式零改动 ---------------- */
+/* ---------------- 4. 存档：已达成的阶必须跟着快照走 ----------------
+ *
+ * ★ 这里锁的是一个**真实漏洞**：里程碑原本不在 encodeRun 的白名单里，于是
+ *   「暂停 → 刷新 → 继续」把整张表清空。护盾/生命被上限夹住只是顶满（无害），
+ *   而 B.hints 没有上限 —— 玩家可以无限次重刷同一阶提示。
+ *   docs/feature-combo-milestones.md 曾把它记成「已知、未修」，此处按 growth
+ *   的同款**可选**字段补上：合法才写、缺失就是缺失、脏值整份 fail closed。
+ */
+
+/* 真实开局：createRun → 选一个首层节点。battle.node 必须在 rows 里解得开，
+   所以这里走真实 map 结构，而不是 runFixture 那种没有 rows/pool 的假 run ——
+   拿假 run 去 encode，测出来的「能快照」是假的。 */
+function realRun(over) {
+  const hero = HEROES.filter(h => h.id === 'scholar')[0];
+  const run = createRun(1, hero, WORDS.filter(w => w.u === 1), () => 0.5);
+  run.node = run.rows[0][0];
+  run.avail = [];
+  advanceRun(run, 1000);
+  return Object.assign(run, over || {});
+}
+/* 能进快照的战斗：harness 的 battleFor 缺 encodeBattle 要的 won/finished/rewardTaken；
+   词条本体必须从 run.pool 里取 —— validBattle 会逐字段比对 w/u/d/z/th。 */
+function snapBattle(run, w, over) {
+  const entry = run.pool.filter(x => x.w === w)[0];
+  assert.ok(entry, '这个词必须在 unit 1 词池里，否则 battle 与 pool 对不上：' + w);
+  return battleFor(w, Object.assign({
+    word: entry, node: run.node, myHp: 20,
+    won: false, finished: false, rewardTaken: false,
+  }, over || {}));
+}
+const enc = (run, over) => JSON.parse(JSON.stringify(
+  encodeSnapshot(Object.assign({ phase: PHASE.MAP, run, battle: null, encounter: null }, over || {}),
+    { now: 1700000000000 })));
 
 test('createRun 开局带上空的 milestones 记录', () => {
   const hero = HEROES.filter(h => h.id === 'scholar')[0];
@@ -220,30 +253,115 @@ test('createRun 开局带上空的 milestones 记录', () => {
   assert.deepEqual(run.milestones, {}, '开局一定是空表，绝不凭空带一个已达成的');
 });
 
-test('快照里不出现 milestones 键：这是本轮内存态，不改存档格式', () => {
-  const hero = HEROES.filter(h => h.id === 'scholar')[0];
-  const run = createRun(1, hero, WORDS.filter(w => w.u === 1), () => 0.5);
-  run.milestones = { steady: true, flow: true };
-  const env = { run, battle: null, encounter: null, phase: PHASE.MAP };
-  const raw = JSON.parse(JSON.stringify(encodeSnapshot(env, { now: 1700000000000 })));
-  assert.equal('milestones' in raw.run, false, '编码产物里绝不能有这个键（旧存档与新存档同形）');
+test('合法时才写键：空表与缺失都不出现，已达成的逐个落盘且键序固定', () => {
+  const run = realRun();
+  assert.deepEqual(run.milestones, {}, '开局一定是空表');
+  // 空的两种表示（空表 / 键缺失）语义相同 —— 都不写这个键。写成 undefined 或 {}
+  //   都会让内存态与 JSON 往返态长出两个形状，deepEqual 恒假（与 growth 同一口径）。
+  assert.equal('milestones' in enc(run).run, false, '空表 → 整个键不出现');
+  const gone = realRun();
+  delete gone.milestones;                                  // 老内存态
+  assert.equal('milestones' in enc(gone).run, false, '缺失 → 整个键不出现');
+
+  run.milestones = { insight: true, steady: true };         // 故意乱序写入
+  const raw = enc(run);
+  assert.deepEqual(Object.keys(raw.run.milestones), ['steady', 'insight'],
+    '按阶梯顺序重建 → 键序固定，JSON 往返前后字节稳定');
   const back = decodeSnapshot(raw);
-  assert.equal(back.ok, true, '带里程碑的 run 仍然可快照、可恢复');
-  assert.equal(back.value.run.milestones, undefined, '恢复出来没有这个字段 = 本轮还没发过');
-  assert.equal(comboProgress(6, back.value.run.milestones).unlocked, 0);
-  assert.equal(comboProgress(6, back.value.run.milestones).next.combo, 6);
+  assert.equal(back.ok, true, back.reason);
+  assert.deepEqual(back.value.run.milestones, { steady: true, insight: true });
+  assert.equal(comboProgress(12, back.value.run.milestones).unlocked, 2);
 });
 
-test('旧快照（归档年代、没有本轮里程碑概念）照常解码：向后兼容零回归', () => {
-  const hero = HEROES.filter(h => h.id === 'scholar')[0];
-  const run = createRun(1, hero, WORDS.filter(w => w.u === 1), () => 0.5);
-  delete run.milestones;
-  const env = { run, battle: null, encounter: null, phase: PHASE.MAP };
-  const back = decodeSnapshot(JSON.parse(JSON.stringify(encodeSnapshot(env, { now: 1700000000000 }))));
-  assert.equal(back.ok, true);
-  assert.equal(back.value.run.milestones, undefined);
+test('旧快照没有 milestones 键：照常恢复，回落成空表（向后兼容零回归）', () => {
+  const run = realRun();
+  run.milestones = { steady: true, insight: true };
+  const raw = enc(run);
+  delete raw.run.milestones;                                // 旧客户端写出的存档：压根没这个键
+  const back = decodeSnapshot(raw);
+  assert.equal(back.ok, true, back.reason);
+  // 回落成空表而不是 undefined：接线层与战意条都直接读这个字段，
+  // 空表是「本轮一阶都没发过」唯一诚实的表示，undefined 只会把判空的责任推给每个读者。
+  assert.deepEqual(back.value.run.milestones, {});
+  assert.equal(comboProgress(6, back.value.run.milestones).unlocked, 0);
   assert.equal(back.value.run.maxhp, run.maxhp, '其它字段一个都不受影响');
+
+  // 更老的一档：键在但值是 undefined / null（某些序列化路径会这么写）
+  for (const absent of [undefined, null]) {
+    const r2 = enc(realRun());
+    r2.run.milestones = absent;
+    const b2 = decodeSnapshot(r2);
+    assert.equal(b2.ok, true, 'undefined/null 也算「没有」：' + String(absent));
+    assert.deepEqual(b2.value.run.milestones, {});
+  }
 });
+
+test('脏 milestones 整份 fail closed（不是普通对象 / 值不是 true / 未登记的 id）', () => {
+  for (const junk of ['steady', [true], 42, true, { steady: 'yes' }, { steady: 1 }, { steady: false },
+    { ghost: true }, { steady: true, ghost: true }, { '': true }]) {
+    const raw = enc(realRun());
+    raw.run.milestones = junk;
+    // 绝不静默当成「本轮没发过」：那正是这个漏洞本身 —— 一张被清空的表 = 每一阶都能再领一次。
+    assert.equal(decodeSnapshot(raw).ok, false,
+      '脏 milestones 必须整份被拒：' + JSON.stringify(junk));
+  }
+});
+
+test('内存态 milestones 是脏值时存不下整份快照（不伪装成旧快照）', () => {
+  for (const junk of ['steady', [true], 42, { steady: 'yes' }, { steady: false }, { ghost: true }]) {
+    const run = realRun();
+    run.milestones = junk;
+    assert.equal(encodeSnapshot({ phase: PHASE.MAP, run, battle: null, encounter: null }), null,
+      '脏内存态必须存不下，而不是存一份缺了里程碑的快照：' + JSON.stringify(junk));
+  }
+  // 缺失 / null / 空表都是合法形状（这一轮确实一阶都没发过），不拦。
+  for (const ok of [undefined, null, {}]) {
+    const run = realRun();
+    if (ok === undefined) delete run.milestones; else run.milestones = ok;
+    const env = encodeSnapshot({ phase: PHASE.MAP, run, battle: null, encounter: null });
+    assert.ok(env, '合法形状必须照常存盘：' + String(ok));
+    assert.equal('milestones' in env.run, false);
+  }
+});
+
+test('完整路径：保存 → 刷新 → 恢复 → 同一阶不再发放（提示次数不被白嫖）', () => {
+  const G = realRun();
+  const B = snapBattle(G, 'presentation');
+  const h1 = harness(G, B);
+  assert.equal(B.word.w.length, 12, '这个词真的有 12 个字母，否则 12 连击这条路径走不到');
+
+  // ── 玩到三阶全部达成 ──
+  typeCorrect(h1, 12);
+  assert.deepEqual(G.milestones, { steady: true, flow: true, insight: true }, '三阶都记在本轮上');
+  assert.equal(B.shield, 8, '护盾 +8 真的到账');
+  assert.equal(B.hints, 4, '提示 +1 真的到账（3 → 4）');
+
+  // ── 暂停 → 存盘 → 刷新 ──
+  const raw = JSON.parse(JSON.stringify(encodeSnapshot(
+    { phase: PHASE.BATTLE, run: G, battle: B, encounter: null }, { now: 1700000000000 })));
+  const back = decodeSnapshot(raw);
+  assert.equal(back.ok, true, back.reason);
+
+  // ── 继续：同一轮、同一份「已发放」记录 ──
+  //   ★ 行为断言放在最前面：这条测试真正要证的是「刷一次不能再领一次」，
+  //   而不是「某个键在不在」。只断言键存在的话，一次手滑（键在、值没还原）
+  //   就能让整条测试绿掉，而漏洞照样存在。
+  const G2 = back.value.run, B2 = back.value.battle;
+  assert.deepEqual(G2.milestones, { steady: true, flow: true, insight: true },
+    '恢复出来的「已发放」表必须还在，否则每一阶都能再领一次');
+  assert.equal(B2.hints, 4, '恢复回来的战斗本来就带着那 1 次提示');
+  const h2 = harness(G2, snapBattle(G2, 'presentation', { hints: B2.hints, shield: B2.shield }));
+  typeCorrect(h2, 12);                                    // 又一次把连击顶到 12
+  assert.equal(h2.B.hints, 4, '★ 提示次数绝不能再 +1（它没有上限，重复发放就是无限白嫖）');
+  assert.equal(h2.B.shield, 8, '护盾同理：已达成的阶不重复发放');
+  assert.deepEqual(G2.milestones, { steady: true, flow: true, insight: true });
+  assert.equal(comboProgress(0, G2.milestones).done, true, '战意条显示三阶全达成');
+
+  // 落盘形状：合法且非空时才写这个键，三阶逐个原样带回来。
+  assert.deepEqual(Object.keys(raw.run.milestones).sort(), ['flow', 'insight', 'steady'],
+    '★ 漏洞本体：已达成的阶必须真的落盘');
+});
+
 
 /* ---------------- 5. 战斗页展示 ---------------- */
 
