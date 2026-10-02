@@ -1,4 +1,5 @@
 import { clamp } from './math.js';
+import { foeLetterMult, foeFinisherMult } from './foe-traits.js';
 
 export const WORD_RATIO = 4;
 export const WORD_COMBO_BOOST = 1.8;
@@ -19,6 +20,11 @@ export function hitDmg(run, battle) {
   let d = Math.round(base * mult * (1 + battle.dmgBonus / 100));
   if (battle.rageLeft > 0) d = Math.round(d * 2.5);
   if (battle.freezeWord) d = Math.round(d * 0.5);
+  // 怪种机制（石化词素等）：按 foe.n 解析，没有机制 / 认不出来时恒为 1，
+  // 所以对没有 foe 字段的老战斗对象逐字不变。
+  d = Math.round(d * foeLetterMult(battle.foe));
+  // ★ 地板不跟着机制缩：折扣只砍「打掉多少」，永远不把这下伤害打成 0，
+  //   否则「半词打死」那条底线之外的路径也会被机制摸到。
   return clamp(d, Math.max(1, Math.round(base * 0.5)), 140);
 }
 
@@ -28,6 +34,9 @@ export function wordDmg(run, battle) {
   let d = Math.round(base * WORD_RATIO * mult * finTier(battle) * (1 + battle.dmgBonus / 100));
   if (battle.rageLeft > 0) d = Math.round(d * 2.5);
   if (battle.freezeWord) d = Math.round(d * 0.5);
+  d = Math.round(d * foeFinisherMult(battle.foe));
   const lo = Math.max(Math.round(base * WORD_RATIO * 0.5), 1);
+  // ★ 机制倍率在夹紧**之前**：上限 WORD_DMG_CAP 仍然是硬上限，
+  //   机制只是把同一发大招打得更重，绝不越过既有上限（也不改上限本身）。
   return Math.max(clamp(d, lo, WORD_DMG_CAP), Math.round(hitDmg(run, battle) * WORD_MIN_RATIO));
 }

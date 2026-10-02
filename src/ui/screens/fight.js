@@ -16,6 +16,7 @@ import { ITEMS } from '../../data/items.js';
 import { clamp } from '../../domain/math.js';
 import { norm, wordGapBefore } from '../../domain/text.js';
 import { comboRate as calculateComboRate } from '../../domain/damage.js';
+import { foeTraits } from '../../domain/foe-traits.js';
 import { foeArtHTML } from '../components/monster-art.js';
 import { SKIP_HP_COST } from '../../data/balance.js';
 import { HERO_DEFAULT, heroById } from '../components/hero.js';
@@ -121,6 +122,10 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     if (B.dmgBonus > 0) add('增伤 +' + B.dmgBonus + '%', 'ok');
     if (B.hintTotal > 0) add('已用提示 ' + B.hintTotal, 'bad');
     if (B.boss) add('首领', 'bad');
+    // 怪种机制（石化词素等）：必须让玩家**看得见**才谈得上「针对性应对」。
+    // 只读 foe.n 解析（domain/foe-traits.js），没登记的怪不占位、不改布局。
+    const trait = foeTraits(B.foe);
+    if (trait) { add(trait.tag, 'bad'); add(trait.tip, 'ok'); }
     // slots
     const sl = $('fSlots'); sl.innerHTML = '';
     const tgt = norm(B.word.w);
