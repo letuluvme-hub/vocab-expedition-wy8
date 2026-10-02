@@ -17,6 +17,11 @@ import { norm } from './text.js';
 import { ADV_LOCK_MS } from './run.js';
 import { encodeFoeAttack, decodeFoeAttack } from './foe-attack.js';
 import { comboMilestoneLadder } from './combo-milestones.js';
+// 磨砺石的限购上限只有这一份来源（与 foe-attack 读 FOE_ATTACK 同一性质：
+// domain 读数据层的**纯常量**，无 DOM / 无状态 / 无存储）。
+// 编解码必须知道上限才能把「超出上限的计数」判成脏值 —— 硬编码 2 会让
+// 数据层改上限之后，旧存档里那些合法计数突然变成「损坏」。
+import { WHET_MAX_PER_RUN } from '../data/balance.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -154,6 +159,35 @@ function encodeMilestones(m) {
   return out;
 }
 
+/* prophecyUsed / whetBuys：两个**可选**的一轮事实，形状都是「默认值与缺失同义」。
+ *
+ *   prophecyUsed —— 预知残卷（传说）本轮那唯一一次全词揭示是否已经用掉。
+ *   whetBuys     —— 商店的磨砺石（生命上限 +10）本轮已经买过几次，上限 WHET_MAX_PER_RUN。
+ *
+ * 两者都必须落盘的理由是同一条：只活在内存里时，「暂停 → 刷新 → 继续」会把它们
+ * 清回初始值 —— 前者变成每局白嫖一次完整答案，后者变成无限买生命上限。
+ *
+ * 默认值与缺失同义，所以 false / 0 两种默认值都**不写这个键**（与 milestones 的
+ * 空表口径一致）：旧存档里根本没有这两个键，写与不写必须产生同样的一份 JSON，
+ * 否则「解码 → 再编码」的深比较会恒假。
+ *
+ * 脏值一律 fail closed（返回 false / undefined 让调用方拒绝整份快照）：
+ * 把「读不懂」当成「还没用 / 还没买」会给玩家白送额度，方向搞反了。 */
+function validProphecyUsed(v) {
+  return v === true || v === false;
+}
+function encodeProphecyUsed(v) {
+  if (!validProphecyUsed(v)) return undefined;
+  return v ? true : undefined;               // false 与「缺失」同义 → 不写键
+}
+function validWhetBuys(v) {
+  return isInt(v) && v >= 0 && v <= WHET_MAX_PER_RUN;
+}
+function encodeWhetBuys(v) {
+  if (!validWhetBuys(v)) return undefined;
+  return v > 0 ? v : undefined;              // 0 与「缺失」同义 → 不写键
+}
+
 function encodeRun(run) {
   // rewardId（可缺）：本轮纪念卡的 id。没有它就无法跨刷新认出同一张卡。
   //   旧内存态（卡在内存里但字段还没有）从 reward.id 取，绝不凭空造一个。
@@ -206,6 +240,12 @@ function encodeRun(run) {
   //   与 growth / outcome 字段同一处理口径。
   const milestones = encodeMilestones(run.milestones);
   if (milestones && Object.keys(milestones).length) out.milestones = milestones;
+  // prophecyUsed / whetBuys 同属「默认值与缺失同义」的可选字段：
+  //   false / 0 都不写键，写了反而让「解码→再编码」与旧存档对不上。
+  const prophecyUsed = encodeProphecyUsed(run.prophecyUsed);
+  if (prophecyUsed) out.prophecyUsed = prophecyUsed;
+  const whetBuys = encodeWhetBuys(run.whetBuys);
+  if (whetBuys !== undefined) out.whetBuys = whetBuys;
   return out;
 }
 function encodeBattle(b) {
@@ -269,6 +309,14 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   //   缺失 / null / 空表 {} 都是合法形状（这一轮确实一阶都没发过），不拦。
   if (run.milestones !== undefined && run.milestones !== null
     && encodeMilestones(run.milestones) === undefined) return null;
+  // prophecyUsed / whetBuys 同理，但判据必须用 valid* 而不是 encode* ——
+  //   这两个 encode 对「非法」和「默认值（false / 0）」都返回 undefined，
+  //   用 `encodeX(x) === undefined` 会把一份正常的「还没用 / 还没买过」
+  //   当成脏值，于是每一局远征都存不下快照。默认值与缺失同义，不是损坏。
+  if (run.prophecyUsed !== undefined && run.prophecyUsed !== null
+    && !validProphecyUsed(run.prophecyUsed)) return null;
+  if (run.whetBuys !== undefined && run.whetBuys !== null
+    && !validWhetBuys(run.whetBuys)) return null;
   // foeAttack 脏值同理：内存态自己解不开时**不写整份快照**（而不是写一份缺了
   //   攻击事实的快照）。缺了它看着能恢复，实际是把「蓄力还剩多久」丢掉 ——
   //   玩家会发现刷新后攻击时机凭空变了，这比明确存不下更糟。
@@ -344,6 +392,9 @@ function validRun(r) {
   //   脏值整份 fail closed —— 绝不静默当成「本轮一阶都没发过」：静默丢弃一张
   //   被改坏的「已发放」表，等于把每一阶奖励都退回成可再领一次的状态。
   if (r.milestones !== undefined && r.milestones !== null && !validMilestones(r.milestones)) return false;
+  // prophecyUsed / whetBuys 同样可选：缺失合法（旧快照），出现就必须合法形状。
+  if (r.prophecyUsed !== undefined && r.prophecyUsed !== null && !validProphecyUsed(r.prophecyUsed)) return false;
+  if (r.whetBuys !== undefined && r.whetBuys !== null && !validWhetBuys(r.whetBuys)) return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -398,6 +449,12 @@ function decodeRun(r, byId) {
     //   ★ 绝不按当前阶梯现算补填：补出来的 id 是「这一局发过」，不是「盘上写着发过」。
     //   形状已在 validRun 里 fail closed 过，这里只做按阶梯顺序的规范化重建。
     milestones: encodeMilestones(r.milestones) || {},
+    // prophecyUsed / whetBuys：缺失（旧快照）/ null 都回落成**默认值**，
+    //   而不是 undefined —— 接线层（combat 的 prophecyReveal、商店的 buyWhetstone）
+    //   直接读这两个字段，拿到 undefined 会让 `| 0` 之外的地方出现「NaN 次」。
+    //   默认值就是「还没用 / 还没买过」，旧存档因此照常可玩。
+    prophecyUsed: r.prophecyUsed === true,
+    whetBuys: validWhetBuys(r.whetBuys) ? r.whetBuys : 0,
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,

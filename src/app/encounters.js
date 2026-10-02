@@ -16,7 +16,7 @@
  */
 import { RELICS } from '../data/relics.js';
 import { ITEMS } from '../data/items.js';
-import { LEGACY_RELIC_SHOP_PRICE } from '../data/balance.js';
+import { LEGACY_RELIC_SHOP_PRICE, WHET_MAX_PER_RUN } from '../data/balance.js';
 import { relicPrice, relicRarityLabel, pickRelicWeighted, sampleRelicsWeighted,
   activeSynergies } from '../domain/relic-rules.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
@@ -46,6 +46,21 @@ export function createEncounterController({ state, ports }) {
   /* 抽取口。默认按稀有度加权；单测可以用 relicDraw 端口指名要哪一件
      （加权之后「这局一定出某件遗物」本来就不可能断言）。 */
   const drawRelic = ports.relicDraw || (pool => pickRelicWeighted(pool, relicRnd));
+
+  /* 磨砺石（生命上限 +10 并回满）的**唯一**结算入口。商店实时屏与暂停恢复屏
+     共用它 —— 两份实现一旦漂移，恢复后就会出现「同一个按钮两套限购」。
+     限购计数挂在 run 上（run.whetBuys），跟着快照走：只活在内存里的话，
+     「暂停 → 刷新 → 继续」就能把这轮买满之后重新变回 0 次。 */
+  function buyWhetstone() {
+    const S = state.G;
+    const used = S.whetBuys | 0;
+    if (used >= WHET_MAX_PER_RUN) {
+      return '磨砺石本轮已经买过 ' + WHET_MAX_PER_RUN + ' 次了 —— 一块石头磨不出第二把刀。';
+    }
+    if (S.gold < 70) return '金币不够。';            // 买不成就不扣钱、不加上限
+    S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; S.whetBuys = used + 1;
+    return '你更强了。';
+  }
 
   /* 商店的遗物卡。**价格是卡面的一部分**：卡上写多少就扣多少，两者同源。
      id 里带上价格（shop:relic:<id>:<price>）是为了让暂停恢复对得上号 ——
@@ -146,11 +161,21 @@ export function createEncounterController({ state, ports }) {
     ] },
     { ic: '🎲', t: '命运的赌局', x: '一个蒙面人推来一枚硬币：「猜正反，赢了钱翻倍，输了归我。」', o: [
       { id: 'gamble:bet', cat: 'event', ic: '🪙', t: '押上 40 金币', d: '一半概率翻倍，一半概率全失', fn: () => {
-        const G = state.G;
-        G.gold = goldGain(40);
-        if (Math.random() < .5) { const w = G.gold; G.gold = w * 2; return '硬币停在正面！你获得了 ' + G.gold + ' 金币。'; }
-        G.gold = 0;
-        return '反面。你的金币全没了。';
+        const S = state.G;
+        // ★ 卡面写的是「押上 40 金币」，结算就必须只赌这 40。
+        //   原实现先白送 40（goldGain(40)），再把**整个钱袋**翻倍或清零，
+        //   并且把翻倍后的总额当成「你获得的」写进文案 —— 玩家押 40，
+        //   实际赌的是全部家当，而界面说的是另一回事。
+        //   现在：赌注不足不能押；赢 = 这 40 翻倍（净得 40，贪婪之眼照常加成）；
+        //   输 = 少掉这 40。文案只报这一局的输赢。
+        if (S.gold < 40) return '你连押上的 40 金币都凑不出来。';
+        if (Math.random() < .5) {
+          const before = S.gold;
+          goldGain(40);                        // 加钱与贪婪之眼加成都走同一入口
+          return '硬币停在正面！你赢得 ' + (S.gold - before) + ' 金币。';
+        }
+        S.gold -= 40;
+        return '反面。你输掉 40 金币。';
       } },
       { id: 'gamble:skip', cat: 'none', ic: '✋', t: '不赌了', d: '安全离开', fn: () => '你明智地走开了。' }
     ] },
@@ -297,10 +322,18 @@ export function createEncounterController({ state, ports }) {
    * 原版这里曾经用整盒共用的 _used 做双击保护，导致买过任何东西之后连「离开」都点不动 —— 整局死锁。
    * 现在每按钮一层 260ms 冷却（只防手滑连点），advance() 自己的时间窗负责去重推进。 */
   const CLICK_CD_MS = 260;
+  /* 商店顶部的「你的金币」行。★ 买完东西必须重新写一次：原实现只在**进入**商店时
+     写一遍，于是玩家点了卡片、钱真的扣了，界面上那个数字纹丝不动 —— 看起来像没扣款，
+     也看不出自己还剩多少钱买东西。恢复路径（reopenEncounter）本来就会重写这一行，
+     实时路径漏了，两边的口径必须一致。 */
+  function refreshShopGold() {
+    const el = $('rSub');
+    if (el) el.textContent = '你的金币：' + ((state.G && state.G.gold) | 0) + ' 枚 —— 用金币强化自己';
+  }
   function showShop() {
     const G = state.G;
     $('rTitle').textContent = '商店 🛒';
-    $('rSub').textContent = '你的金币：' + G.gold + ' 枚 —— 用金币强化自己';
+    refreshShopGold();
     const sbox = $('rPicks');
     sbox.innerHTML = '';
     const opts = [
@@ -314,11 +347,9 @@ export function createEncounterController({ state, ports }) {
         if (S.gold < 40) return '金币不够。';
         S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
       } },
-      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
-        const S = state.G;
-        if (S.gold < 70) return '金币不够。';
-        S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
-      } }
+      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
+        d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
+          + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone }
     ];
     const av = ownedRelics(G);
     if (av.length) {
@@ -364,6 +395,7 @@ export function createEncounterController({ state, ports }) {
           // 买东西不推进层数：相位仍是 encounter，快照里带着「已扣钱」的 G 落盘。
           // 刷新后回到同一屏商店，钱已经扣过，不会免费重买。
           if (publishEncounter) publishEncounter(current());
+          refreshShopGold();          // ★ 付完钱让顶部那个数字跟着变，否则看不出扣了多少
         });
       };
       sbox.appendChild(b);
@@ -522,10 +554,9 @@ export function createEncounterController({ state, ports }) {
           const S = state.G; if (S.gold < 40) return '金币不够。';
           S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
         } },
-        { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
-          const S = state.G; if (S.gold < 70) return '金币不够。';
-          S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
-        } },
+        { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
+          d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
+            + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone },
       ];
       // 遗物/道具候选表按 id 全量铺开（而不是重新 pick 一个）：
             // 快照里记的是**当时那一张**，重新 pick 会得到别的 id，

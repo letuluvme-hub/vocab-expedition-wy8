@@ -114,6 +114,16 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     //   一轮只发一次的原因：护盾跨战斗结转（finishBattleNode 把 B.shield 写回
     //   run.shield），每场都发就是滚雪球。
     milestones: {},
+    // ★ 预知残卷（传说遗物）本轮那**唯一一次**全词揭示是否已经用掉。
+    //   它必须跟着快照走：不落盘的话「暂停 → 刷新 → 继续」会把它清回 false，
+    //   于是每局又能白嫖一次完整答案 —— 和影分身当初的漏洞是同一个形状。
+    //   布尔而不是次数：语义就是 1 次，缺字段（老存档/旧快照）回落为未使用。
+    prophecyUsed: false,
+    // ★ 磨砺石（商店：生命上限 +10 并回满）本轮已经买过几次。
+    //   上限是 data/balance.js 的 WHET_MAX_PER_RUN。同样必须落盘 ——
+    //   只活在内存里的话，刷新一次就能把买满一轮重新变回 0 次。
+    //   0 与「缺失」同义，落盘时两者都不写这个键。
+    whetBuys: 0,
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,
     deckHint: 0, history: [], avail: null, node: null,
     done: new Set(),      // 本局已答对的词：不再出现

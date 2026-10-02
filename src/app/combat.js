@@ -75,6 +75,13 @@ export function createCombatController({ state, ports }) {
   function prophecyReveal() {
     const B = state.B, G = state.G;
     if (!B || B.over || !G || !hasR('prophecy')) return false;
+    // ★ 一轮远征只触发**一次**（G.prophecyUsed，跟着快照走）。
+    //   早先它是「每次答错都揭示，代价 1 点额度」—— 而 B.hints 有 3-5 点底子
+    //   （还有遗物与卷轴加成），于是实际是每局白嫖 3-5 次完整答案。
+    //   在一个以「回忆拼写」为唯一学习动作的游戏里，那等于把这一局的教学价值抹掉。
+    //   改成一次性之后，它仍然是「把答错这件事从惩罚变成信息」那件传说遗物，
+    //   但不再摧毁后续每一个词的回忆过程。
+    if (G.prophecyUsed) return false;
     if ((B.hints | 0) <= 0) return false;              // 额度用尽 → 彻底失效
     const tgt = norm(B.word.w);
     const pos = B.input.length;
@@ -90,8 +97,10 @@ export function createCombatController({ state, ports }) {
     B.hints = (B.hints | 0) - 1;
     B.hintTotal = (B.hintTotal | 0) + 1;
     B.hintUsed = tgt.length - pos;
+    G.prophecyUsed = true;                             // 记账在 run 上：换战斗不重置
     toast('📜 预知残卷：' + B.hintUsed + ' 个字母全部揭示（提示 −1）'
-      + (freed ? '，顺便解开了 ' + freed + ' 个误标字母' : ''));
+      + (freed ? '，顺便解开了 ' + freed + ' 个误标字母' : '')
+      + ' —— 本轮的这一次已用尽');
     return true;
   }
   function hurtPlayer(d, wrongCh, rightCh, opt) {
