@@ -17,7 +17,7 @@ import { clamp } from '../../domain/math.js';
 import { norm, wordGapBefore } from '../../domain/text.js';
 import { comboRate as calculateComboRate } from '../../domain/damage.js';
 import { foeTraits } from '../../domain/foe-traits.js';
-import { foeArtHTML } from '../components/monster-art.js';
+import { pixelMonsterSVG, pixelIconSVG } from '../components/pixel-art.js';
 import { SKIP_HP_COST } from '../../data/balance.js';
 import { HERO_DEFAULT, heroById } from '../components/hero.js';
 import { paintHpBar } from '../components/hp-bar.js';
@@ -80,8 +80,11 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
       const b = document.createElement('button');
       b.className = 'item' + (left <= 0 || capped ? ' off' : '') + (B.rageLeft > 0 && id === 'rage' ? ' fire' : '');
       b.title = it.d + '\n' + it.tip + (capped ? '\n（本场已用满 ' + it.max + ' 次）' : '');
+      // 像素图标优先；认不出的 id 回落到数据层自带的 emoji（两者都是我们自己表里的内容，
+      // 绝不含玩家或存档写入的字符串）。
+      const icon = pixelIconSVG(id) || it.ic;
       b.innerHTML = '<span class="kb">' + (idx + 1) + '</span><span class="ct">×' + left + '</span>' +
-        '<span class="ic">' + it.ic + '</span><span class="nm">' + it.n + '</span>';
+        '<span class="ic">' + icon + '</span><span class="nm">' + it.n + '</span>';
       if (!capped) b.onclick = () => onUseItem(id);
       box.appendChild(b);
     });
@@ -107,7 +110,7 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     const H = heroById(G.heroId || HERO_DEFAULT), pc = $('fPc');
     if (pc) pc.dataset.h = H.id;
     const nm = $('fMyName'); if (nm) nm.textContent = H.n;
-    $('fAv').innerHTML = foeArtHTML(B.foe, B.boss, B.elite);
+    $('fAv').innerHTML = pixelMonsterSVG(B.foe, B.boss, B.elite);
     paintFoeScale();
     // 蓄力条：数据由 app/foe-attacks.js 挂在 B.foeAttack 上（可能还没有 → 组件隐藏自己）。
     const attackFact = getFoeAttackFact ? getFoeAttackFact() : B.foeAttack;

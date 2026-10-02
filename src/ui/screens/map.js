@@ -6,6 +6,7 @@ import { NODES } from '../../data/nodes.js';
 import { RELICS } from '../../data/relics.js';
 import { clamp } from '../../domain/math.js';
 import { paintHpBar } from '../components/hp-bar.js';
+import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
 
 const MAP_V_GAP = 12;        // 相邻层之间的垂直净间隙（要求 ≥8）
 const MAP_D_BASE = 56, MAP_D_BOSS = 70, MAP_D_MIN = 34;
@@ -84,7 +85,11 @@ export function createMapScreen({ getRun, onEnter, onToast, onNodeSound }) {
     G.relics.forEach(id => {
       const r = relicById(id); if (!r) return;
       const d = document.createElement('div');
-      d.className = 'relic'; d.textContent = r.ic; d.title = r.n + '：' + r.d;
+      d.className = 'relic';
+      // 像素图标优先，认不出就退回 emoji（两者都来自固定表，不含存档字符串）。
+      const icon = pixelIconSVG(relicIconKey(id));
+      if (icon) d.innerHTML = icon; else d.textContent = r.ic;
+      d.title = r.n + '：' + r.d;
       d.onclick = () => onToast(r.n + '：' + r.d);
       rb.appendChild(d);
     });

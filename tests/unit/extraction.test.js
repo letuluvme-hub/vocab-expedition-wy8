@@ -82,7 +82,7 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './combo-milestones.css', './relic-depth.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css'];
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
@@ -224,11 +224,38 @@ test('page skeleton preserves approved character parts and all existing controls
     '检查点屏不许承诺解锁下一单元');
 });
 
-test('monster artwork matches original trusted SVG and rejects injected names', async () => {
-  const { foeArtHTML } = await import('../../src/ui/components/monster-art.js');
-  const end = script.indexOf('// ============================================================');
-  const original = vm.runInNewContext(script.slice(0,end) + ';foeArtHTML');
-  for (const n of ['词灵','语素蛛','石化词素','歧义章鱼','拼写幽灵','单复数蝎','冰封词灵','词形旋风','词汇之王','<img src=x onerror=alert(1)>']) {
-    for (const boss of [false,true]) for (const elite of [false,true]) assert.equal(foeArtHTML({n},boss,elite), original({n},boss,elite));
+test('monster artwork is pixel art and rejects injected names', async () => {
+  const { pixelMonsterSVG } = await import('../../src/ui/components/pixel-art.js');
+  // ★ 这一条原本断言「与旧版手绘 SVG 逐字节相同」——那是模块化重构期的基线契约。
+  //   2026-10-02 用户明确要求把怪物改成像素风，所以基线本身变了：现在钉的是
+  //   像素精灵的形状契约与**安全契约**，不再是和旧素材的同一性。
+  const NAMES = ['词灵','语素蛛','石化词素','歧义章鱼','拼写幽灵','单复数蝎','冰封词灵','词形旋风','词汇之王'];
+  for (const n of NAMES) {
+    const svg = pixelMonsterSVG({ n }, false, false);
+    assert.match(svg, /viewBox="0 0 16 16"/, n + ' 应当是 16×16 像素网格');
+    assert.match(svg, /<rect /, n + ' 必须真的画出格子');
+    assert.match(svg, /shape-rendering="crispEdges"/, n + ' 必须保持硬边，否则缩放会糊');
+    assert.ok(svg.includes(n), n + ' 的可访问名应当带上怪物名');
+  }
+  // 九个名字必须画出九种不同的精灵 —— 退化成一个默认图就失去分层的意义。
+  const shapes = new Set(NAMES.map(n => pixelMonsterSVG({ n }, false, false)));
+  assert.equal(shapes.size, NAMES.length, '每种怪物必须有独一无二的精灵');
+
+  // 首领与精英装饰只在对应标记下出现。
+  assert.ok(pixelMonsterSVG({ n: '词灵' }, true, false).length
+    > pixelMonsterSVG({ n: '词灵' }, false, false).length, '首领要戴王冠');
+  assert.match(pixelMonsterSVG({ n: '词灵' }, false, false), /aria-label="词灵"/);
+  assert.match(pixelMonsterSVG({ n: '词灵' }, true, false), /aria-label="词灵首领"/);
+  assert.match(pixelMonsterSVG({ n: '词灵' }, false, true), /aria-label="词灵精英"/);
+});
+
+test('monster artwork never echoes an untrusted name', async () => {
+  const { pixelMonsterSVG } = await import('../../src/ui/components/pixel-art.js');
+  // 名称只允许取固定表的键；认不出的一律回落默认精灵，**绝不**把输入拼进标记。
+  const EVIL = '<img src=x onerror=alert(1)>';
+  for (const foe of [{ n: EVIL }, { n: '"><script>alert(1)</script>' }, { n: '' }, {}, null]) {
+    const svg = pixelMonsterSVG(foe, true, true);
+    assert.doesNotMatch(svg, /<img|onerror|<script|alert\(/, '注入的怪物名不许出现在标记里');
+    assert.match(svg, /aria-label="词灵/, '认不出的名字回落成默认精灵');
   }
 });

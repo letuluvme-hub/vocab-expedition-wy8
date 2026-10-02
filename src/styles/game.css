@@ -22,3 +22,5 @@
 @import './combo-milestones.css';
 /* 遗物图鉴的稀有度档位行与组合技提示条：只作用于 .rlc* / .rl-rar。 */
 @import './relic-depth.css';
+/* 像素风怪物与装备图标：只作用于 .pxmon / .pxicon，追加在最后。 */
+@import './pixel-art.css';

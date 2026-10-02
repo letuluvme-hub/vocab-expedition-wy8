@@ -1,0 +1,66 @@
+/* ---- pixel-art（像素风怪物与装备图标）----
+ *
+ * 两张表的所有选择器都限定在 .pxmon（怪物精灵）与 .pxicon（装备图标）之下，
+ * 不与任何既有样式表共用类名，所以既不会覆盖别人也不会被别人误伤。
+ *
+ * 动画只作用在 SVG **内层** <g>，不碰外壳：
+ *   战斗页的 .avatar 已经用 idle 关键帧占住了自己的 transform（上下浮动 + 微旋），
+ *   内层再动一次才叠得出「漂浮 + 呼吸」；两层抢同一个 transform 会互相覆盖。
+ * 眼睑用 rect 同色盖住眼白实现眨眼 —— 不走 opacity，因为缩放到 16px 时
+ * 半透明的中间帧会让眼睛变成一团糊。
+ */
+
+/* 像素精灵的基本渲染：容器给多大就画多大，硬边不模糊。 */
+.pxmon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* 眨眼：8s 周期里 84%–98% 闭眼 ⇒ 约 1.1s 可见。
+   初版是 5.5s 周期的 4%（0.22s），在 64px 的战斗尺寸下玩家只会觉得「闪了一下」。
+   错开 1/3 与 2/3 相位，多个精灵并排时不会整齐划一地眨。
+   ★ 动画只挂在 .pxmon.anim 下：不带 anim 的精灵（静态场景）连图层都没有，
+     这里是第二道保险 —— 漏了一个类也不该让它动起来。 */
+.pxmon .pm-lid {
+  transform-origin: center;
+  transform: scaleY(0);
+}
+.pxmon.anim .pm-lid {
+  animation: pxBlink 8s steps(1, end) infinite;
+}
+.pxmon.anim .pm-breathe {
+  transform-origin: center;
+  animation: pxBreathe 2.6s ease-in-out infinite;
+}
+/* 相位错开由兄弟序驱动：.foe-cartoon 在战斗页只有一份，但图鉴/预览里会并排多个。 */
+.pxmon.anim:nth-of-type(3n + 1) .pm-lid { animation-delay: 1.4s; }
+.pxmon.anim:nth-of-type(3n + 2) .pm-lid { animation-delay: 3.2s; }
+
+/* steps(1,end) 保证只有「睁」「闭」两个状态，不产生缩放的模糊中间帧。 */
+@keyframes pxBlink {
+  0%, 82%   { transform: scaleY(0); }
+  84%, 98%  { transform: scaleY(1); }
+  100%      { transform: scaleY(0); }
+}
+/* 幅度刻意压到 1px：16×16 网格上再大就会脱出格子。 */
+@keyframes pxBreathe {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1px); }
+}
+
+/* 装备图标：跟着字号走，所以直接写进文本流也不会撑破行高或工具栏。 */
+.pxicon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  image-rendering: pixelated;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pxmon .pm-lid,
+  .pxmon .pm-breathe { animation: none; }
+  .pxmon .pm-lid { transform: scaleY(0); }
+}

@@ -29,6 +29,9 @@ const ADDED = [
   // 遗物图鉴（遗物深度）。选择器前缀用 .rlc / .rl-rar / .rlc-syn ——
   // 这几个类名只存在于图鉴屏 #rlBox 内，不与战斗页/主页共用。
   ['./relic-depth.css', /^\.rlc|^\.rl-rar/, '遗物图鉴稀有度与组合技'],
+  // 像素风怪物与装备图标。前缀是 .pxmon（怪物精灵）与 .pxicon（图标）——
+  // 这两个类名只由 ui/components/pixel-art.js 产出，不与既有类名共用。
+  ['./pixel-art.css', /^\.pxmon|^\.pxicon/, '像素风怪物与装备图标'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{
@@ -52,9 +55,19 @@ test('split styles retain every original rule and exact cascade order',async()=>
     // @media 只是一层**条件容器**，不是选择器：把它的前导语句摘掉，
     // 让里面的规则照样被逐条核对（否则 @media 整块会被当成一个选择器而漏检，
     // 或者逼着这条断言放宽成「什么都行」）。条件本身由白名单前缀把关。
-    const added=readFileSync(new URL(`../../src/styles/${file}`,import.meta.url),'utf8')
-      .replace(/\/\*[\s\S]*?\*\//g,'').replace(/@import[^;]+;/g,'')
-      .replace(/@media[^{]*\{/g,'');
+    // @keyframes 同理：它也不是选择器，而是**全局命名**的一段动画定义，
+    // 只在被 `animation:` 引用时才生效。名字一旦撞车会污染既有动画，
+    // 所以这里不算「越界选择器」，改由下面单独的「名字不许与归档重名」把关。
+    const raw=readFileSync(new URL(`../../src/styles/${file}`,import.meta.url),'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g,'').replace(/@import[^;]+;/g,'');
+    for(const m of raw.matchAll(/@keyframes\s+([\w-]+)/g)) {
+      assert.ok(!new RegExp('@keyframes\\s+'+m[1]+'\\b').test(baseline),
+        `${label}新增的关键帧名不得与归档重名（会污染既有动画）: `+m[1]);
+    }
+    const added=raw
+      .replace(/@media[^{]*\{/g,'')
+      // 整块删掉关键帧（含函数体里的 0%/82% 伪选择器，它们不是真选择器）。
+      .replace(/@keyframes\s+[\w-]+\s*\{(?:[^{}]|\{[^{}]*\})*\}/g,'');
     const selectors=[...added.matchAll(/(^|\})\s*([^{}]*?)\s*\{/g)].map(m=>m[2].trim()).filter(Boolean);
     assert.ok(selectors.length>0,label+' 样式表不能是空的：'+file);
     for(const sel of selectors) for(const one of sel.split(',')) {

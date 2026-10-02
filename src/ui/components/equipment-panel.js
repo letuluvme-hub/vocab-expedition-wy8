@@ -23,6 +23,7 @@ import { ITEMS } from '../../data/items.js';
 import { RELICS } from '../../data/relics.js';
 import { HERO_DEFAULT, heroById, heroStatLines } from './hero.js';
 import { relicRarity, relicRarityLabel, activeSynergies, synergyLabel } from '../../domain/relic-rules.js';
+import { pixelIconSVG, relicIconKey } from './pixel-art.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0] || null;
 const relicById = id => RELICS.filter(x => x.id === id)[0] || null;
@@ -120,10 +121,20 @@ export function createEquipmentPanel({ getRun, getBattle }) {
     return el;
   }
 
-  /* 一行 = 一个 div，行内再分「标题」与「效果」。全部 textContent。 */
-  function line(body, cls, head, text) {
+  /* 一行 = 一个 div，行内分「图标 / 标题 / 效果」。
+   *
+   * ★ 安全边界：标题与效果**永远**走 textContent（认不出的 id 会被原样写进标题，
+   *   那正是契约 7 要挡住的东西）。只有 `icon` 走 innerHTML，而它的唯一来源是
+   *   pixelArt 的固定表 —— 认不出的 id 那边返回 null，这里就根本不追加图标元素。 */
+  function line(body, cls, head, text, icon) {
     const row = document.createElement('div');
     row.className = 'eq-row ' + (cls || '');
+    if (icon) {
+      const ic = document.createElement('span');
+      ic.className = 'eq-ic';
+      ic.innerHTML = icon;
+      row.appendChild(ic);
+    }
     const h = document.createElement('span');
     h.className = 'eq-h';
     h.textContent = head;
@@ -157,8 +168,10 @@ export function createEquipmentPanel({ getRun, getBattle }) {
       line(body, 'eq-empty', '遗物', '尚无遗物 —— 事件与精英战会掉落');
     } else {
       m.relics.forEach(r => line(body, 'eq-relic' + (r.unknown ? ' eq-unknown' : ''),
-        r.ic + ' ' + r.n + (r.count > 1 ? ' ×' + r.count : ''),
-        (r.rarityLabel ? '【' + r.rarityLabel + '】' : '') + r.d));
+        // 认不出的 id 继续把 ❔ 写在标题里（textContent），并**不给图标** —— 契约 7。
+        (r.unknown ? r.ic + ' ' : '') + r.n + (r.count > 1 ? ' ×' + r.count : ''),
+        (r.rarityLabel ? '【' + r.rarityLabel + '】' : '') + r.d,
+        r.unknown ? null : pixelIconSVG(relicIconKey(r.id))));
     }
 
     /* 组合技：只在真的凑齐时出现，写明是哪两件凑成的 —— 这是整套系统
@@ -179,8 +192,9 @@ export function createEquipmentPanel({ getRun, getBattle }) {
       line(body, 'eq-empty', '道具', '背包是空的 —— 商店和精英战会掉落道具');
     } else {
       m.items.forEach(i => line(body, 'eq-item' + (i.unknown ? ' eq-unknown' : '') + (i.spent ? ' eq-spent' : ''),
-        i.ic + ' ' + i.n + ' ×' + i.owned,
-        i.d + ' · 本场已用 ' + i.usedThisFight + '/' + i.max + (i.spent ? ' · 已用满' : '')));
+        (i.unknown ? i.ic + ' ' : '') + i.n + ' ×' + i.owned,
+        i.d + ' · 本场已用 ' + i.usedThisFight + '/' + i.max + (i.spent ? ' · 已用满' : ''),
+        i.unknown ? null : pixelIconSVG(i.id)));
     }
 
     return el;

@@ -7,6 +7,7 @@ import { UNITS } from '../../data/units.js';
 import { RELICS } from '../../data/relics.js';
 import { clamp } from '../../domain/math.js';
 import { rewardScope, rewardRoundLine, renderRewardCard } from '../components/reward-card.js';
+import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
 
 const relicById = id => RELICS.filter(r => r.id === id)[0];
 
@@ -82,7 +83,10 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   const rb = $('oRelics'); rb.innerHTML = '';
   if (!G.relics.length) rb.innerHTML = '<span style="font-size:12px;color:var(--dim)">这次没有获得遗物</span>';
   G.relics.forEach(id => { const r = relicById(id); if (!r) return;
-    const d = document.createElement('div'); d.className = 'relic'; d.textContent = r.ic; d.title = r.n; rb.appendChild(d); });
+    const d = document.createElement('div'); d.className = 'relic';
+    const icon = pixelIconSVG(relicIconKey(id));
+    if (icon) d.innerHTML = icon; else d.textContent = r.ic;
+    d.title = r.n; rb.appendChild(d); });
   show('s-over');
   onTitle();
 }

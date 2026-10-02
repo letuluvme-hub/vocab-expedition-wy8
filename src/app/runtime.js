@@ -46,7 +46,6 @@ import { relicRarityLabel, relicPrice, victoryGoldBonus, winHealBonus,
 import { UNITS } from '../data/units.js';
 import { ENEMIES, BOSS } from '../data/enemies.js';
 import { VOICE_LINES, FOE_LINES, ELITE_LINES } from '../data/voice-lines.js';
-import { foeArtHTML } from '../ui/components/monster-art.js';
 import { createAudioSettings, nearestVolStep } from '../ui/components/audio-settings.js';
 import { createAudioCapability, CHANNEL } from '../services/audio-capability.js';
 import { createAudioCompatibility } from '../ui/components/audio-compatibility.js';

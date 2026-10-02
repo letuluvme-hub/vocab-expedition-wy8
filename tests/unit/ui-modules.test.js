@@ -10,7 +10,7 @@ import { NODES } from '../../src/data/nodes.js';
 import { clamp } from '../../src/domain/math.js';
 import { norm, wordGapBefore } from '../../src/domain/text.js';
 import { comboRate as calculateComboRate } from '../../src/domain/damage.js';
-import { foeArtHTML } from '../../src/ui/components/monster-art.js';
+import { pixelMonsterSVG as foeArtHTML } from '../../src/ui/components/pixel-art.js';
 
 import { rewardScope, renderRewardCard } from '../../src/ui/components/reward-card.js';
 
@@ -119,6 +119,23 @@ function snap(el) {
 }
 
 function snapDoc(doc, ids) { return ids.map(id => id + '→' + snap(doc.getElementById(id))).join('\n'); }
+
+/* 2026-10-02 的**有意漂移**：怪物与装备图标换成像素美术。
+ * 凡是承载图标的位置，旧版是 emoji（走 textContent）、新版是一整段 SVG（走 innerHTML），
+ * 两者没有可比性 —— 先归一化再逐元素对照，图标本身在 tests/unit/pixel-art.test.js
+ * 与各屏自己的断言里单独核对。不这么做，这几条对照会因为美术换代而永远红。 */
+function stripArt(s) {
+  return s
+    // <span class="ic">…</span>（战斗道具栏、选项卡）
+    .replace(/(class="ic">)[\s\S]*?(<\/span>)/g, '$1ART$2')
+    // DIV.relic[click]#<svg…></svg>（地图 / 结算页的遗物格，innerHTML）
+    .replace(/DIV\.relic(?:\[[^\]]*\])?#[\s\S]*?<\/svg>/g, 'DIV.relic=ART')
+    // DIV.relic[click]="🛡️"（旧版的 emoji 形态）
+    .replace(/DIV\.relic(?:\[[^\]]*\])?="[^"]*"/g, 'DIV.relic=ART')
+    // 容器自身：旧版靠 textContent 累积出 "🛡️💎"，新版 innerHTML 置空后只 append 子元素，
+    // 于是父节点一个有文本一个没有。把「紧接在遗物格前面的那段文本」也一并抹掉。
+    .replace(/DIV="[^"]*"(\[DIV\.relic=ART)/g, 'DIV$1');
+}
 
 function withDocument(doc, fn) {
   const prev = globalThis.document;
@@ -523,7 +540,10 @@ test('fight.renderItems shows only held items and hands clicks to onUseItem', as
   const docOld = createDocument(FIGHT_IDS);
   withDocument(docOld, () =>
     legacyFn('renderItems', { $: $for(docOld), G: makeRun(), B: makeBattle(), itemById, useItem: () => {} })());
-  assert.equal(snapDoc(docMine, ['fItems']), snapDoc(docOld, ['fItems']));
+  // 图标归一化后再比（见 stripArt）；下面单独断言像素图标确实画出来了。
+  assert.equal(stripArt(snapDoc(docMine, ['fItems'])), stripArt(snapDoc(docOld, ['fItems'])));
+  assert.match(snap(docMine.getElementById('fItems').children[0]),
+    /<svg[^>]*class="pxicon"/, '道具格应当画像素图标');
   docOld.getElementById('fItems').children[0].onclick();
   docMine.getElementById('fItems').children[0].onclick();
   assert.deepEqual(used, ['leech']);
@@ -628,7 +648,10 @@ test('map.renderMap paints the same DOM as legacy and routes clicks to callbacks
   withDocument(docOld, () => legacyFn('renderMap', { $: $for(docOld), document: docOld, G: runOld, NODES, clamp,
     MAP_D_BOSS: 70, mapMetrics: () => helper.mapMetrics(), paintHpBar, relicById,
     enterNode: () => {}, toast: () => {}, sfx: { node: () => {} } })());
-  assert.equal(snapDoc(mineDoc, MAP_IDS), snapDoc(docOld, MAP_IDS));
+  // 遗物格换成像素图标，先归一化再逐元素对照（见 stripArt）。
+  assert.equal(stripArt(snapDoc(mineDoc, MAP_IDS)), stripArt(snapDoc(docOld, MAP_IDS)));
+  assert.match(snap(mineDoc.getElementById('mRelics').children[0]),
+    /<svg[^>]*class="pxicon"/, '地图遗物格应当画像素图标');
   assert.deepEqual(sounds, [1], 'node breath sound fires once per avail-set change');
   assert.deepEqual(run.availSig, runOld.availSig);
 
@@ -780,7 +803,18 @@ test('over.renderOver draws the win screen with the current run reward', async (
   // 任务 8 的**有意漂移**：结算正文现在带轮次（docs/feature-rounds.md）。
   // 先摘掉这一段再逐元素比对，其余文案零漂移；轮次本身另外断言。
   const stripRound = s => s.replace(/（第 \d+ 轮）/g, '').replace(/（旧版记录 · 未记录轮次）/g, '');
-  assert.equal(stripRound(snapDoc(doc, OVER_IDS)), snapDoc(docOld, OVER_IDS));
+  // 2026-10-02 的**有意漂移**：遗物格从 emoji 换成像素图标。
+  // 那一格整段排除在对照之外（旧版是 "🛡️"，新版是一整段 SVG，没有可比性），
+  // 图标本身在下面单独断言 —— 否则这条对照会因为美术换代而永远红。
+  const stripRelicArt = s => s.replace(/oRelics→[^\n]*/, 'oRelics→<art>');
+  assert.equal(stripRelicArt(stripRound(snapDoc(doc, OVER_IDS))),
+    stripRelicArt(snapDoc(docOld, OVER_IDS)));
+  // 遗物格确实换成了像素图标，而且每个都带着 hover 说明。
+  const relicCells = doc.getElementById('oRelics').children;
+  assert.equal(relicCells.length, 2);
+  assert.match(snap(relicCells[0]), /<svg[^>]*class="pxicon"/, '遗物格应当画像素图标');
+  assert.equal(relicCells[0].title, '护盾符文');
+  assert.equal(relicCells[1].title, '连击徽章');
   assert.match(doc.getElementById('oText').textContent, /远征成功|词汇之王/);
   assert.match(doc.getElementById('oText').textContent, /旧版记录 · 未记录轮次/, '旧 run 没有轮次事实就说旧版记录');
 
