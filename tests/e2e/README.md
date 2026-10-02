@@ -30,7 +30,7 @@ Windows 自动使用真实 Google Chrome（`CHROME_PATH` 可覆盖）；其他�
 ## 不能悄悄修掉的旧版事实
 
 1. 标题没有“全册”选择按钮：真实基线只有 Unit 1–6 和“我的词表”。`rewardScope(-1)` 的“全册”兜底不等于存在可点击入口。
-2. `hpBarGeom` 返回 `shield`，`paintHpBar` 却用 `g.sh` 判断显示和文字：20 点护盾时总容量百分比是正确的，但护盾层隐藏、数字不含盾。测试保留真实行为（62.5% 填充、37.5% left、25% 盾宽、`display:none`），不是声称视觉护盾已经正确。若以后授权修复，应先增加失败测试再改代码。
+2. ~~`hpBarGeom` 返回 `shield`，`paintHpBar` 却用 `g.sh` 判断显示和文字~~ **已于 2026-10-02 按本文件登记的规程修复**（先补失败测试，再改代码）：`paintHpBar` 现在读 `g.shield`，护盾层按几何显示、文字带「+N盾」。修复只动显示层，`hpBarGeom` 的返回与全部几何值逐位不变（仍由单测钉住）；无护盾的用例与旧版逐像素相同，有护盾的差异由 `tests/unit/ui-modules.test.js` 的 `shows the shield layer and the +N盾 suffix` 断言正确行为。地图页与战斗页共用同一个函数，因此两条血条一起生效。
 3. 无 Speech API 时“听读音”显示“不可用”/`.off`，不是 HTML disabled；点击提示不支持、不会耗提示或播放脉冲。测试遵守旧版实际语义。
 4. 退格释放字母、减 `attOk`/combo，但不撤销已造成伤害和尝试次数；再答会再次造成伤害。测试没有发明伤害回滚。
 

@@ -615,7 +615,11 @@ function startFight(n){
       // 有上限（FIN_TIER_MAX），所以不可能数值爆炸
       wordStreak:0,
       rageLeft:0, freezeWord:false, chainNext:false, goldMult:1, usedThisFight:{} };
-  if(G.nextHint) toast('🔮 水壶生效：本场已揭示首字母');
+  // ★ 这段文案一度写死「水壶生效」—— 但 nextHint 有**三个**来源：神秘泉水灌水壶、
+  //   战斗奖励里的先知卡、学者营火的先知卡。拿先知卡的玩家会看到一句自己没做过的事，
+  //   只能理解成「莫名其妙多给了一个提示」。
+  //   改成只描述**发生了什么**，不猜来源 —— 玩家自己知道刚才拿了哪张卡。
+  if(G.nextHint) toast('🔮 开场奖励：本场已自动揭示首字母');
   G.nextHint=0;
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零

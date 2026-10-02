@@ -182,17 +182,25 @@ test('hp-bar.paintHpBar paints identical pixels as the legacy function', async (
       legacyFn('paintHpBar', { $: $for(docOld), hpBarGeom })('fMy', 'fMyS', 'fMyT', hp, sh, max));
     const docMine = createDocument(HP_IDS);
     const myGeom = withDocument(docMine, () => paintHpBar('fMy', 'fMyS', 'fMyT', hp, sh, max));
+    // 几何（返回的百分比与容量）在任何情况下都不许漂移 —— 修复只动了显示层。
     assert.deepEqual(myGeom, oldGeom, `geom ${hp}/${sh}/${max}`);
-    assert.equal(snapDoc(docMine, HP_IDS), snapDoc(docOld, HP_IDS), `pixels ${hp}/${sh}/${max}`);
+    // 2026-10-02 的**有意漂移**：旧版因为有 g.sh/shield 的字段名错漏，
+    // 护盾层永远 display:none、文字永远没有「+N盾」。**没有护盾**的那些用例
+    // 走的还是同一条路径，所以仍要求逐像素相同；有护盾的差异由上面那条测试
+    // 断言正确行为，不在这里重复。
+    if (sh <= 0) {
+      assert.equal(snapDoc(docMine, HP_IDS), snapDoc(docOld, HP_IDS), `pixels ${hp}/${sh}/${max}`);
+    }
   }
 });
 
-/* ★ 这里断言的是「旧版的真实行为」，包括一个不许在本批次修的老 bug：
- *   paintHpBar 读 g.sh，但 hpBarGeom 返回的字段叫 shield → g.sh 恒为 undefined。
- *   结果：护盾层永远 display:none，血量文字里永远没有「+N盾」。
- *   本批次只做结构提取，保留原图形/文案，所以照抄这个行为；
- *   真要修必须单开一批，并把 map 页和战斗页一起验（两条血条都走这里）。 */
-test('hp-bar.paintHpBar reproduces the legacy shield-layer behaviour bug verbatim', async () => {
+/* ★ 2026-10-02 修复：paintHpBar 曾经读 g.sh，而 hpBarGeom 返回的字段叫 shield，
+ *   于是 g.sh 恒为 undefined —— 护盾层永远 display:none、血量文字里永远没有「+N盾」。
+ *   旧版就是这么写的，抽取阶段照抄了它，并在 tests/e2e/README.md 里登记为
+ *   「不能悄悄修掉的旧版事实」。用户明确要求显示护盾值，这里按登记的规程走：
+ *   先写断言**正确行为**的失败测试，再改代码，并且两条血条（地图页 / 战斗页）
+ *   走的是同一个函数，所以一起验。 */
+test('hp-bar.paintHpBar shows the shield layer and the +N盾 suffix', async () => {
   const { paintHpBar } = await import('../../src/ui/components/hp-bar.js');
   const { hpBarGeom } = await import('../../src/domain/hp.js');
   const read = (hp, sh, max) => {
@@ -206,10 +214,28 @@ test('hp-bar.paintHpBar reproduces the legacy shield-layer behaviour bug verbati
       shWidth: doc.getElementById('fMyS').style.width,
     };
   };
-  // 几何是对的（宽度/位置仍按 shield 算），只有 display 与文案丢了 shield
+  // 没有护盾时：护盾层收起，文字只有血量
   assert.deepEqual(read(30, 0, 60), { display: 'none', txt: '30/60', width: '50%', shLeft: '50%', shWidth: '0%' });
-  assert.deepEqual(read(30, 20, 60), { display: 'none', txt: '30/60', width: '62.5%', shLeft: '37.5%', shWidth: '25%' });
+  // 有护盾时：护盾层显示出来，并且文字**必须**带上「+N盾」——
+  // 玩家要从这里读出「我还能挨多少」，藏在图里而不写数字等于没给。
+  assert.deepEqual(read(30, 20, 60), { display: '', txt: '30/60 +20盾', width: '62.5%', shLeft: '37.5%', shWidth: '25%' });
   assert.equal(hpBarGeom(30, 20, 60).shield, 20, 'hpBarGeom 本身返回 shield，不返回 sh');
+});
+
+test('hp-bar.paintHpBar 对脏护盾值不生成 NaN，也不显示空护盾层', async () => {
+  const { paintHpBar } = await import('../../src/ui/components/hp-bar.js');
+  const read = (hp, sh, max) => {
+    const doc = createDocument(HP_IDS);
+    withDocument(doc, () => paintHpBar('fMy', 'fMyS', 'fMyT', hp, sh, max));
+    return { display: doc.getElementById('fMyS').style.display, txt: doc.getElementById('fMyT').textContent };
+  };
+  for (const bad of [undefined, null, NaN, 'x', {}, -5]) {
+    const r = read(30, bad, 60);
+    assert.doesNotMatch(r.txt, /NaN|undefined/, '脏护盾值不许渗进文案：' + JSON.stringify(bad));
+    assert.equal(r.display, 'none', '认不出的护盾不值一条显示的护盾层：' + JSON.stringify(bad));
+  }
+  // 负血量/超上限：文字仍要如实报出，且不出现负号
+  assert.equal(read(-3, 0, 60).txt, '0/60');
 });
 
 test('hp-bar.paintHpBar tolerates missing elements and still returns geometry', async () => {
