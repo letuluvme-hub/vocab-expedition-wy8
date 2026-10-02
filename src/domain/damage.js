@@ -1,5 +1,6 @@
 import { clamp } from './math.js';
 import { WORD_DMG_CAP, WORD_DMG_CAP_ANCHOR_BASE } from '../data/balance.js';
+import { foeLetterMult, foeFinisherMult } from './foe-traits.js';
 
 export const WORD_RATIO = 4;
 export const WORD_COMBO_BOOST = 1.8;
@@ -42,6 +43,11 @@ export function hitDmg(run, battle) {
   let d = Math.round(base * mult * (1 + battle.dmgBonus / 100));
   if (battle.rageLeft > 0) d = Math.round(d * 2.5);
   if (battle.freezeWord) d = Math.round(d * 0.5);
+  // 怪种机制（石化词素等）：按 foe.n 解析，没有机制 / 认不出来时恒为 1，
+  // 所以对没有 foe 字段的老战斗对象逐字不变。
+  d = Math.round(d * foeLetterMult(battle.foe));
+  // ★ 地板不跟着机制缩：折扣只砍「打掉多少」，永远不把这下伤害打成 0，
+  //   否则「半词打死」那条底线之外的路径也会被机制摸到。
   return clamp(d, Math.max(1, Math.round(base * 0.5)), 140);
 }
 
@@ -51,8 +57,17 @@ export function wordDmg(run, battle) {
   let d = Math.round(base * WORD_RATIO * mult * finTier(battle) * (1 + battle.dmgBonus / 100));
   if (battle.rageLeft > 0) d = Math.round(d * 2.5);
   if (battle.freezeWord) d = Math.round(d * 0.5);
+  d = Math.round(d * foeFinisherMult(battle.foe));
   const lo = Math.max(Math.round(base * WORD_RATIO * 0.5), 1);
   // 双重夹逼：夹上限（随深度增长，见 wordDmgCap），再对 hitDmg() 取硬下限倍率 ——
   // 任何参数组合下倍率都落在 [3.2, ~4.3]，同时不再有深度相关的天花板。
+  // ★ 怪种机制倍率在夹紧**之前**生效：怪种只是把同一发大招打得更重，绝不越过上限
+  //   曲线。这条约束当初需要一个**深度无关**的常数 560 才敢写（那时上限不随深度长，
+  //   机制加成会在深层被削掉一大截）；现在上限按 base 等比增长，同一条约束自动成立
+  //   而且更严 —— 怪种的 ×1.5 在深层拿得到完整收益，同时「连击 + 增伤 + 怒火叠满
+  //   不数值爆炸」这个兜底一条没松：下面 clamp 的 max 仍是 wordDmgCap(base)。
+  // ★ 下限那一路（hitDmg × WORD_MIN_RATIO）不可能反超上限：hitDmg 至多
+  //   max(140, base×0.5)，×3.2 至多 max(448, 1.6×base)，而上限至少是 max(560, 43.08×base)。
+  //   所以 Math.max 的两个分支都在上限之内，「机制不得越过夹紧」对两条路都成立。
   return Math.max(clamp(d, lo, wordDmgCap(base)), Math.round(hitDmg(run, battle) * WORD_MIN_RATIO));
 }

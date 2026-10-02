@@ -28,7 +28,8 @@ import { WORDS } from '../data/words.js';
 import { createStorage, initializeDB } from '../services/storage.js';
 import { norm, wordGapBefore } from '../domain/text.js';
 import { comboRate as calculateComboRate, hitDmg as calculateHitDmg, wordDmg as calculateWordDmg,
-  finTier as calculateFinTier, WORD_RATIO, WORD_COMBO_BOOST } from '../domain/damage.js';
+  finTier as calculateFinTier } from '../domain/damage.js';
+import { foeHpMax } from '../domain/foe-stats.js';
 import { hpBarGeom } from '../domain/hp.js';
 import { canFinishFight } from '../domain/battle-rules.js';
 import { unlockProgress, canSelectUnit, recordUnitComplete, transitionNextUnit,
@@ -588,12 +589,12 @@ function startFight(n){
   // ★ BOSS 原本用的是一个写死的 130（≈ 第9层的 perWord），靠「5 词 vs 4 词」拉开难度。
   //   现在 perWord 整体抬高了，写死的 130 反而会低于第 9 层普通怪 —— 首领变弱。
   //   所以 BOSS 走同一套公式（base 按第 9 层算），难度差仍然由 targetWords 5 vs 4 承担。
-  const avgLen = 6;
-  const base = 7+Math.floor((boss?9:G.floor)*0.7);
-  const finMult = 1 + 1.45*comboRate()*WORD_COMBO_BOOST;
-  const perWord = Math.round(avgLen*base*1.45 + base*WORD_RATIO*finMult + (boss?9:G.floor)*1.5);
-  const targetWords = boss?5 : (elite?4 : 4);
-  const hpMax = Math.round(perWord*targetWords);
+  // ★ 公式本身搬进 domain/foe-stats.js（逐字未动，只是可测了），并且第一次
+  //   接进怪种的 base：8 种怪不再只是换张脸。倍率锚在 8 种怪的均值上，
+  //   所以等概率抽怪时**期望血量与改动前逐点相同** —— 变的是方差不是难度。
+  //   精英 / 首领不吃这个倍率（hpMult 恒为 1），否则会出现「精英比首领还硬」。
+  //   lv 仍未被使用（历史遗留），本次刻意不动它。
+  const { hpMax } = foeHpMax({ floor: G.floor, boss, elite, comboRate: comboRate(), base: e.base });
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
   const qword = drawWord(budget);
@@ -615,7 +616,7 @@ function startFight(n){
       rageLeft:0, freezeWord:false, chainNext:false, goldMult:1, usedThisFight:{} };
   if(G.nextHint) toast('🔮 水壶生效：本场已揭示首字母');
   G.nextHint=0;
-  if(boss){ B.hints+=2; B.enMax+=40; B.enHp=B.enMax }
+  if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
   if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
     if(h>0) setTimeout(()=>toast('💚 开场治疗：回复 '+h+' 点生命'),260) }
