@@ -121,6 +121,16 @@ test('new battle after lifecycle reset starts its own live meter cadence', async
   assert.ok(h.paints.length > count, 'old ticking flag must not suppress a new battle meter');
 });
 
+test('start renders a fresh battle with its new due time, not the prior battle deadline', () => {
+  let at=1000,ctl,last;
+  const B={boss:false,elite:false,over:false,finished:false,myHp:60};
+  const lifecycle=createLifecycle({now:()=>at,setTimer:()=>1,clearTimer:()=>{}});
+  ctl=createFoeAttackController({state:{B},lifecycle,now:()=>at,
+    renderFight:()=>{last=ctl.captureFact()},foeAttackHit:()=>{}});
+  ctl.start(); at=20000; lifecycle.resetBattle(); ctl.start();
+  assert.equal(last.remainingMs,NORMAL.idleMs,'new battle must expose the fresh deadline at first render');
+});
+
 /* ---------------- ① 相位推进与伤害同一次事务 ---------------- */
 
 test('自主攻击的相位与伤害同一次提交：不会出现「已收招但血还是满的」快照', async () => {
@@ -440,7 +450,7 @@ function stubDom() {
   return { box, mk, doc: { createElement: mk }, $: id => (id === 'fFoeAtk' ? box : null) };
 }
 
-test('蓄力条刷新只改已有元素的宽度与文案，不重建 DOM（字母盘/焦点不受影响）', () => {
+test('蓄力条刷新只改已有元素的进度与文案，不重建 DOM（字母盘/焦点不受影响）', () => {
   const dom = stubDom();
   const meter = createFoeAttackMeter({ $: dom.$, doc: dom.doc });
   const fact = { schemaVersion: 1, phase: FOE_PHASE.TELEGRAPH, remainingMs: 5000, cycle: 0, interrupted: false };
@@ -449,13 +459,16 @@ test('蓄力条刷新只改已有元素的宽度与文案，不重建 DOM（字�
   const kids = dom.box.children;
   assert.equal(kids.length, 2, '条 + 文案');
   const fillEl = kids[0].children[0];
-  assert.equal(fillEl.style.width, '100.0%');
+  // 进度由 transform:scaleX 承载，width 恒为满宽（foe-attacks.css）。
+  const scale = el => parseFloat(/scaleX\(([-0-9.eE]+)\)/.exec(el.style.transform)[1]);
+  assert.equal(scale(fillEl), 1);
+  assert.equal(fillEl.style.width, undefined, '组件绝不写 width');
 
-  // 模拟 250ms 刷新：同一批元素，只换宽度与秒数。
+  // 模拟 250ms 刷新：同一批元素，只换进度与秒数。
   const out = meter.paintLive(Object.assign({}, fact, { remainingMs: 3000 }), win);
   assert.equal(dom.box.children.length, 2, 'DOM 结构没有重建');
   assert.equal(dom.box.children[0].children[0], fillEl, '进度条元素是同一个对象');
-  assert.equal(fillEl.style.width, '60.0%');
+  assert.equal(scale(fillEl), 0.6);
   assert.match(dom.box.children[1].textContent, /3s/);
   assert.equal(out.secs, 3);
 });
