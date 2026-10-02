@@ -103,12 +103,32 @@ function encodeCampaign(c, unit) {
     segments: isInt(c.segments) && c.segments > 0 ? c.segments : 1,
   };
 }
+/* growth（docs/feature-mastery-growth.md）：**可选**的开局成长事实。
+ *   旧快照完全没有它 —— 那是合法形状，解码后保持 undefined，绝不补填成 +0
+ *   （补一个 0 会让「这一局从来没有成长加成」与「加成是 0」再也分不开）。
+ *   一旦出现就必须形状合法，且 bonusHp 必须与 masteredAtStart 自洽：
+ *   存档是外部输入，伪造的成长值会让玩家凭空拿到 +12 上限。
+ *   ★ 绝不用 baseMaxhp 反推 maxhp：进本局之后 maxhp 可能被别的合法途径抬高
+ *   （遗物等），强行相等会把一份合法存档判成损坏。 */
+const GROWTH_MAX = 12, GROWTH_INTERVAL = 20;
+function encodeGrowth(g) {
+  if (!isObj(g) || g.version !== 1) return undefined;
+  if (!isInt(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > 259) return undefined;
+  if (!isInt(g.bonusHp) || g.bonusHp < 0 || g.bonusHp > GROWTH_MAX) return undefined;
+  if (Math.min(GROWTH_MAX, Math.floor(g.masteredAtStart / GROWTH_INTERVAL)) !== g.bonusHp) return undefined;
+  if (!isNum(g.baseMaxhp) || g.baseMaxhp < 1 || g.baseMaxhp > 9999) return undefined;
+  return { version: 1, masteredAtStart: g.masteredAtStart, bonusHp: g.bonusHp, baseMaxhp: g.baseMaxhp };
+}
+function validGrowth(g) {
+  return encodeGrowth(g) !== undefined;
+}
+
 function encodeRun(run) {
   // rewardId（可缺）：本轮纪念卡的 id。没有它就无法跨刷新认出同一张卡。
   //   旧内存态（卡在内存里但字段还没有）从 reward.id 取，绝不凭空造一个。
   const rewardId = (typeof run.rewardId === 'string' && run.rewardId)
     || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : '');
-  return {
+  const out = {
     unit: run.unit, id: run.id,
     // roundId / roundNumber / completedUnits 是**可选**的一组新字段（docs/feature-rounds.md）：
     //   roundId      —— 持久轮次身份（crypto.randomUUID，由 runtime 注入）。空串 = 没有。
@@ -144,6 +164,12 @@ function encodeRun(run) {
     avail: (run.avail || []).map(nodeId),
     cur: nodeId(run.cur), node: nodeId(run.node),
   };
+  // growth 是**可选**字段：合法时才写这个键，缺失时**整个键都不出现**
+  // （写成 undefined 经 JSON.stringify 后也会消失，但内存态与落盘态会长出
+  //   两个形状，深比较会因此恒假 —— 与 outcome 字段同一处理口径）。
+  const growth = encodeGrowth(run.growth);
+  if (growth) out.growth = growth;
+  return out;
 }
 function encodeBattle(b) {
   return {
@@ -191,6 +217,7 @@ function encodeEncounter(e) {
 export function encodeSnapshot(env, { now = Date.now() } = {}) {
   const run = env && env.run;
   if (!run || typeof run.result === 'boolean') return null;
+  if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
   const savedAt = isStr(env && env.savedAt) ? env.savedAt : new Date(now).toISOString();
   const envelope = {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -254,6 +281,9 @@ function validRun(r) {
     if (!Array.isArray(r.completedUnits)) return false;
     if (r.completedUnits.some(u => !isInt(u) || u < 0 || u > 6)) return false;
   }
+  // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
+  // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
+  if (r.growth !== undefined && r.growth !== null && !validGrowth(r.growth)) return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -299,6 +329,9 @@ function decodeRun(r, byId) {
     clearedSegment: isBool(r.clearedSegment) ? r.clearedSegment : !!r.clearedRun,
     // rewardId：空串等价于「还没有纪念卡」，不写 undefined（内存里用 undefined 判定）。
     rewardId: isStr(r.rewardId) ? r.rewardId : undefined,
+    // growth：缺失就是 undefined（旧快照），**绝不由当前 DB 或 mastered 现算补填** ——
+    //   恢复必须原样尊重盘上的 maxhp，否则「中途退出重进」会白赚一次上限。
+    growth: encodeGrowth(r.growth),
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,

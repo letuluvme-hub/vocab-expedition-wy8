@@ -1,0 +1,53 @@
+/* 「知识成长」只读展示区（#masteryGrowth）。
+ *
+ * 只作用于 #masteryGrowth 及其后代，不触碰任何既有选择器，
+ * 因此原有层叠顺序与线上外观逐字不变（与 pause / equipment 同样的追加策略）。
+ *
+ * 约束（与 docs/feature-mastery-growth.md 一致）：
+ *  - 不联网、不引外部字体、不做动画/过渡：这块是纯说明文字，
+ *    加动效只会跟战斗页的节奏抢注意力。
+ *  - 320px 窄屏不溢出：不使用固定像素宽度，靠 min-width:0 +
+ *    overflow-wrap:anywhere 让长串（未知来源的坏数据）换行而不是撑破布局。
+ *  - 标题小、正文一行灰蓝：它是一段说明，不该抢主页统计与单元按钮的注意力。
+ */
+#masteryGrowth {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, .18);
+  min-width: 0;
+  text-align: left;
+}
+#masteryGrowth > .mgrowth-h {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: #ffd98a;
+}
+#masteryGrowth > .mgrowth-count {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9fd8ff;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 差几词：颜色弱一档，存在感低于上面那行当前数值。 */
+#masteryGrowth > .mgrowth-next {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #cfd8e3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* 生效范围说明：最弱的一档，灰蓝小字。 */
+#masteryGrowth > .mgrowth-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8b98a8;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

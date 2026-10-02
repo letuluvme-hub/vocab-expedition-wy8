@@ -15,3 +15,4 @@
 @import './equipment-panel.css';
 /* 音频兼容提示条：只作用于 #audioCompatibility-root，追加在最后。 */
 @import './audio-compatibility.css';
+@import './mastery-growth.css';
