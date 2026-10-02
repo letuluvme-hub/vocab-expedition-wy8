@@ -1,0 +1,28 @@
+/* 遗物图鉴（#s-relics）的稀有度档位行与已激活组合技提示条。
+ *
+ * 与其它新增表一样：只追加在原始七张之后，只作用于**自己的**选择器
+ * （.rlc / .rl-rar / .rlc-syn），不改任何既有选择器，因此归档骨架逐字不变。
+ * 颜色全部取自 :root 变量（--gold / --r2），不新造一套调色板。
+ *
+ * 为什么图鉴要显式写档位和标价：以前商店一律 80 金币、奖励池均匀洗牌，
+ * 玩家手里那件遗物到底算不算好东西，只能靠猜。图鉴是全程唯一能回看的
+ * 「我这套构筑是什么」的地方。
+ */
+.rlc .rl-rar {
+  color: var(--gold);
+  font-size: 10px;
+  letter-spacing: .03em;
+  margin-bottom: 3px;
+}
+/* 已激活的组合技：横跨整行的提示条。grid-column:1/-1 让它在卡片网格里
+   单独占一行，不会被挤进某个卡位里。 */
+.rlc-syn {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #ffd98a;
+  border: 1px solid #ffce4d44;
+  background: #ffce4d12;
+  border-radius: var(--r2);
+  padding: 8px 10px;
+}

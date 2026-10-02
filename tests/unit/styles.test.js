@@ -26,6 +26,9 @@ const ADDED = [
   // 战意·连击里程碑条。前缀同样不带 \b：自有类名形如 .comboMsPip / .comboMsTxt，
   // 规则形如 .comboMsPip.on —— \b 会把它们全判成越界。
   ['./combo-milestones.css', /^\.comboMs/, '战斗页战意条'],
+  // 遗物图鉴（遗物深度）。选择器前缀用 .rlc / .rl-rar / .rlc-syn ——
+  // 这几个类名只存在于图鉴屏 #rlBox 内，不与战斗页/主页共用。
+  ['./relic-depth.css', /^\.rlc|^\.rl-rar/, '遗物图鉴稀有度与组合技'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

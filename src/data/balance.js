@@ -87,3 +87,47 @@ export const WORD_DMG_CAP = 560;
 // 它是「560 还算合理」的最深一层——floor 9 满配构筑的整词伤害正好 215，远没顶到 560，
 // 而 floor 10 起 base > 13，560 就再也追不上了。
 export const WORD_DMG_CAP_ANCHOR_BASE = 13;
+// ============ 遗物稀有度分级（文档见 docs/feature-relic-depth.md）============
+//
+// 以前 12 件遗物在商店里一律 80 金币，事件与战斗奖励又是均匀洗牌 ——
+// 「好坏一个价」让遗物只剩下"捡到就穿"的捡拾感。这里把三件事钉死：
+//   price  —— 商店标价。定价只在这里，遗物对象本身不重复一份（relics.js 里
+//             没有 price 字段就是防这个），面板与文案一律经 relicPrice() 读。
+//   weight —— 出现在事件 / 营火 / 战斗奖励候选池里的相对权重。
+//             注意这是**每件遗物**的权重，不是每档的：同一档里每件等权，
+//             实际出现率 = 该档权重 / 池内全部候选权重之和。
+//             当前数据：普通 7 件 ×62、稀有 5 件 ×30、传说 1 件 ×8，
+//             全池权重和 634，传说约 1.3% 的单次抽取、稀有合计约 23.7%。
+//   order  —— 展示与排序用的固定档序，别用对象的键序。
+export const RELIC_RARITY = {
+  common:    { label: '普通', price: 60,  weight: 62 },
+  rare:      { label: '稀有', price: 110, weight: 30 },
+  legendary: { label: '传说', price: 175, weight: 8 },
+};
+export const RELIC_RARITY_ORDER = ['common', 'rare', 'legendary'];
+
+// 加稀有度之前商店的固定标价。**只**用于旧存档恢复：老快照里的商店卡
+// 写的是「· 80 金币」，点下去就必须还是 80，刷新一次凭空涨价是不能接受的。
+export const LEGACY_RELIC_SHOP_PRICE = 80;
+
+// ============ 组合技数值 ============
+// 组合技刻意只挑 3-5 组有主题的搭配（见 src/domain/relic-rules.js），
+// 而不是 12 件遗物的两两笛卡尔积 —— 66 种组合里能讲出故事的不到五种，
+// 剩下的只是把数字换个地方写一遍。
+export const RELIC_SYNERGY = {
+  // 荆棘壁垒（护盾符文 + 荆棘护符）：反弹伤害抬到 8，并把其中 4 点转成护盾。
+  // 效果不是"多打 3 点"：挨打本身变成了回盾的循环，打得越狠盾越厚。
+  thornReflect: 8,
+  thornShield: 4,
+  // 连击共鸣（连击徽章 + 专注头环）：答错保留的那一半连击，每点换 3% 本场增伤。
+  // 没有这一步，组合技就只是把专注头环的效果念了两遍。
+  resonancePerCombo: 3,
+  // 铁血循环（永动电池 + 锻造台）：推进一层额外回 6、每场胜利额外回 4。
+  enduranceFloorHeal: 6,
+  enduranceWinHeal: 4,
+  // 点金术（聚宝盆 + 学者之书）：胜利额外金币 25 → 45，且必定掉先知卡。
+  alchemistGold: 45,
+};
+
+// 聚宝盆单件的基础胜利金币（在 data/nodes 或旧逻辑里原本是写死的 25）。
+export const BASE_PURSE_GOLD = 25;

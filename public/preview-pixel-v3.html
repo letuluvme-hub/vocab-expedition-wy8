@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>像素怪物 v3 · 修冰封 + 抽象图标 + 动画</title>
+<style>
+  :root{--ink:#24152f;--paper:#fbf7ef;--card:#fff;--line:#e6dccb;--mut:#8a7f70;--accent:#7c3aed}
+  *{box-sizing:border-box}
+  body{margin:0;padding:28px 20px 70px;background:var(--paper);color:var(--ink);
+       font:15px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1140px;margin:0 auto}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--mut);font-size:14px;margin:0 0 24px}
+  h2{font-size:17px;margin:40px 0 4px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  .note{color:var(--mut);font-size:13px;margin:0 0 16px}
+  .fixed{color:var(--accent);font-weight:600}
+  code{background:#f0e9dd;padding:1px 5px;border-radius:4px;font-size:12px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 10px 12px;text-align:center}
+  .card>svg{width:112px;height:112px;display:block;margin:0 auto 10px;image-rendering:pixelated}
+  .nm{font-weight:600;font-size:14px}
+  .mt{color:var(--mut);font-size:12px;margin-top:3px;line-height:1.45}
+  .grid.item{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
+  .grid.item .card>svg{width:64px;height:64px}
+  .grid.relic .card>svg{width:56px;height:56px}
+
+  /* 动画演示：复刻真实战斗尺寸 64px 的 .avatar 外壳 */
+  .stage{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .avatar{
+    width:var(--avatar,64px); height:var(--avatar,64px); flex:none;
+    border-radius:var(--r2,10px); display:flex; align-items:center; justify-content:center;
+    border:2px solid #4a3557; background:linear-gradient(150deg,#ffffff14,#00000040);
+    animation:idle 2.6s ease-in-out infinite;
+  }
+  @keyframes idle{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-7px) rotate(1.5deg)}}
+  .avatar>svg{display:block;width:100%;height:100%;image-rendering:pixelated}
+  .avatar.sm{--avatar:48px} .avatar.xs{--avatar:32px} .avatar.lg{--avatar:96px}
+  .anim-demo{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+  .anim-demo h3{margin:0 0 4px;font-size:14.5px}
+  .anim-demo p{margin:0 0 14px;font-size:12.5px;color:var(--mut)}
+  .row{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+
+  .toggle{margin-left:auto;font-size:12px;padding:5px 11px;border-radius:8px;
+          border:1px solid var(--line);background:#f7f2e8;cursor:pointer;font-family:inherit}
+  .toggle[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+  table{border-collapse:collapse;font-size:13px;margin:6px 0;width:100%;max-width:760px}
+  td,th{border:1px solid var(--line);padding:6px 10px;text-align:left}
+  th{background:#f2ece0;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>像素怪物 v3</h1>
+  <p class="sub">
+    <span class="fixed">本版修：</span>冰封词灵重画（网格对齐 + 冰棱轮廓）·
+    扫除术/永动电池/锻造台/专注头环/荆棘护符 重画成可辨识物件 · 新增眨眼与待机动画
+  </p>
+
+  <h2>一、动画（真实 64px 战斗尺寸）</h2>
+  <p class="note">
+    动画全部作用在 <strong>SVG 内部图层</strong>，不碰外壳 —— 外壳的 <code>idle</code> 上下浮动已占用
+    <code>transform</code>，两层独立才不会互相覆盖。眼睑用 <code>&lt;rect&gt;</code> 盖住眼白实现眨眼。
+  </p>
+
+  <div class="anim-demo">
+    <h3>眨眼 <span style="font-weight:400;color:var(--mut);font-size:12.5px">blink — 随机 3–7 秒眨一次</span></h3>
+    <p>眼睑矩形从上方落下盖住眼白，100ms 闭合、120ms 睁开。用 <code>steps()</code> 保持像素硬边，不产生中间模糊帧。</p>
+    <div class="row" id="blinkRow"></div>
+  </div>
+
+  <div class="anim-demo">
+    <h3>待机呼吸 <span style="font-weight:400;color:var(--mut);font-size:12.5px">breathe — 身体 1px 起伏</span></h3>
+    <p>整体身体组做 2px 位移循环，和外壳的 idle 叠加后产生「漂浮」感。幅度刻意压到 1–2px：16×16 网格上再大就会脱格。</p>
+    <div class="row" id="breatheRow"></div>
+  </div>
+
+  <div class="anim-demo">
+    <h3>蓄力预警 <span style="font-weight:400;color:var(--mut);font-size:12.5px">telegraph — 对应清单 13 的相位</span></h3>
+    <p>
+      怪物现有 <code>idle → telegraph → attack → recover</code> 四相位。这里做的是 telegraph 相位的视觉抖动，
+      用 CSS class 切换，<strong>不碰 <code>domain/foe-attack.js</code> 的状态机</strong>。
+    </p>
+    <div class="row" id="teleRow"></div>
+  </div>
+
+  <h2>二、冰封词素 · 重画对照</h2>
+  <p class="note">旧版网格有错位（尖角断开、出现游离像素）。这版按「菱形冰晶 + 内部棱线 + 底座冰凌」重画。</p>
+  <div class="stage" id="iceCmp"></div>
+
+  <h2>三、怪物 · 完整 9 种（带动画）</h2>
+  <p class="grid-note note">点右上角按钮可暂停/继续全部动画。</p>
+  <div style="display:flex;align-items:center;margin-bottom:12px">
+    <div class="note" style="margin:0">全部套用 blink + breathe。静态时是像素画，动起来有呼吸感。</div>
+    <button class="toggle" id="animBtn" aria-pressed="true">⏸ 暂停动画</button>
+  </div>
+  <div class="grid" id="pxGrid"></div>
+
+  <h2>四、装备 · 重画后的 8 道具</h2>
+  <p class="note">重画了 4 个抽象图标：扫除术（扫帚）、永动电池（电池+闪电）、磐石（已有）。道具图标偏向「动作」而非「物件」。</p>
+  <div class="grid item" id="itemGrid"></div>
+
+  <h2>五、遗物 · 重画后的 12 个</h2>
+  <p class="note">重画了 5 个：荆棘护符（带刺藤）、永动电池、锻造台（铁砧+锤）、专注头环（头环+齿轮）、学者之书（翻开的书）。</p>
+  <div class="grid relic" id="relicGrid"></div>
+
+  <h2>六、装备在真实 HUD 尺寸下的可读性</h2>
+  <p class="note">道具栏约 20px、遗物格约 16px。这是最严苛的测试。</p>
+  <div class="stage" id="sizeRow"></div>
+
+  <h2>七、实现约束备忘</h2>
+  <table>
+    <tr><th>约束</th><th>来源</th><th>影响</th></tr>
+    <tr><td>怪物仅 <code>--avatar:64px</code></td><td><code>styles/combat.css:8</code></td><td>动画幅度必须按 16px 网格设计</td></tr>
+    <tr><td>外壳 <code>idle</code> 已占 transform</td><td><code>styles/combat.css:19</code></td><td>动画只能作用在 SVG 内层 <code>&lt;g&gt;</code></td></tr>
+    <tr><td>需遵守 reduced-motion</td><td>项目已有约定</td><td>动画全部包在 <code>@media</code> 查询内</td></tr>
+    <tr><td>未知装备 id 走 textContent</td><td><code>equipment-panel.js</code> 契约 7</td><td>像素图标不能破坏 XSS 防护</td></tr>
+    <tr><td>SVG <code>viewBox="0 0 16 16"</code> + crispEdges</td><td>本方案</td><td>缩放到任意尺寸都保持硬边，不重绘矢量</td></tr>
+  </table>
+
+</div>
+
+<style id="animCSS"></style>
+<script>
+/* ================= 精灵 =================
+   16×16： . 透明  o 描边  m 主体  l 高光  d 暗部  w 眼白  p 瞳孔
+   图层分组让动画能分别作用在 body / eyeLid 上。
+   ========================================= */
+const INK='#24152f', WHITE='#fffdf4', LID='#a67dff';
+
+const PAL={
+  '词灵':     {mid:'#a67dff',light:'#d9c4ff',dark:'#7450cb',lid:'#a67dff'},
+  '语素蛛':   {mid:'#ff779c',light:'#ffb6cf',dark:'#c94a72',lid:'#ff779c'},
+  '石化词素': {mid:'#adb9c3',light:'#e2eaf0',dark:'#697681',lid:'#adb9c3'},
+  '歧义章鱼': {mid:'#cb8cf6',light:'#e8c4ff',dark:'#8e4fc4',lid:'#cb8cf6'},
+  '拼写幽灵': {mid:'#cfe9f2',light:'#eef8fc',dark:'#7fb0c4',lid:'#cfe9f2'},
+  '单复数蝎': {mid:'#ffd064',light:'#ffe6a8',dark:'#d9932f',lid:'#ffd064'},
+  '冰封词灵': {mid:'#7fdcea',light:'#c4f4fb',dark:'#2a9fc4',lid:'#7fdcea'},
+  '词形旋风': {mid:'#a8b2ff',light:'#d0d8ff',dark:'#5f52c4',lid:'#a8b2ff'},
+  '词汇之王': {mid:'#ffdf8a',light:'#fff2c9',dark:'#c99b3c',lid:'#ffdf8a'},
+};
+
+/* 每只怪：{body:16行网格, eyes:[[x,y,w,h],...], mouth:[x,y,w,h]|null}
+   eyes 是眼白矩形，眨眼时用同色矩形盖住。 */
+const MON={
+
+'词灵':{body:[
+'......m....m....',
+'......m....m....',
+'...mmmmmmmmmm...',
+'..mmllllllllmm..',
+'..mlwggllggwlm..',
+'..mlwgpglgpwlm..',
+'..mlwggllggwlm..',
+'..mlwggllggwlm..',
+'..mllllllllllm..',
+'..mmlllllllmmm..',
+'...mmmmmmmmmm...',
+'....mm....mm....',
+'...mmm....mmm...',
+'................',
+'................',
+'................'],
+ eyes:[[3,4,2,4],[11,4,2,4]]},
+
+'石化词素':{body:[
+'......oooo......',
+'.....ollllo.....',
+'....ollllllmo...',
+'...ollllwwlllo..',
+'..ollllwppwlllo.',
+'..ollllwppwlllo.',
+'..ollllwwwwlllo.',
+'..omllllllllmo..',
+'...omllllllmo...',
+'...ommllllmmo...',
+'..ommmllllmmmo..',
+'.ommo.ommo.ommo.',
+'.oo...oo...oo...',
+'................',
+'................',
+'................'],
+ eyes:[[5,3,2,4],[9,3,2,4]]},
+
+'词汇之王':{body:[
+'......m.m.m.....',
+'.....mo.o.om....',
+'....m.ooooo.m...',
+'...mo.mmmm.omo..',
+'..mmo.mmmm.ommo.',
+'..mllmmmmmmmllm.',
+'..mlggmmmggw lm..',
+'..mlggmmmggw lm..',
+'..mlggmmmggw lm..',
+'..mlllllllllllm.',
+'...mmlllllmmm...',
+'...mmllllllmm...',
+'..mmmllllllmmm..',
+'.mmmm.mmmm.mmmm.',
+'................',
+'................'],
+ eyes:[[3,6,2,3],[11,6,2,3]]},
+
+'语素蛛':{body:[
+'..o..........o..',
+'.omo........omo.',
+'.ommo......ommo.',
+'..omo.oooo.omo..',
+'...ommmmmmmmo...',
+'..ommllllllmmo..',
+'.ommlgmmgmllmmo.',
+'.ommlgpmmgpmlmmo.',
+'.ommlgmmgmllmmo.',
+'..ommllllllmmo..',
+'...ommmmmmmmo...',
+'..o.mmmmmmmmo.o.',
+'.o...mmmmmmm...o',
+'o.....mm.mm.....o',
+'................',
+'................'],
+ eyes:[[4,6,2,2],[10,6,2,2]]},
+
+'歧义章鱼':{body:[
+'................',
+'.....mmmmmm.....',
+'....mllllllm....',
+'...mlggllgglm...',
+'...mlgpglgpglm..',
+'...mlggllgglm...',
+'...mllllllllm...',
+'..mmllllllllmm..',
+'.mmmmmmmmmmmmmm.',
+'.mmmmmmmmmmmmmm.',
+'.mmm.mmmm.mmmm..',
+'..m..mmmm..mm...',
+'.m...mmmm...m...',
+'m....mmmm....m..',
+'.....mmmm.......',
+'................'],
+ eyes:[[4,3,2,3],[10,3,2,3]]},
+
+'拼写幽灵':{body:[
+'................',
+'.....mmmmmm.....',
+'....mllllllm....',
+'...mlggllgglm...',
+'...mlgpglgpglm..',
+'...mlggllgglm...',
+'...mllllllllm...',
+'..mllllllllllm..',
+'.mmllllllllllmm.',
+'mllmmllmmllmllm.',
+'llm.mmllmm.llm.',
+'mm..m.mm.m..mmm.',
+'....m..m...m....',
+'...m..m.m..m....',
+'................',
+'................'],
+ eyes:[[4,3,2,3],[10,3,2,3]]},
+
+'单复数蝎':{body:[
+'..............mo',
+'.............mmo',
+'............mmo.',
+'...........mmo..',
+'......mmmmmmmo..',
+'....mmllllllmo..',
+'...mlggllgglmo..',
+'..mlggpggpglmo..',
+'..mllggllggllm..',
+'...mllllllllm...',
+'....mmmmmmmm....',
+'...mm......mm...',
+'..mm........mm..',
+'..m..........m..',
+'................',
+'................'],
+ eyes:[[4,6,2,2],[8,6,2,2]]},
+
+/* 重画：菱形冰晶主体 + 顶角 + 内部棱线 + 底座冰凌。网格严格 16 列对齐。 */
+'冰封词灵':{body:[
+'...o........o...',
+'..omo......omo..',
+'.ommmo....ommmo.',
+'.omllmmo.ommllmo',
+'.omllllmmmmllmo.',
+'..omlllllllllmo..',
+'..mllllllllllm..',
+'.mlwggllllggwlm.',
+'.mlwggllllggwlm.',
+'.mllllllllllllm.',
+'.mdllllllllll dm',
+'..mmllllllllmm..',
+'...mmllllllmm...',
+'..mmm.mm.mm.mmm.',
+'................',
+'................'],
+ eyes:[[2,7,2,2],[12,7,2,2]]},
+
+'词形旋风':{body:[
+'.....mmmmmm.....',
+'....mllllllmo...',
+'...mlllggllmmo..',
+'..mllgppggllmo..',
+'..mlgglllllgm...',
+'..mllllggggm....',
+'.mlllllllmm.....',
+'.mlllllmm.......',
+'mmllmm...........',
+'mldm.............',
+'.dm..............',
+'.mm..............',
+'dm...............',
+'m................',
+'................',
+'................'],
+ eyes:[[6,2,2,2],[9,2,2,2]]},
+};
+
+/* ================= 装备 12×12 ================= */
+const EPAL={
+ leech:{mid:'#e0413f',light:'#ff8a80',dark:'#8f1d1c'},
+ rage:{mid:'#ff7a2f',light:'#ffc46b',dark:'#b03d00'},
+ freeze:{mid:'#4fc8e8',light:'#b3ecfa',dark:'#1d7fa0'},
+ chain:{mid:'#ffd83d',light:'#fff0a8',dark:'#c79400'},
+ reveal:{mid:'#b98cff',light:'#e2ceff',dark:'#6f3fc0'},
+ purge:{mid:'#8fd94f',light:'#c8f0a0',dark:'#4d8a1e'},
+ greed:{mid:'#f0c020',light:'#ffe98a',dark:'#a87900'},
+ stone:{mid:'#9aa4ae',light:'#d2d9e0',dark:'#5c6772'},
+ hint:{mid:'#b98cff',light:'#e2ceff',dark:'#6f3fc0'},
+ shield:{mid:'#6aa9e8',light:'#b8d8f5',dark:'#2f5f96'},
+ combo:{mid:'#e05c5c',light:'#ff9d9d',dark:'#932828'},
+ purse:{mid:'#f0c020',light:'#ffe98a',dark:'#a87900'},
+ thorn:{mid:'#7fc24a',light:'#c2e8a0',dark:'#4a7a20'},
+ battery:{mid:'#ffd83d',light:'#fff0a8',dark:'#a87900'},
+ lucky:{mid:'#5fd88a',light:'#b0f0c8',dark:'#2a8a52'},
+ scholar:{mid:'#8a6fd4',light:'#c3b3f0',dark:'#4f3a96'},
+ forge:{mid:'#b08a5a',light:'#dcc098',dark:'#6f5433'},
+ ghost:{mid:'#cfe9f2',light:'#f0faff',dark:'#7fb0c4'},
+ greedr:{mid:'#e07fd0',light:'#f8c2ee',dark:'#8f3d84'},
+ focus:{mid:'#ff9d5c',light:'#ffd0a8',dark:'#b35a1f'},
+};
+
+/* 重画：扫除术=扫帚（刷毛+木柄） */
+const ITEM={
+leech:['............','.....mm.....','....mllm....','....ml.m....','...mmllm....','..mmllllm...','..mlllllm...','...mlllm....','....mmm.....','.....m......','.....m......','............'],
+rage:['....m...m...','...mlm.mlm..','...mlllmlm..','....mlllm...','...mmllmm...','..mmllllmm..','..mllllllm..','...mllllm...','....mllm....','....mlm.....','....m.m.....','............'],
+freeze:['....mm......','...mlmm.....','..mlllmm....','..mllllm....','.mmllllmm...','.mlwgglwm...','mllllggllm..','.mmllllm m..','..mmllmm....','...mmmm.....','............','............'],
+chain:['..m......m..','.m.m....m.m.','..m..mm..m..','....mllm....','...mmllmm...','.mmllwwllmm.','.mlwwllwwlm.','..mmllwwllmm','...mllllm...','....mmm.....','............','............'],
+reveal:['............','...mmmm.....','..mllllm....','.mlwggglm...','.mlwggglm...','.mlllggm....','.mllllm.....','.mlwgglm....','.mlwgglm....','..mllllm....','...mmmm.....','............'],
+/* 扫帚 */
+purge:['.........m..','........mm..','.......m.m..','......m..m..','.....m...m..','....m....m..','...mmmmmm...','..mmllllmm..','...mmmmmm...','.....mm.....','.....m......','............'],
+greed:['...mmmm.....','..mllllm....','.mllllllm...','.mllllllm...','..mllllm....','..mmllmm....','...mllm.....','..mllllm....','.mllllllm...','.mllllllm...','..mllllm....','...mmmm.....'],
+stone:['............','....mmmm....','...mllllm...','..mllllllm..','..mllllllm..','.mllllllllm.','.mlllwwlllm.','.mlllwwlllm.','.mllllllllm.','..mllllllm..','...mmmmmm...','............'],
+};
+
+/* 重画 5 个遗物 */
+const RELIC={
+hint:['............','.....m......','....mlm.....','...mllgm....','...mlwgm....','..mllllm....','..mllllm....','...mllm.....','....mmm.....','.....m......','.....m......','............'],
+shield:['............','...mmmmmm...','..mllllllm..','.mllllllllm.','.mlllwwlllm.','.mlllwwlllm.','.mlllllllwm.','..mllllllm..','...mmllmm...','....mmmm....','............','............'],
+combo:['............','......m.....','.....mmm....','....mllm....','...mmllmm...','..mllllllm..','.mmllwwllmm.','mllllllllllm','.mmmllwwlmmm.','....mmmm....','............','............'],
+purse:['............','....m..m....','...mmmmmm...','..mmllllmm..','..mllllllm..','.mmllllllmm.','.mlllwwlllm.','.mmllllllmm.','..mmmmmmmm..','..mm....mm..','............','............'],
+/* 带刺藤 */
+thorn:['..m..m...m..','..mlm.mlm.m.','..mllmmllm..','.mlllmmllmm.','.mllllllllm.','..mllllllm..','..ml.mm.lm..','.mm...m...mm.','m.....m....m','......m......','............','............'],
+/* 电池 + 闪电 */
+battery:['...mmm......','..mlllm.....','.mllllm.m...','.mllllmm.m..','.mllllm.m...','.mllllmmm...','.mllllm.m...','.mllllm.m...','..mlllm.....','...mmm......','............','............'],
+lucky:['.....m......','....mmm.....','...m.m.m....','..mm.m.mm...','..m.mmm.m...','.mm.m.m.mm..','.m..mmm..m..','..m.mmm.m...','.mm.m.m.mm..','.m...m...m..','.....m......','............'],
+/* 翻开的书 */
+scholar:['..m......m..','.mmm....mmm.','.lmm....mml.','..lm....ml..','..lm.mm.ml..','..lm.mm.ml..','..lm.mm.ml..','..lm....ml..','.mml....lmm.','.mmm....mmm.','............','............'],
+/* 铁砧 + 锤 */
+forge:['............','........m...','.......mm...','......mmm...','..mmmmmmm...','.mllllllm...','mllllllllm..','mllllllllm..','.mmmmmmmm...','............','............','............'],
+ghost:['............','.....mmmm...','....mllllm..','...mlggglm..','...mlgpglm..','...mlllllm..','..mllllllm..','.mlllmmllm..','mllm.mm.mllm.','mm..m.m...mm.','...m..m..m...','............'],
+greedr:['............','...mmmm.....','..mllllm....','.mllllllm...','.mlgggllm...','.mlggggm....','..mllllm....','..mlgllgm...','.mllllllm...','.mmllllmm...','...mmmm.....','............'],
+/* 头环 + 中央齿轮 */
+focus:['............','..mmmmmmmm..','.mllllllm...','.mllllllm...','.mllllllm...','.mldddddl m..','.mlggggglm..','.mldddddlm..','.mllllllm...','.mmmmmmmm...','............','............'],
+};
+
+/* ================= 渲染 ================= */
+function cellFill(ch,pal){
+  if(ch==='o')return INK;
+  if(ch==='m')return pal.mid;
+  if(ch==='l')return pal.light;
+  if(ch==='d')return pal.dark;
+  if(ch==='w')return WHITE;
+  if(ch==='g')return '#e8dff5';
+  if(ch==='p')return INK;
+  return null;
+}
+function renderFlat(grid,pal,size){
+  let r='';
+  for(let y=0;y<grid.length;y++)for(let x=0;x<grid[y].length;x++){
+    const f=cellFill(grid[y][x],pal);
+    if(f)r+=`<rect x="${x}" y="${y}" width="1" height="1" fill="${f}"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${grid[0].length} ${grid.length}" width="${size}" height="${size}" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+}
+/* 带图层的怪物：body 组 + 眼睑组。眼睑默认隐藏（scaleY 0），眨眼动画时落下。 */
+function renderMon(name,size,{anim=true}={}){
+  const m=MON[name], pal=PAL[name];
+  const body=renderFlat(m.body,pal,size).match(/<svg[^>]*>(.*)<\/svg>/)[1];
+  let lids='';
+  for(const [x,y,w,h] of m.eyes){
+    lids+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${pal.lid}"/>`+
+          `<rect x="${x}" y="${y+h-1}" width="${w}" height="1" fill="${pal.dark}"/>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="${size}" height="${size}"
+    shape-rendering="crispEdges" role="img" aria-label="${name}" class="pxmon${anim?' anim':''}">
+    <g class="pm-breathe">
+      <g class="pm-body">${body}</g>
+      <g class="pm-lid" style="fill:${pal.lid}">${lids}</g>
+    </g></svg>`;
+}
+const itm=(id,s)=>renderFlat(ITEM[id],EPAL[id],s);
+const rel=(id,s)=>renderFlat(RELIC[id],EPAL[id],s);
+
+/* ================= 动画 CSS ================= */
+const CSS=`
+/* 眨眼：随机间隔（CSS 动画用长周期 + 短占空比模拟随机感）。
+   steps() 保证只有「闭」「睁」两个状态，不产生缩放的模糊中间帧。 */
+@keyframes pxBlink{
+  0%,92%{transform:scaleY(0)}
+  94%,96%{transform:scaleY(1)}
+  98%,100%{transform:scaleY(0)}
+}
+@keyframes pxBreathe{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-1px)}
+}
+@keyframes pxTelegraph{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(1px)}
+  40%{transform:translateX(-1px)}
+  60%{transform:translateX(1px)}
+  80%{transform:translateX(-1px)}
+}
+.pxmon.anim .pm-lid{transform-origin:center;transform:scaleY(0);animation:pxBlink 5.5s steps(1,end) infinite}
+.pxmon.anim .pm-breathe{animation:pxBreathe 2.6s ease-in-out infinite}
+/* 错开起始时间，避免九只怪同步眨眼 */
+.pxmon.anim:nth-of-type(3n+1) .pm-lid{animation-delay:.9s}
+.pxmon.anim:nth-of-type(3n+2) .pm-lid{animation-delay:2.1s}
+
+.avatar.tele .pm-breathe{animation:pxTelegraph .34s steps(4,end) infinite}
+
+@media (prefers-reduced-motion: reduce){
+  .pxmon.anim .pm-lid,
+  .pxmon.anim .pm-breathe,
+  .avatar.tele .pm-breathe{animation:none}
+  .pxmon.anim .pm-lid{transform:scaleY(0)}
+}
+body.paused .pxmon .pm-lid,
+body.paused .pxmon .pm-breathe,
+body.paused .avatar.tele .pm-breathe{animation:none}
+`;
+document.getElementById('animCSS').textContent=CSS;
+
+/* ================= 页面渲染 ================= */
+const ORDER=['词灵','语素蛛','石化词素','歧义章鱼','拼写幽灵','单复数蝎','冰封词灵','词形旋风','词汇之王'];
+const META={
+ '词灵':'圆润灵体 + 触角 · 招牌呆萌眼神',
+ '语素蛛':'八足剪影 · 全场轮廓最不重叠',
+ '石化词素':'方硬岩块 · 横长眼缝 · 唯一的方形',
+ '歧义章鱼':'触手下垂 · 八字瞳 · 最柔软',
+ '拼写幽灵':'深波浪下摆 · 布感 · 漂浮',
+ '单复数蝎':'斜身蝎尾挑起 · 攻击性最强',
+ '冰封词灵':'菱形冰晶 + 顶角 + 冰棱（已重画）',
+ '词形旋风':'螺旋收束 + 斜尾迹 · 旋转动势',
+ '词汇之王':'双角冠 · 唯一金色 · BOSS',
+};
+document.getElementById('pxGrid').innerHTML=ORDER.map((n,i)=>
+ `<div class="card"><div class="avatar" style="--avatar:112px;animation:none;border-color:#4a3557">${renderMon(n,100)}</div>
+  <div class="nm">${n}</div><div class="mt">${META[n]}</div></div>`).join('');
+
+document.getElementById('blinkRow').innerHTML=['词灵','词汇之王','冰封词灵'].map(n=>
+ `<div style="text-align:center"><div class="avatar">${renderMon(n,60)}</div><div class="mt">${n}</div></div>`).join('');
+
+document.getElementById('breatheRow').innerHTML=['拼写幽灵','词形旋风'].map(n=>
+ `<div style="text-align:center"><div class="avatar">${renderMon(n,60)}</div><div class="mt">${n}</div></div>`).join('');
+
+document.getElementById('teleRow').innerHTML=
+ `<div style="text-align:center"><div class="avatar tele">${renderMon('石化词素',60)}</div><div class="mt">蓄力中（telegraph）</div></div>`+
+ `<div style="text-align:center"><div class="avatar">${renderMon('石化词素',60)}</div><div class="mt">常态对比</div></div>`;
+
+/* 冰封对照：v2 的破版 vs v3 重画 */
+const ICE_V2=[
+'..m..........m..','.mmmo......ommm.','mllmm o....ommllm','mllmmmo..ommml m',
+'.mmllmmmoommlm..','..mmllllllmmm...','...mllggllm.....','...mlgpglglm....',
+'...mllggllm.....','..mlllllllllm...','.mll.......llm..','.mm.........mm..',
+'m.............m.','................','................','................'];
+document.getElementById('iceCmp').innerHTML=
+ `<div class="avatar" style="--avatar:120px;animation:none">${renderFlat(ICE_V2,{mid:'#7fdcea',light:'#c4f4fb',dark:'#2a9fc4'},108)}</div>
+  <div class="mt" style="text-align:center;max-width:130px">v2 旧版<br>尖角断开、有游离像素</div>
+  <div style="font-size:20px;color:var(--mut)">→</div>
+  <div class="avatar" style="--avatar:120px;animation:none">${renderMon('冰封词灵',108,{anim:false})}</div>
+  <div class="mt" style="text-align:center;max-width:130px">v3 重画<br>菱形冰晶，16 列对齐</div>`;
+
+const ITEMS=[['leech','吸血獠牙','答对时回血，每场限 6 次'],['rage','怒火护符','3 秒伤害 ×2.5，断连击'],
+['freeze','寒冰护符','冻结敌人 1 词，减半伤害'],['chain','连锁闪电','下一个正确字母连击 +3'],
+['reveal','透视之眼','揭示接下来 2 个字母'],['purge','扫除术','清除已标记的错误字母（重画为扫帚）'],
+['greed','贪婪钱币','本场金币收益 ×3'],['stone','磐石之躯','获得 20 点护盾，本场保留']];
+document.getElementById('itemGrid').innerHTML=ITEMS.map(([id,n,d])=>
+ `<div class="card">${itm(id,64)}<div class="nm">${n}</div><div class="mt">${d}</div></div>`).join('');
+
+const RELS=[['hint','提示水晶','每场战斗多 2 次提示'],['shield','护盾符文','开局获得 15 点护盾'],
+['combo','连击徽章','连击加成翻倍'],['purse','聚宝盆','每场胜利额外 25 金币'],
+['thorn','荆棘护符','答错反弹 5 点伤害（重画为带刺藤）'],['battery','永动电池','每层回复 8 点生命（重画为电池+闪电）'],
+['lucky','幸运草','每场首次答错不掉血'],['scholar','学者之书','胜利额外获得先知卡（重画为翻开的书）'],
+['forge','锻造台','营火休息回复 20 生命（重画为铁砧+锤）'],['ghost','影分身','每轮免费跳过一次'],
+['greedr','贪婪之眼','所有金币收益 +50%'],['focus','专注头环','连击中断保留一半（重画为头环+齿轮）']];
+document.getElementById('relicGrid').innerHTML=RELS.map(([id,n,d])=>
+ `<div class="card">${rel(id,56)}<div class="nm">${n}</div><div class="mt">${d}</div></div>`).join('');
+
+document.getElementById('sizeRow').innerHTML=
+ `<div style="text-align:center"><div style="display:inline-block;padding:6px;border:1px solid var(--line);border-radius:8px">${rel('combo',16)}</div><div class="mt">16px 遗物格</div></div>`+
+ `<div style="text-align:center"><div style="display:inline-block;padding:6px;border:1px solid var(--line);border-radius:8px">${itm('leech',20)}</div><div class="mt">20px 道具栏</div></div>`+
+ `<div style="text-align:center"><div style="display:inline-block;padding:6px;border:1px solid var(--line);border-radius:8px">${rel('focus',32)}</div><div class="mt">32px</div></div>`+
+ `<div style="text-align:center"><div style="display:inline-block;padding:6px;border:1px solid var(--line);border-radius:8px">${rel('shield',48)}</div><div class="mt">48px 商店</div></div>`+
+ `<div style="text-align:center"><div class="avatar lg">${renderMon('冰封词灵',88)}</div><div class="mt">96px 大图（对照）</div></div>`;
+
+document.getElementById('animBtn').onclick=function(){
+  const p=document.body.classList.toggle('paused');
+  this.setAttribute('aria-pressed',String(!p));
+  this.textContent=p?'▶ 继续动画':'⏸ 暂停动画';
+};
+</script>
+</body>
+</html>
