@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeDB } from '../../src/services/storage.js';
 import { unlockProgress, isUnitComplete } from '../../src/domain/campaign.js';
+import { creditWordProgress } from '../../src/domain/learning.js';
 
 const load = () => import('../../src/domain/dictation.js');
 const spell = (api, attempt, text = attempt.target) => {
@@ -86,6 +87,16 @@ test('spaces, hyphens, apostrophes and repeated letters are actual reusable inpu
   assert.notEqual(api.dictationWordKey('ice cream'), api.dictationWordKey('icecream'));
 });
 
+test('a typographic apostrophe accepted by custom parsing is typeable on the ordinary apostrophe key', async () => {
+  const api = await load();
+  const a = spell(api, api.createDictationAttempt({ w: 'Let’s go', z: '走吧' }), "let's go");
+  assert.equal(a.completed, true);
+  assert.equal(a.input, 'let’s go');
+  assert.equal(a.word.w, 'Let’s go');
+  assert.equal(api.dictationEligible(a), true);
+  assert.equal(api.dictationWordKey(a.word), 'let’s go');
+});
+
 test('backspace cannot erase the history of a wrong attempt', async () => {
   const api = await load(); const a = api.createDictationAttempt('cat');
   api.applyDictationInput(a, 'c'); api.applyDictationInput(a, 'z');
@@ -116,6 +127,13 @@ test('a later clean attempt does not silently delete an earlier failure from rev
   api.creditDictation(db, spell(api, api.createDictationAttempt('cat')));
   assert.deepEqual(db.dictationMastered, ['cat']);
   assert.deepEqual(db.reviewQueue, ['cat']);
+});
+
+test('free expedition completion retains earlier mistakes for review', () => {
+  const db = initializeDB(); const run = { done: new Set(), wrong: ['cat'] };
+  creditWordProgress(db, run, 'cat');
+  assert.deepEqual(run.wrong, ['cat']); assert.deepEqual([...run.done], ['cat']);
+  assert.deepEqual(db.mastered, ['cat']); assert.deepEqual(db.dictationMastered, []);
 });
 
 test('legacy mastery and stale unitProgress are preserved but never unlock a unit', () => {

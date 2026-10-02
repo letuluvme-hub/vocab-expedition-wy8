@@ -1,12 +1,14 @@
 import { test, expect, instrumentLegacy } from './game-harness.js';
 
-test('legacy save retains mastered custom rewards keyboard and hero through reload', async ({ game, page }) => {
+test('legacy save retains mastered custom rewards keyboard and hero through reload', async ({ game, page }, testInfo) => {
   const reward = { id: 'WR-legacy', unit: 1, heroId: 'scout', accuracy: 87, kills: 8, floor: 9, earnedAt: '2026-09-30T10:00:00.000Z' };
   const saved = { runs: 12, wins: 3, best: 9, mastered: ['water', 'lake'], custom: [{ w: 'apple', z: '苹果' }], rewards: [reward], kbMode: true, kbUpper: true, hero: 'scout' };
   await game.open({ saved });
   await expect(page.locator('#sRun')).toHaveText('12');
   await expect(page.locator('#sWin')).toHaveText('3');
-  await expect(page.locator('#sMaster')).toHaveText('2');
+  // Historical practice survives, but formal mastery is not grandfathered.
+  await expect(page.locator('#sMaster')).toHaveText(testInfo.project.metadata.target === 'legacy' ? '2' : '0');
+  expect((await game.state()).DB.mastered).toEqual(saved.mastered);
   await expect(page.locator('#sFloor')).toHaveText('9');
   await expect(page.locator('#heroes .hcard.sel b')).toHaveText('探险家');
   await page.locator('#rewardSummary').click();

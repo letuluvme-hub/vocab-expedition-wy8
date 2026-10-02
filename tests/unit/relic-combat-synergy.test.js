@@ -69,6 +69,29 @@ function harness({ relics = [], hints = 3, combo = 0, shield = 0, myHp = 60, max
 /* 字母盘第 5 个是 'x'，不在 keep 里 —— 一次干净的真实答错。 */
 const WRONG = 4;
 
+test('wrong letter retains historical practice evidence and queues persistent review', () => {
+  const h = harness(); h.DB.mastered = ['keep']; h.DB.dictationMastered = ['keep'];
+  h.combat.pressKey(WRONG);
+  assert.deepEqual(h.DB.mastered, ['keep']);
+  assert.deepEqual(h.DB.dictationMastered, ['keep'], 'free practice cannot revoke formal evidence');
+  assert.deepEqual(h.DB.reviewQueue, ['keep']);
+  assert.ok(h.toasts.includes('不对'));
+});
+
+test('wrong order counts as a mistake, persists review and never leaks membership', () => {
+  const h = harness(); h.combat.pressKey(1); // e before k: a real accepted wrong-order input
+  assert.deepEqual(h.B.mistaken, ['keep']);
+  assert.deepEqual(h.DB.reviewQueue, ['keep']);
+  assert.ok(h.toasts.includes('不对'));
+  assert.equal(h.toasts.some(t => /在这个|位置不对|不在这个/.test(t)), false);
+});
+
+test('damage-free frozen words still record wrong spelling for review', () => {
+  const h = harness({ freeze: true }); h.combat.pressKey(WRONG);
+  assert.deepEqual(h.B.mistaken, ['keep']); assert.deepEqual(h.DB.reviewQueue, ['keep']);
+  assert.equal(h.B.myHp, 60);
+});
+
 /* ---------------- 荆棘壁垒（shield + thorn） ---------------- */
 
 test('只有荆棘护符：反弹伤害维持原样（组合技不许偷改单件数值）', () => {

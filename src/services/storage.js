@@ -1,9 +1,12 @@
 export const STORAGE_KEY = 'wy8a_rogue_v1';
 
-// Keep the original in-place initialization: this is not a schema migration.
+// Additive migration: old practice evidence is retained, never grandfathered as
+// zero-error formal dictation evidence. Unknown fields and the storage key stay.
 export function initializeDB(db) {
   db = db || { runs: 0, wins: 0, mastered: [], best: 0, custom: [] };
   db.mastered = db.mastered || [];
+  db.dictationMastered = Array.isArray(db.dictationMastered) ? db.dictationMastered : [];
+  db.reviewQueue = Array.isArray(db.reviewQueue) ? db.reviewQueue : [];
   db.custom = db.custom || [];
   db.rewards = Array.isArray(db.rewards) ? db.rewards : [];
   // kbMode defaults to the QWERTY keyboard layout for new / field-less saves.

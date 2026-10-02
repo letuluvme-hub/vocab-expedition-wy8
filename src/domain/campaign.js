@@ -1,9 +1,9 @@
 // 单元解锁与跨单元衔接的**纯规则**。无 DOM / 无存储 / 无全局。
 //
 // 三条口径（docs/feature-campaign.md）：
-//  1) 解锁的唯一依据是「本单元目标词全部完整拼对」（DB.mastered 覆盖全部目标身份）。
+//  1) 解锁的唯一依据是「本单元目标词全部通过无错误、无提示、无揭示的正式默写」（DB.dictationMastered 覆盖全部目标身份）。
 //     历史 wins / best / 纪念卡 / 部分词**都不是**证据。
-//  2) 迁移保守且连续：旧存档按 mastered 覆盖推导，Unit N 解锁要求 1..N-1 全部完成；
+//  2) 迁移保守且连续：旧存档按 dictationMastered 覆盖推导，Unit N 解锁要求 1..N-1 全部完成；
 //     单元 3 学完但单元 2 没学完时，单元 3 仍然锁着。绝不一次授予全册。
 //  3) 自定义词表（单元 0）永远可玩，但从不参与教材解锁。
 //
@@ -38,28 +38,19 @@ export function ensureProgress(db) {
   return db.unitProgress;
 }
 
-/* unitProgress 里是否已记下「本单元词汇全部完成」。
- * 这是**新口径**的落点：只有真正答完才会被写，所以它可以单独作为完成凭据；
- * 旧存档没有这个字段，完成性仍由 mastered 覆盖推导（保守迁移）。 */
-function recordedComplete(db, unit) {
-  const p = db && db.unitProgress;
-  const rec = p && p[String(unit)];
-  return !!(rec && rec.complete === true);
-}
-
-/* 本单元是否「全部词完成」。口径只有一条：目标身份全部出现在 mastered 里。 */
+/* 旧 unitProgress 保留作自由远征历史，绝不作为正式默写解锁证据。 */
+/* 本单元是否「全部词完成」。口径只有一条：目标身份全部出现在 dictationMastered 里。 */
 export function isUnitComplete({ unit, words, db }) {
   const targets = unitTargets(words);
   if (!targets.length) return false;          // 空单元不算「完成」，更不算解锁依据
-  if (recordedComplete(db, unit)) return true; // 本轮真实记下的完成（见 recordUnitComplete）
-  const mastered = new Set(((db && db.mastered) || []).map(wordKey));
+  const mastered = new Set((Array.isArray(db && db.dictationMastered) ? db.dictationMastered : []).map(wordKey));
   return targets.every(k => mastered.has(k));
 }
 
-/* 已完成 / 剩余量。与 word-selection 的 counting 同源（同一份 mastered + 同一份身份）。 */
+/* 已完成 / 剩余量。与 word-selection 的 counting 同源（同一份 dictationMastered + 同一份身份）。 */
 export function unitCounts({ unit, words, db }) {
   const targets = unitTargets(words);
-  const mastered = new Set(((db && db.mastered) || []).map(wordKey));
+  const mastered = new Set((Array.isArray(db && db.dictationMastered) ? db.dictationMastered : []).map(wordKey));
   const done = targets.filter(k => mastered.has(k)).length;
   return { unit, total: targets.length, done, remaining: targets.length - done };
 }
@@ -86,12 +77,12 @@ function safeWords(wordsFor, unit) {
 }
 
 /* 解锁全貌。纯派生：不写任何东西，所以 UI 直接画它也不会漂移成第二套口径。 */
-export function unlockProgress({ units, wordsFor, mastered, unitProgress }) {
+export function unlockProgress({ units, wordsFor, dictationMastered }) {
   // ★ units 排序 + 去重：解锁是一串**有序**的教材单元，输入顺序（[3,1,0,1,…]）绝不许
   //   改变连续口径。非数字项直接丢掉（脏数据不该长出一个单元）。
   const nos = Array.from(new Set((units || []).filter(n => typeof n === 'number' && Number.isFinite(n))))
     .sort((a, b) => a - b);
-  const db = { mastered: mastered || [], unitProgress: unitProgress || {} };
+  const db = { dictationMastered: Array.isArray(dictationMastered) ? dictationMastered : [] };
   const byUnit = {};
   let contiguous = true;                      // 「前面每一个都完成了」还成立吗
   for (const n of nos) {
@@ -106,7 +97,7 @@ export function unlockProgress({ units, wordsFor, mastered, unitProgress }) {
       continue;
     }
     const c = unitCounts({ unit: n, words: safeWords(wordsFor, n), db });
-    const complete = c.total > 0 && (c.remaining === 0 || recordedComplete(db, n));
+    const complete = c.total > 0 && c.remaining === 0;
     // ★ 解锁只看**前面**的单元：本单元自己做完之前它就已经可玩了
     //   （Unit 1 永远可玩，Unit 2 在 Unit 1 完成时解锁）。
     const unlocked = contiguous;
@@ -165,7 +156,7 @@ export function roundScopeUnits(run) {
  * 到过某个单元、击败 BOSS、跳过节点都不是。幂等。范围外的单元一律拒绝。
  *
  * ★ 本轮整词证据闸门（允许跨单元 ≠ 允许记本轮完成）：
- *   跨单元解锁的口径是 DB.mastered 的历史覆盖 —— 一份「259 个词历史全掌握」的存档
+ *   跨单元解锁的口径是 DB.dictationMastered 的历史覆盖 —— 一份「259 个词历史全掌握」的存档
  *   从 Unit 1 起手点一次「继续下一单元」，解锁本身完全合法（口径不许收紧）。
  *   但这条 run 里**一个词都没答过**，run.done 空、doneKeys 与该单元词池毫无交集，
  *   于是 completedUnits 必须仍然是 [] —— 否则卡上会凭空长出「本轮完成 Unit 1」，

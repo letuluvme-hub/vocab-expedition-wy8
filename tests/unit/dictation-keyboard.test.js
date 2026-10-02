@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 const load = () => import('../../src/ui/components/dictation-keyboard.js');
 class El {
-  constructor(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.disabled = false; }
+  constructor(tag) { this.tagName = tag; this.children = []; this.attrs = {}; this.dataset = {}; this.disabled = false; }
   appendChild(child) { this.children.push(child); return child; }
   replaceChildren() { this.children = []; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
@@ -26,7 +26,7 @@ test('formal keyboard always includes full QWERTY alphabet and reusable keys', a
 test('only required phrase separators appear; backspace is always available', async () => {
   const { createDictationKeyboard } = await load(); const kb = createDictationKeyboard({ document: doc, onInput() {} });
   const root = new El('div');
-  for (const [word, expected] of [['cat', ['Backspace']], ['ice cream', [' ', 'Backspace']], ["one's well-known", [' ', '-', "'", 'Backspace']]]) {
+  for (const [word, expected] of [['cat', ['Backspace']], ['ice cream', [' ', 'Backspace']], ['one’s', ["'", 'Backspace']], ["one's well-known", [' ', '-', "'", 'Backspace']]]) {
     kb.render(root, word);
     assert.deepEqual(buttons(root).map(b => b.dataset.key).filter(k => !/^[a-z]$/.test(k)), expected);
   }

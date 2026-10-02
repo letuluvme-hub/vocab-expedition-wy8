@@ -17,7 +17,7 @@ const realWords = n => WORDS.slice(0, n).map(w => w.w);
 
 test('the home page states real mastery growth and reports every word in the 259-word book', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
-  await game.open({ saved: { mastered: realWords(40) } });
+  await game.open({ saved: { dictationMastered: realWords(40) } });
 
   await expect(panel(page)).toBeVisible();
   await expect(panel(page).locator('.mgrowth-h')).toHaveText('知识成长');
@@ -35,14 +35,14 @@ test('the home page states real mastery growth and reports every word in the 259
 test('custom-only words earn nothing: 500 of them still say +0', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
   const custom = Array.from({ length: 500 }, (_, i) => ({ w: 'myword' + i, z: '词' + i }));
-  await game.open({ saved: { custom, mastered: custom.map(x => x.w) } });
+  await game.open({ saved: { custom, dictationMastered: custom.map(x => x.w) } });
 
   await expect(panel(page).locator('.mgrowth-count')).toContainText('教材词汇 0/259 · 下轮生命上限 +0');
 });
 
 test('a new round really raises max hp by the growth bonus, and only at the new round', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
-  await game.open({ saved: { mastered: realWords(40) } });
+  await game.open({ saved: { dictationMastered: realWords(40) } });
   await game.start();
 
   // 学者基础 70-10=60，40 词 = +2 → 62。开局满血。
@@ -54,7 +54,7 @@ test('a new round really raises max hp by the growth bonus, and only at the new 
 
 test('reaching 20 words mid-run does not change this round max hp; the next round gains +1', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
-  await game.open({ saved: { mastered: realWords(19) } });   // 19 词 = 仍 +0
+  await game.open({ saved: { dictationMastered: realWords(19) } });   // 19 词 = 仍 +0
   await game.start();
 
   let s = await game.state();
@@ -65,8 +65,16 @@ test('reaching 20 words mid-run does not change this round max hp; the next roun
   const word = 'hamburger';
   await game.fight({ word, enemyHp: 10_000 });
   for (const ch of word) await page.keyboard.type(ch);
-  await expect.poll(async () => (await game.state()).DB.mastered.length).toBe(20);
+  await expect.poll(async () => (await game.state()).DB.mastered.length).toBe(1);
 
+  // 自由远征只能写练习记录；成长门槛必须由一次真实正式默写规则产生。
+  await page.evaluate(async word => {
+    const {createDictationAttempt,applyDictationInput,creditDictation}=await import('/vocab-expedition-wy8/src/domain/dictation.js');
+    const attempt=createDictationAttempt(word);
+    for(const key of word) applyDictationInput(attempt,key);
+    creditDictation(window.__gameTest.DB,attempt);
+  }, word);
+  expect((await game.state()).DB.dictationMastered).toHaveLength(20);
   s = await game.state();
   expect(s.G.maxhp, '本局中途达到门槛绝不改本局上限').toBe(60);
   expect(s.G.hp).toBe(60);
@@ -83,7 +91,7 @@ test('reaching 20 words mid-run does not change this round max hp; the next roun
 
 test('pause then reload restores the same growth instead of recomputing it', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
-  await game.open({ saved: { mastered: realWords(40) } });
+  await game.open({ saved: { dictationMastered: realWords(40) } });
   await game.start();
   expect((await game.state()).G.maxhp).toBe(62);
 
@@ -93,7 +101,7 @@ test('pause then reload restores the same growth instead of recomputing it', asy
 
   // 暂停期间把存档里的掌握表改成「全部 259 词」：若恢复路径偷重算，
   // 刷新后就会跳到 +12 —— 这正是必须防住的白赚一次上限。
-  await game.writeSaved({ ...(await game.saved()), mastered: realWords(259) });
+  await game.writeSaved({ ...(await game.saved()), dictationMastered: realWords(259) });
   await game.reload();
 
   await page.locator('#continueRun').click();
@@ -108,7 +116,7 @@ test('pause then reload restores the same growth instead of recomputing it', asy
 test('crossing into the next unit adds nothing on top of the growth bonus', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
   // Unit 1 全部词汇已掌握 → 可以合法过渡到 Unit 2；开局 40 词 = +2。
-  await game.open({ saved: { mastered: realWords(40) } });
+  await game.open({ saved: { dictationMastered: realWords(40) } });
   await game.start();
 
   const before = await game.state();
@@ -121,6 +129,8 @@ test('crossing into the next unit adds nothing on top of the growth bonus', asyn
   const prepared = await page.evaluate(() => {
     const t = window.__gameTest;
     const words = t.WORDS.filter(w => w.u === 1);
+    // 此用例只验证过渡不叠加；其余单元词已通过正式默写。
+    t.DB.dictationMastered = words.map(w=>w.w);
     // 本局退休集合：只留最后一个词，其余整词「已退休」——抽词因此只剩它。
     t.G.pool = words.slice();
     t.G.done = new Set(words.slice(0, words.length - 1).map(w => w.w));
@@ -147,7 +157,7 @@ test('crossing into the next unit adds nothing on top of the growth bonus', asyn
 test('the growth panel fits a 320px screen without horizontal overflow', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
   // 故意写一条超长的坏词条：展示层必须换行，不能撑破布局。
-  await game.open({ saved: { mastered: [...realWords(40), 'x'.repeat(120)] } });
+  await game.open({ saved: { dictationMastered: [...realWords(40), 'x'.repeat(120)] } });
   await page.setViewportSize({ width: 320, height: 720 });
 
   await expect(panel(page)).toBeVisible();

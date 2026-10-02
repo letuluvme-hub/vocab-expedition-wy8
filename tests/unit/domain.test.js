@@ -59,33 +59,19 @@ test('wordComplete matches original null guards and length-only full-word criter
   t.diagnostic(`${count} completion cases from original vocabulary and edge inputs`);
 });
 
-test('creditWordProgress preserves mastery, retirement and first wrong-queue removal', async () => {
+test('creditWordProgress preserves practice, retirement and every earlier wrong record', async () => {
   const { creditWordProgress } = await import('../../src/domain/learning.js');
-  const scenarios = [
-    { mastered: [], done: [], wrong: [] },
-    { mastered: [], done: [], wrong: ['before', 'cut in', 'after'] },
-    { mastered: ['cut in'], done: [], wrong: ['cut in'] },
-    { mastered: ['cut in'], done: ['cut in'], wrong: [] },
-    { mastered: [], done: ['before'], wrong: ['cut in', 'cut in', 'after'] },
-  ];
-  for (const initial of scenarios) {
-    const db = { mastered: [...initial.mastered], unrelated: 10 };
-    const run = { done: new Set(initial.done), wrong: [...initial.wrong], unrelated: 20 };
-    const expectedDb = structuredClone(db), expectedRun = structuredClone(run);
-    const mastered = db.mastered, done = run.done, wrong = run.wrong;
-    learningState.DB = expectedDb;
-    learningState.G = expectedRun;
-    learningState.saves = 0;
-    for (const word of ['cut in', 'cut in', 'different', 'different']) {
-      const saveCount = learningState.saves;
-      oldLearning.creditWord(word);
-      assert.equal(creditWordProgress(db, run, word), learningState.saves > saveCount);
-      assert.deepEqual(db, expectedDb);
-      assert.deepEqual(run, expectedRun);
-      assert.equal(db.mastered, mastered);
-      assert.equal(run.done, done);
-      assert.equal(run.wrong, wrong);
-    }
+  for (const initial of [[], ['cut in'], ['before', 'cut in', 'after'], ['cut in', 'cut in']]) {
+    const db = { mastered: [], unrelated: 10 };
+    const run = { done: new Set(), wrong: [...initial], unrelated: 20 };
+    const wrong = run.wrong;
+    assert.equal(creditWordProgress(db, run, 'cut in'), true);
+    assert.equal(creditWordProgress(db, run, 'cut in'), false);
+    assert.deepEqual(db.mastered, ['cut in']);
+    assert.deepEqual([...run.done], ['cut in']);
+    assert.deepEqual(run.wrong, initial);
+    assert.equal(run.wrong, wrong);
+    assert.equal(db.unrelated, 10); assert.equal(run.unrelated, 20);
   }
 });
 

@@ -145,7 +145,7 @@ test('字母在词里但位置不对（soft）：通知打断，6 点惩罚照�
   h.combat.pressKey(3);                       // p 在 keep 里但位置不对（当前要 k）
   assert.equal(h.attempts, 1);
   assert.equal(h.B.myHp, 60 - 6, 'soft 惩罚是 6 点');
-  assert.deepEqual(h.B.mistaken, [], 'soft 不记错词（旧语义不变）');
+  assert.deepEqual(h.B.mistaken, ['keep'], '顺序错也是待复习的拼写错误');
 });
 
 test('已试过的错字母（bad）：不通知打断，也不重复扣血', () => {

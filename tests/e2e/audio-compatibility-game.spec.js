@@ -25,6 +25,7 @@ const ROOT = '#audioCompatibility-root';
 const SEED_KEYS = [
   'runs', 'wins', 'mastered', 'best', 'custom', 'mute', 'vol', 'voice',   // seed
   'rewards', 'kbMode', 'kbUpper', 'unitProgress',                          // 应用自己补的
+  'dictationMastered', 'reviewQueue', // additive storage migration, not the notice
   'keyboardTipSeen',   // 主页一次性键盘提示看没看过（2026-10-02），由 initializeDB 补
 ];
 

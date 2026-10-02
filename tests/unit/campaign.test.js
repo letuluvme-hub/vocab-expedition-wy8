@@ -2,7 +2,7 @@
  *
  * 契约（本文件逐条钉死）：
  *  1) 解锁只认「本单元目标词全部完整拼对」，不认 wins / best / 纪念卡 / 部分词。
- *  2) 旧用户迁移保守：只有 mastered 对**前面连续单元**的目标词完整覆盖（trim+lower）
+ *  2) 旧用户迁移保守：只有 dictationMastered 对**前面连续单元**的目标词完整覆盖（trim+lower）
  *     才保守授予后续解锁；绝不凭历史直接授予全册。
  *  3) 自定义单元（0）永远可玩，但不解教材锁。
  *  4) transitionNextUnit 是纯事实函数：跨单元不改次数、不改 id、不补额度。
@@ -22,8 +22,8 @@ import { pendingWords, learningCounts } from '../../src/domain/word-selection.js
 const HERO = { id: 'ranger', mod: { hp: 0, shield: 0, gold: 0, hint: 0, noise: 0, combo: 1, regen: 0, leech: 0 } };
 const UNIT_NOS = [1, 2, 3, 4, 5, 6, 0];
 const wordsFor = u => (u === 0 ? [] : WORDS.filter(w => w.u === u));
-const mkDb = (db = {}) => Object.assign({ runs: 0, wins: 0, mastered: [], best: 0, custom: [], rewards: [] }, db);
-const view = db => unlockProgress({ units: UNIT_NOS, wordsFor, mastered: db.mastered, unitProgress: db.unitProgress });
+const mkDb = (db = {}) => Object.assign({ runs: 0, wins: 0, dictationMastered: [], best: 0, custom: [], rewards: [] }, db);
+const view = db => unlockProgress({ units: UNIT_NOS, wordsFor, dictationMastered: db.dictationMastered, unitProgress: db.unitProgress });
 
 /* ---------------- 1. 只有 Unit 1 可选，其余锁定 ---------------- */
 test('a fresh save unlocks only unit 1, and the custom unit is always playable', () => {
@@ -40,7 +40,7 @@ test('a fresh save unlocks only unit 1, and the custom unit is always playable',
 });
 
 test('partial mastery never unlocks anything beyond unit 1', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).slice(0, -1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).slice(0, -1).map(w => w.w) });
   const p = view(db);
   assert.equal(p.byUnit[1].complete, false, '差一个词就不是完成');
   assert.equal(p.byUnit[1].remaining, 1);
@@ -48,10 +48,10 @@ test('partial mastery never unlocks anything beyond unit 1', () => {
 });
 
 /* ---------------- 2. 旧用户迁移：保守、连续、可解释 ---------------- */
-test('legacy mastery unlocks the next unit only when every target word is covered', () => {
+test('formal dictation mastery unlocks the next unit only when every target word is covered', () => {
   const u1 = WORDS.filter(w => w.u === 1).map(w => w.w);
   // 大小写与首尾空白不是新的词：身份只做 trim + lower。
-  const db = mkDb({ mastered: [...u1.slice(0, -1), ' ' + u1[u1.length - 1].toUpperCase() + ' '] });
+  const db = mkDb({ dictationMastered: [...u1.slice(0, -1), ' ' + u1[u1.length - 1].toUpperCase() + ' '] });
   const p = view(db);
   assert.equal(p.byUnit[1].total, u1.length);
   assert.equal(p.byUnit[1].done, u1.length, 'trim+lower 必须合并大小写与空白');
@@ -61,41 +61,41 @@ test('legacy mastery unlocks the next unit only when every target word is covere
 });
 
 test('legacy wins / best / reward cards alone never unlock a unit', () => {
-  const db = mkDb({ wins: 42, best: 9, runs: 30, rewards: [{ id: 'WR-1', unit: 1 }], mastered: ['water'] });
+  const db = mkDb({ wins: 42, best: 9, runs: 30, rewards: [{ id: 'WR-1', unit: 1 }], dictationMastered: ['water'] });
   const p = view(db);
   assert.equal(p.byUnit[1].complete, false);
   assert.equal(p.isUnlocked(2), false, '历史战绩与纪念卡不是词汇完成的证据');
 });
 
 test('unlocking is contiguous: finishing unit 3 does not unlock unit 4 without unit 2', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1 || w.u === 3).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1 || w.u === 3).map(w => w.w) });
   const p = view(db);
   assert.equal(p.byUnit[3].complete, true, 'Unit 3 的词确实都学过');
   assert.equal(p.isUnlocked(3), false, 'Unit 2 没完成 → Unit 3 仍锁');
   assert.equal(p.isUnlocked(4), false);
 });
 
-test('recordUnitComplete is idempotent and unlocks exactly one step', () => {
+test('legacy recordUnitComplete is idempotent but never substitutes formal evidence', () => {
   const db = mkDb();
   assert.equal(recordUnitComplete(db, 1, { now: 1000 }), true, '第一次记录返回 true');
   assert.equal(recordUnitComplete(db, 1, { now: 2000 }), false, '重复记录返回 false');
   assert.equal(db.unitProgress['1'].completedAt, new Date(1000).toISOString(), '第一次的时间戳不许被覆盖');
   const p = view(db);
-  assert.equal(p.byUnit[1].complete, true);
-  assert.equal(p.isUnlocked(2), true);
+  assert.equal(p.byUnit[1].complete, false);
+  assert.equal(p.isUnlocked(2), false);
   assert.equal(p.isUnlocked(3), false);
 });
 
-test('ensureProgress repairs a corrupted unitProgress field without touching mastered', () => {
-  const db = mkDb({ mastered: ['cat'], unitProgress: 'nope' });
+test('ensureProgress repairs a corrupted unitProgress field without touching dictationMastered', () => {
+  const db = mkDb({ dictationMastered: ['cat'], unitProgress: 'nope' });
   ensureProgress(db);
   assert.deepEqual(db.unitProgress, {});
-  assert.deepEqual(db.mastered, ['cat'], '掌握记录绝不被删');
+  assert.deepEqual(db.dictationMastered, ['cat'], '掌握记录绝不被删');
 });
 
 test('isUnitComplete uses trim+lower identity and ignores words from other units', () => {
   const u1 = WORDS.filter(w => w.u === 1).map(w => w.w);
-  const db = mkDb({ mastered: [...u1, ...WORDS.filter(w => w.u === 5).map(w => w.w)] });
+  const db = mkDb({ dictationMastered: [...u1, ...WORDS.filter(w => w.u === 5).map(w => w.w)] });
   assert.equal(isUnitComplete({ unit: 1, words: wordsFor(1), db }), true);
   assert.equal(isUnitComplete({ unit: 2, words: wordsFor(2), db }), false, '别的单元的词不能顶替本单元');
 });
@@ -118,7 +118,7 @@ test('transitionNextUnit refuses when the current unit is unfinished', () => {
 });
 
 test('transitionNextUnit refuses a locked next unit and the custom unit', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const run = createRun(1, HERO, wordsFor(1));
   const p = view(db);
   assert.deepEqual(transitionNextUnit({ run, progress: p }).to, 2);
@@ -134,7 +134,7 @@ test('transitionNextUnit refuses a locked next unit and the custom unit', () => 
 
 test('transitionNextUnit will not skip a unit that is still locked', () => {
   // 连续口径落到动作层：Unit 3 的词全学会了，但 Unit 2 没完成 → 停在 Unit 2 不许跳。
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1 || w.u === 3).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1 || w.u === 3).map(w => w.w) });
   const run = createRun(2, HERO, wordsFor(2));
   const t = transitionNextUnit({ run, progress: view(db) });
   assert.equal(t.ok, false, 'Unit 2 还没完成，不许直接去 Unit 3');
@@ -143,7 +143,7 @@ test('transitionNextUnit will not skip a unit that is still locked', () => {
 });
 
 test('transitionNextUnit is idempotent: applying twice cannot double-apply', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const run = createRun(1, HERO, wordsFor(1));
   run.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
   const p = view(db);
@@ -158,7 +158,7 @@ test('transitionNextUnit is idempotent: applying twice cannot double-apply', () 
   assert.equal(run.unit, 2, '第二次调用不许再改一次');
   assert.deepEqual(run.campaign, { startedUnit: 1, segments: 2 }, '段数不许被重复应用再加一次');
   // 而在 Unit 2 上重新算事实，得到的是**下一个**单元，不是「already」。
-  for (const w of WORDS.filter(x => x.u === 2)) db.mastered.push(w.w);
+  for (const w of WORDS.filter(x => x.u === 2)) db.dictationMastered.push(w.w);
   const next2 = transitionNextUnit({ run, progress: view(db) });
   assert.equal(next2.ok, true, 'Unit 2 学完之后必须能继续去 Unit 3');
   assert.deepEqual([next2.from, next2.to], [2, 3]);
@@ -175,7 +175,7 @@ test('applyUnitTransition keeps gold, bag, relics, ghost, hero and stats; only p
   run.done = new Set(['water']);
   run.wrong = ['water', 'river'];
 
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const t = transitionNextUnit({ run, progress: view(db) });
   applyUnitTransition(run, t, { words: wordsFor(2) });
 
@@ -205,7 +205,7 @@ test('applyUnitTransition keeps gold, bag, relics, ghost, hero and stats; only p
 test('maxFloor statistics are never rewritten by a unit transition', () => {
   const run = createRun(1, HERO, wordsFor(1));
   run.maxFloor = 9; run.floor = 9;
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const t = transitionNextUnit({ run, progress: view(db) });
   applyUnitTransition(run, t, { words: wordsFor(2) });
   assert.equal(run.floor, 1);
@@ -233,7 +233,7 @@ test('applyUnitSegment restarts the same unit without touching counters or ids',
 test('campaign segment facts survive a snapshot round trip', async () => {
   const { encodeSnapshot, decodeSnapshot, PHASE } = await import('../../src/domain/run-snapshot.js');
   const run = createRun(1, HERO, wordsFor(1));
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   run.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
   const t = transitionNextUnit({ run, progress: view(db) });
   applyUnitTransition(run, t, { words: wordsFor(2) });
@@ -272,7 +272,7 @@ test('campaign segment counter starts at one and only counts real segments', () 
   assert.equal(run.campaign.segments, 1);
   applyUnitSegment(run, { words: wordsFor(1) });
   assert.equal(run.campaign.segments, 2);
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   applyUnitTransition(run, transitionNextUnit({ run, progress: view(db) }), { words: wordsFor(2) });
   assert.equal(run.campaign.segments, 3);
   assert.equal(run.campaign.startedUnit, 1, '整轮从 Unit 1 开始');

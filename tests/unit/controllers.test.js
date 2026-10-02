@@ -147,26 +147,29 @@ test('pressKey：正确字母入盘、连击递增、按 hitDmg 扣敌人血', a
   assert.equal(h.sfx.calls.filter(c => c[0] === 'good').length, 1);
 });
 
-test('pressKey：字母不在单词里 → 扣血、标 bad、错词进复习且踢出掌握表', async () => {
+test('pressKey：字母不在单词里 → 扣血、标 bad、错词进复习且保留练习历史', async () => {
   const h = await makeCombat();
   h.db.mastered.push('keep');
   h.ctrl.pressKey(4);
   assert.equal(h.state.B.bad[4], true);
   assert.equal(h.state.B.myHp, 38);
   assert.deepEqual(h.state.G.wrong, ['keep']);
-  assert.deepEqual(h.db.mastered, []);
+  assert.deepEqual(h.db.mastered, ['keep']);
+  assert.deepEqual(h.db.reviewQueue, ['keep']);
   assert.equal(h.state.B.mistaken.length, 1);
-  assert.ok(h.toasts.some(t => t.indexOf('❌') === 0), '应播报「不在这个词里」');
+  assert.ok(h.toasts.includes('不对'));
 });
 
-test('pressKey：字母在词中但顺序不对 → 照样扣血但不记错词（soft）', async () => {
+test('pressKey：字母在词中但顺序不对 → 照样扣血并记错词（soft）', async () => {
   const h = await makeCombat();
   h.ctrl.pressKey(1);      // 'e'，当前位置需要 'k'
   assert.equal(h.state.B.myHp, 44);
   assert.equal(h.state.B.bad[1], false, '顺序错不能标 bad，否则死局');
-  assert.deepEqual(h.state.G.wrong, []);
-  assert.deepEqual(h.state.B.mistaken, []);
-  assert.ok(h.toasts.some(t => t.indexOf('位置不对') > 0));
+  assert.deepEqual(h.state.G.wrong, ['keep']);
+  assert.deepEqual(h.state.B.mistaken, ['keep']);
+  assert.deepEqual(h.db.reviewQueue, ['keep']);
+  assert.ok(h.toasts.includes('不对'));
+  assert.equal(h.toasts.some(t=>/位置不对|在这个/.test(t)),false);
 });
 
 test('pressKey：已标 bad 的字母再点只提示，不再扣血', async () => {
