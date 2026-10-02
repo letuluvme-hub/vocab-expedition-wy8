@@ -28,3 +28,5 @@
 @import './pixel-art.css';
 /* 主页的一次性键盘提示：只作用于 #keyboardTip，追加在最后。 */
 @import './keyboard-tip.css';
+/* 敌人头像的尺寸与外壳（去框 + 放大到与角色同宽）：只作用于 #fAv，追加在最后。 */
+@import './foe-avatar.css';

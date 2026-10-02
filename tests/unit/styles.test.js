@@ -38,6 +38,9 @@ const ADDED = [
   ['./pixel-art.css', /^\.pxmon|^\.pxicon/, '像素风怪物与装备图标'],
   // 首次进入的键盘提示。前缀是宿主容器 id，与 audio-compatibility 同一约定。
   ['./keyboard-tip.css', /^#keyboardTip/, '主页一次性键盘提示'],
+  // 敌人头像的尺寸与外壳。前缀是 #fAv —— 这两件改动不能写进冻结的
+  // combat.css / responsive.css（它们要与归档逐字相同），只能新增覆盖。
+  ['./foe-avatar.css', /^#fAv/, '敌人头像尺寸与外壳'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

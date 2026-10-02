@@ -50,11 +50,21 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
   // ★ 基准尺寸必须取**样式表**的 --avatar，不能读 #fAv 自己的 computed width：
   //   那个值已经含了上一次写的 inline width，每帧乘一次就会指数放大成巨型怪物。
   //   --avatar 由 responsive.css 按屏幕高度切换，所以窄屏自动跟着变小。
+  // ★ 基准尺寸取 **#fAv 自己的** --avatar，不读 #fAv 的 computed width：
+  //   那个值已经含了上一次写的 inline width，每帧乘一次就会指数放大成巨型怪物。
+  //   --avatar 由样式表按屏幕高度切换，所以窄屏自动跟着变小；读到 88px 这种值时
+  //   乘出来正好和角色同宽（1.2 × 88 ≈ 106 ≈ 角色的 104）。
+  //   2026-10-02 起这个变量改由 #fAv 自己声明（styles/foe-avatar.css）——
+  //   combat.css / responsive.css 是与归档逐字相同的冻结表，不许再动，
+  //   而 #fAv 的尺寸正是「新增覆盖」该待的地方。@media 里的规则同样以 #fAv 打头。
   function paintFoeScale() {
     const av = $('fAv');
     if (!av) return;
-    const host = $('s-fight');
-    const declared = host ? getComputedStyle(host).getPropertyValue('--avatar') : '';
+    // Node 测试台里没有 getComputedStyle：读不到就退回改动前的 64（×1.2 = 76.8），
+    // 也就是「样式表缺席」时的老尺寸。守卫不能省 —— 直接调用会让每个渲染战斗页的
+    // 单测在 getComputedStyle 上抛 ReferenceError。
+    const view = typeof getComputedStyle === 'function' ? getComputedStyle(av) : null;
+    const declared = view ? view.getPropertyValue('--avatar') : '';
     const base = parseFloat(declared) || 64;
     const size = Math.round(base * FOE_ART_SCALE_MAX);
     av.style.width = size + 'px';

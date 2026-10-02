@@ -224,7 +224,11 @@ for (const size of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
         av: r('fAv'), bank: r('fBank'), meter: r('fFoeAtk'), hud: r('fMy'),
         vw: innerWidth, vh: innerHeight,
         scrollW: document.documentElement.scrollWidth,
-        avatarVar: getComputedStyle(document.getElementById('s-fight')).getPropertyValue('--avatar'),
+        // 2026-10-02 起基准 --avatar 声明在 **#fAv 自己**身上（styles/foe-avatar.css）——
+        // combat.css / responsive.css 是与归档逐字相同的冻结表，尺寸只能新增覆盖，
+        // 而 paintFoeScale 也从 #fAv 读这个变量。这里跟着改，断言的意图不变：
+        // 「布局放大不得超过基准的 1.2 倍」。
+        avatarVar: getComputedStyle(document.getElementById('fAv')).getPropertyValue('--avatar'),
         avatarLayoutWidth: parseFloat(getComputedStyle(document.getElementById('fAv')).width),
       };
     });
