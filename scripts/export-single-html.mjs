@@ -10,6 +10,10 @@ export function inlineBuiltPage(html, readAsset) {
     return match[1];
   };
   return html
+    // 单文件版里必须摘掉「离线版下载」入口：它自己就是那个文件，
+    // file:// 下没有兄弟文件可下，点了只会得到一句「找不到文件」。
+    // 按 **id** 精确摘整行（不靠注释文本匹配 —— 注释会被人改，id 有测试钉住）。
+    .replace(/<div class="row">\s*<a[^>]*\bid="dlOffline"[\s\S]*?<\/a>\s*<\/div>/, '')
     .replace(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g, (_, url) => {
       const code = readAsset(assetPath(url));
       if (typeof code !== 'string') throw new Error(`Missing asset: ${url}`);

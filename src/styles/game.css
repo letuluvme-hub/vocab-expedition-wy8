@@ -30,3 +30,5 @@
 @import './keyboard-tip.css';
 /* 敌人头像的尺寸与外壳（去框 + 放大到与角色同宽）：只作用于 #fAv，追加在最后。 */
 @import './foe-avatar.css';
+/* 主页的离线单文件版下载入口：只作用于 #dlOffline，追加在最后。 */
+@import './offline-download.css';

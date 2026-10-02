@@ -1,0 +1,25 @@
+/* ---- offline-download（主页的离线单文件版下载入口）----
+ *
+ * 为什么单独一张表：`base.css` 里的 `.btn` 是给 <button> 写的 —— 浏览器对按钮
+ * 默认居中，对 <a> 不会，所以直接套 .btn 会左对齐。这里只补「锚点当按钮用」
+ * 缺的那几条，视觉其余部分照旧由 .btn / .btn.g 提供。
+ *
+ * 所有选择器都以 #dlOffline 打头，不与既有类名共用。
+ */
+
+#dlOffline {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  /* 触屏上没有 hover，但链接默认会显示下划线，这里显式去掉以免看起来像正文链接。 */
+}
+
+#dlOffline small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  opacity: .82;
+  /* 副标题是说明而不是主操作，字号与不透明度都压一档。 */
+}
