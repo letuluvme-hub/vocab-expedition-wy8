@@ -15,6 +15,7 @@
  */
 import { norm } from './text.js';
 import { ADV_LOCK_MS } from './run.js';
+import { encodeFoeAttack, decodeFoeAttack } from './foe-attack.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -172,7 +173,7 @@ function encodeRun(run) {
   return out;
 }
 function encodeBattle(b) {
-  return {
+  const out = {
     word: encodeWord(b.word), letters: b.letters.slice(),
     used: b.used.slice(), bad: b.bad.slice(),
     myHp: b.myHp, enHp: b.enHp, enMax: b.enMax, shield: b.shield,
@@ -189,6 +190,13 @@ function encodeBattle(b) {
     node: nodeId(b.node),
     finished: !!b.finished, rewardTaken: !!b.rewardTaken,
   };
+  // foeAttack（清单 13）：**可选**事实。旧快照完全没有它 —— 那是合法形状，
+  //   编码时整个键都不出现（而不是写 undefined：那会让内存态与 JSON 往返态
+  //   长出两个形状，deepEqual 恒假）。合法时才写，脏值时写 undefined（=不写），
+  //   绝不把「认不出来」伪装成「没有攻击状态」。 */
+  const foeAttack = encodeFoeAttack(b.foeAttack);
+  if (foeAttack) out.foeAttack = foeAttack;
+  return out;
 }
 function encodeEncounter(e) {
   if (!e) return null;
@@ -218,6 +226,11 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   const run = env && env.run;
   if (!run || typeof run.result === 'boolean') return null;
   if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
+  // foeAttack 脏值同理：内存态自己解不开时**不写整份快照**（而不是写一份缺了
+  //   攻击事实的快照）。缺了它看着能恢复，实际是把「蓄力还剩多久」丢掉 ——
+  //   玩家会发现刷新后攻击时机凭空变了，这比明确存不下更糟。
+  if (env.battle && env.battle.foeAttack !== undefined && env.battle.foeAttack !== null
+    && encodeFoeAttack(env.battle.foeAttack) === undefined) return null;
   const savedAt = isStr(env && env.savedAt) ? env.savedAt : new Date(now).toISOString();
   const envelope = {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -401,11 +414,15 @@ function validBattle(b, run, byId) {
   if (!num(b.goldMult, 0, 100)) return false;
   if (!isObj(b.usedThisFight) || Object.values(b.usedThisFight).some(v => !isInt(v) || v < 0)) return false;
   if (!strArr(b.mistaken)) return false;
+  // foeAttack 可选：缺失合法（旧快照）。一旦出现就必须是**完整合法**的事实 ——
+  //   脏值整份 fail closed，绝不静默丢成 undefined：那会让一个「蓄力还剩多久」
+  //   已经不可信的存档看起来能恢复，而玩家会发现攻击时机凭空变了。
+  if (b.foeAttack !== undefined && b.foeAttack !== null && decodeFoeAttack(b.foeAttack) === undefined) return false;
   if (b.node === null || b.node === undefined || !byId.has(b.node)) return false;   // 战斗必须有真实节点
   return true;
 }
 function decodeBattle(b, run, byId) {
-  return {
+  const out = {
     word: { w: b.word.w, u: b.word.u, d: b.word.d, z: b.word.z, th: b.word.th },
     letters: b.letters.slice(), used: b.used.slice(), bad: b.bad.slice(),
     myHp: b.myHp, enHp: b.enHp, enMax: b.enMax, shield: b.shield,
@@ -422,6 +439,11 @@ function decodeBattle(b, run, byId) {
     node: byId.get(b.node),
     finished: b.finished, rewardTaken: b.rewardTaken,
   };
+  // 形状已在 validBattle 里 fail closed 过；缺失（旧快照）保持 undefined，
+  // 由运行时按该怪的固定配置起一个干净的 idle —— 绝不默认「立刻攻击」。
+  const foeAttack = decodeFoeAttack(b.foeAttack);
+  if (foeAttack) out.foeAttack = foeAttack;
+  return out;
 }
 function validEncounter(e, byId, needChoice) {
   if (!isObj(e) || !isStr(e.kind)) return false;

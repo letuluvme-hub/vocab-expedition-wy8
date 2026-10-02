@@ -1,0 +1,24 @@
+/* ---- foe-attacks（清单 13：蓄力条）----
+   只作用于战斗页那一个容器 #fFoeAtk（以及它自己的后代类名）。
+   ★ 绝不改既有选择器：.avatar / .bank / .hud 等一律不碰 ——
+   「新增样式」不是「借机改线上外观」的名目。 */
+.foeAtk{margin:7px 0 0;min-height:0}
+.foeAtkBar{height:6px;border-radius:99px;background:#ffffff12;border:1px solid var(--line);
+  overflow:hidden;display:block}
+.foeAtkBar>i{display:block;height:100%;background:#f59e0b;transition:width .12s linear}
+.foeAtkTxt{margin-top:4px;font-size:10.5px;line-height:1.35;color:var(--mut)}
+/* 蓄力中：更醒目，并给 reduced-motion 用户留一条不闪的退路 */
+.foeAtk.tel .foeAtkBar{border-color:#f59e0b88;box-shadow:0 0 0 1px #f59e0b33}
+.foeAtk.tel .foeAtkBar>i{background:linear-gradient(90deg,#f59e0b,#ff5470)}
+.foeAtk.tel .foeAtkTxt{color:#ffb020}
+.foeAtk.recover .foeAtkBar>i{background:#22d3ee}
+.foeAtk.recover .foeAtkTxt{color:#7fe6b0}
+.foeAtk.idle .foeAtkBar>i,.foeAtk.defeated .foeAtkBar>i{background:#ffffff30}
+@media (prefers-reduced-motion:reduce){
+  .foeAtkBar>i{transition:none}
+}
+/* 矮屏：蓄力条最多占一行高度，绝不把字母盘或底部按钮挤出可视区 */
+@media (max-height:620px){
+  .foeAtk{margin:4px 0 0}
+  .foeAtkTxt{margin-top:2px;font-size:10px}
+}
