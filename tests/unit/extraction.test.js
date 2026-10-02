@@ -20,10 +20,35 @@ test('extracted vocabulary preserves all 259 records and their order', async () 
 //   1) 每条遗物多一个 rarity 字段（档位）；
 //   2) 末尾追加一件传说遗物「预知残卷」，其余 12 件的 id / 图标 / 名称 / 文案
 //      仍要求逐字相同 —— 改文案必须另开一条明确的例外，不能顺手改；
-//   3) 影分身的文案偏离（run 级免费额度，见下方注释）。
+//   3) 已登记的文案例外共 4 条（见 RELIC_COPY_DRIFT 的逐条理由）。
 const LEGACY_RELIC_IDS = ['hint', 'shield', 'combo', 'purse', 'thorn', 'battery',
   'lucky', 'scholar', 'forge', 'ghost', 'greed', 'focus'];
 const NEW_RELIC_IDS = ['prophecy'];
+
+/* 已登记的图鉴文案例外。**每一件都必须写清为什么**，否则这条就退化成"给测试开后门"。
+ *
+ *   ghost   —— 旧版写「每场战斗可免费跳过一次」，但免费额度现在是 run 级
+ *              （一轮远征只有一次）。文案必须与实际口径一致，否则玩家会以为
+ *              每场战斗都能白嫖一次撤退。
+ *   battery —— 旧版只写「每通过一层回复 8 点生命」，漏了 combat.js 的
+ *              「每整词完成 3 个 +3 生命」。描述漏写效果 = 玩家评估不了这件遗物
+ *              （C5）。
+ *   scholar —— 旧版写「战斗胜利额外获得 1 张先知卡」，实际 encounters.js 是
+ *              `rnd(3) === 0`（1/3 概率），**夸大**了；另有 runtime.js 的
+ *              「第一个词完成后揭示首字母」完全没写。夸大和漏写都要修（C5）。
+ *   focus   —— 旧版只写「连击中断保留一半」，漏了 combat.js 的
+ *              「每 6 连击 +5% 增伤」（C5）。
+ *
+ * ★ C5 是**纯文案**修复：一行实现代码都没动，这三件遗物的实际效果与旧版逐字相同。
+ *   若哪天改成"删掉隐藏效果"而不是"补描述"，那几处实现就必须删，
+ *   并且这里要改成断言效果已不存在 —— 那是另一个决定，不该被这条悄悄放过。
+ *
+ * ★ 这里用**集合**而不是有序数组比对：drift 是按表顺序算出来的
+ *   （实际输出 ['battery','scholar','ghost','focus']），而登记时按"理由分组"写
+ *   （ghost 的理由是 run 级额度，与 C5 无关）。顺序没有信息量，
+ *   强行对齐只会让"改一句文案"变成"还要重排这个数组"。
+ *   真正的约束是「一件不多、一件不少」，下面用排序后的深比较来表达。*/
+const RELIC_COPY_DRIFT = ['ghost', 'battery', 'scholar', 'focus'];
 
 test('relic catalog keeps every legacy entry verbatim and only appends the legendary', async () => {
   const { RELICS } = await import('../../src/data/relics.js');
@@ -34,26 +59,35 @@ test('relic catalog keeps every legacy entry verbatim and only appends the legen
     const now = RELICS.filter(r => r.id === o.id)[0];
     assert.equal(now.ic, o.ic, o.id + ' 图标不许变');
     assert.equal(now.n, o.n, o.id + ' 名称不许变');
-    // 图案逐字相同 —— 影分身是唯一已登记的文案例外。
-    if (o.id !== 'ghost') assert.equal(now.d, o.d, o.id + ' 图鉴文案不许变（例外需显式登记）');
+    // 文案逐字相同 —— 只有上面已登记的 4 件例外。
+    if (!RELIC_COPY_DRIFT.includes(o.id)) assert.equal(now.d, o.d, o.id + ' 图鉴文案不许变（例外需显式登记）');
     assert.ok(typeof now.rarity === 'string' && now.rarity.length > 0, o.id + ' 必须标了稀有度');
     assert.equal(now.price, undefined, '定价只能来自 balance 的档位表，不许在遗物对象上重复一份');
   }
 });
 
-// 影分身的图鉴文案是**有意**偏离：旧版写「每场战斗可免费跳过一次」，
-// 但免费额度现在是 run 级（一轮远征只有一次）。文案必须与实际口径一致，
-// 否则玩家会以为每场战斗都能白嫖一次撤退。
-// 偏离面精确到 RELICS 里的 ghost 一条；其余遗物、字段、顺序仍要求逐字相同。
-test('relic catalog differs from legacy only in the ghost description', async () => {
+// 图鉴文案与归档的偏离面**精确到这 4 条**，一条不多。
+// 这条断言的价值在于「登记」：多一件漂移就必须在这里加一条理由，
+// 于是"顺手改个文案"永远绕不过一次显式决定。
+test('relic catalog differs from legacy only in the registered descriptions', async () => {
   const { RELICS } = await import('../../src/data/relics.js');
   const old = oldValue('RELICS');
   const legacy = RELICS.slice(0, old.length);
   const drift = legacy.filter((r, i) => JSON.stringify({ ic: r.ic, n: r.n, d: r.d })
     !== JSON.stringify({ ic: old[i].ic, n: old[i].n, d: old[i].d })).map(r => r.id);
-  assert.deepEqual(drift, ['ghost'], '只有影分身的图鉴文案可以变');
+  assert.deepEqual([...drift].sort(), [...RELIC_COPY_DRIFT].sort(),
+    '偏离面必须与已登记的文案例外完全一致（一件不多、一件不少）');
   assert.equal(legacy.map(r => r.id).join(), old.map(r => r.id).join(), '顺序与 id 不变');
+  // 影分身：口径必须是 run 级（"每轮"），不是"每场战斗"。
   assert.match(RELICS.filter(r => r.id === 'ghost')[0].d, /每轮/);
+  // C5 三件：文案必须提全各自**两档**效果，否则又回到"描述漏写"的老问题。
+  const dOf = id => RELICS.filter(r => r.id === id)[0].d;
+  assert.match(dOf('battery'), /每通过一层/);
+  assert.match(dOf('battery'), /3 个/, '永动电池必须写出「每整词完成 3 个 +3」');
+  assert.match(dOf('scholar'), /有机会/, '学者之书的先知卡是概率，措辞不许再像必得');
+  assert.match(dOf('scholar'), /首字母/, '学者之书必须写出「第一词后揭示首字母」');
+  assert.match(dOf('focus'), /保留一半/);
+  assert.match(dOf('focus'), /6 连击/, '专注头环必须写出「每 6 连击 +5%」');
 });
 
 // 透视之眼的文案是**有意**偏离：旧版写「不消耗提示次数」，而实际行为现在是
@@ -82,7 +116,15 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css'];
+// ⚠️ 这份清单**曾经**与 tests/unit/styles.test.js 的 ADDED 是两份独立副本（VE-12 点名
+// 的冗余之一）。新增样式表时两处都要登记 —— 漏掉这里的后果是：下面的「原始七张
+// 逐字比对」会把新表也算进 original，于是恒假，而报错信息是一整屏 CSS 文本，
+// 看不出真实原因。
+// VE-12 已把两份合并为单一来源 tests/unit/css-manifest.js，本行与 styles.test.js
+// 都改为从它导入。合并时 `./android-download.css`（上游 2bb108a 新增的安卓 APK
+// 下载入口）必须**补进 css-manifest.js** —— 只搬代码不补登记，清单就少一张表，
+// 与 game.css 的真实导入序列不一致，css-manifest.test.js 会红。
+import { ADDED_CSS } from './css-manifest.js';
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');

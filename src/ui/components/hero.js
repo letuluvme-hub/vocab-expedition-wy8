@@ -29,6 +29,12 @@ export function heroStatLines(H) {
   return out;
 }
 
-/* 兼容老存档 / 未来新增角色：认不出的 id 一律回退第一位，绝不让 undefined 渗进数值计算。 */
+/* 兼容老存档 / 未来新增角色：认不出的 id 一律回退第一位，绝不让 undefined 渗进数值计算。
+ *
+ * VE-20：按 id 查表曾有 7 个 `.filter(x => x.id === id)[0]` 副本（这里、runtime.js ×2、
+ * fight.js、map.js、over.js、equipment-panel.js ×2、relic-rules.js）。数据量小，线性扫描
+ * 从来不是问题；问题是同一份查找逻辑有 7 份拷贝，改一处忘另一处只会静默地让某个界面
+ * 少显示一个道具。实现现已统一住在 src/data/lookup.js，这里只做**再导出**，
+ * 好让 UI 层继续从「角色形象」这个模块取它，不必知道索引住在哪一层。 */
 export const HERO_DEFAULT = HEROES[0].id;
-export const heroById = id => HEROES.filter(h => h.id === id)[0] || HEROES[0];
+export { heroById } from '../../data/lookup.js';

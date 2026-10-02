@@ -7,44 +7,14 @@ import {readFileSync} from 'node:fs';
    自己那块 UI 的样式表，全部追加在这七张之后，且顺序固定（pause → audio →
    equipment）：层叠顺序即「越晚越靠后」，换序会让后来的面板盖住前面的。
    这里锁死的是这张确切的列表 —— 不是「任何新增 CSS 都行」。 */
-const ORIGINAL = [
-  './base.css', './map.css', './combat.css', './hero.css',
-  './controls.css', './cards.css', './responsive.css',
-];
-const ADDED = [
-  ['./pause.css', /^#s-pause\b|^#continueRow\b/, '暂停屏'],
-  ['./learning-complete.css', /^#s-learning-complete\b/, '词汇完成页'],
-  ['./audio-settings.css', /^#audioSettings\b/, '主页声音设置区'],
-  ['./equipment-panel.css', /^\.equip\b/, '战斗页装备面板'],
-  ['./audio-compatibility.css', /^#audioCompatibility\b/, '音频兼容提示条'],
-  ['./mastery-growth.css', /^#masteryGrowth\b/, '知识成长区'],
-  // 蓄力条（清单 13）。注意选择器前缀是**容器 id**：容器挂在战斗页敌人信息块里，
-  // 所以 .foeAtk* 这些自有类名被 #fFoeAtk 的后代规则约束，不会漏到别处。
-  // 前缀必须是 \.foeAtk（不带 \b）：自有类名形如 .foeAtkBar / .foeAtkTxt，
-  // 加 \b 会把它们全部判成越界，逼着这条断言放宽成「什么都不许写」。
-  ['./foe-attacks.css', /^\.foeAtk/, '战斗页蓄力条'],
-  // 完整词连胜的播报：只落在战斗页词框下方的 #streakFeedbackHost 内。
-  // 允许本表自己的 @keyframes（动画名同样只在 .streak-toast 上生效，
-  // 没有任何既有选择器能被它改到）。
-  ['./streak-feedback.css', /^\.streak-toast\b|^@keyframes streak-toast-|^\d+%$|^from$|^to$/, '完整词连胜播报'],
-  // 战意·连击里程碑条。前缀同样不带 \b：自有类名形如 .comboMsPip / .comboMsTxt，
-  // 规则形如 .comboMsPip.on —— \b 会把它们全判成越界。
-  ['./combo-milestones.css', /^\.comboMs/, '战斗页战意条'],
-  // 遗物图鉴（遗物深度）。选择器前缀用 .rlc / .rl-rar / .rlc-syn ——
-  // 这几个类名只存在于图鉴屏 #rlBox 内，不与战斗页/主页共用。
-  ['./relic-depth.css', /^\.rlc|^\.rl-rar/, '遗物图鉴稀有度与组合技'],
-  // 像素风怪物与装备图标。前缀是 .pxmon（怪物精灵）与 .pxicon（图标）——
-  // 这两个类名只由 ui/components/pixel-art.js 产出，不与既有类名共用。
-  ['./pixel-art.css', /^\.pxmon|^\.pxicon/, '像素风怪物与装备图标'],
-  // 首次进入的键盘提示。前缀是宿主容器 id，与 audio-compatibility 同一约定。
-  ['./keyboard-tip.css', /^#keyboardTip/, '主页一次性键盘提示'],
-  // 敌人头像的尺寸与外壳。前缀是 #fAv —— 这两件改动不能写进冻结的
-  // combat.css / responsive.css（它们要与归档逐字相同），只能新增覆盖。
-  ['./foe-avatar.css', /^#fAv/, '敌人头像尺寸与外壳'],
-  // 安卓 APK 下载入口。前缀是宿主 id —— <a> 当按钮用要补的几条居中/去下划线，
-  // 不能写进冻结的 base.css。
-  ['./android-download.css', /^#dlAndroid/, '主页安卓版下载入口'],
-];
+// ⚠️ 这两份清单（此处ADDED 与 extraction.test.js 的 ADDED_CSS）**曾经是两份独立副本**。
+//   新增样式表时只登记一处，下面的「原始七张逐字比对」会把新表也算进 original，
+//   于是恒假，而报错是一整屏 CSS 文本，看不出真实原因。
+// VE-12 已合并为单一来源 tests/unit/css-manifest.js，本文件与 extraction.test.js
+// 都从它导入。合并上游 2bb108a（安卓 APK 下载入口）时，./android-download.css
+// 已补进 manifest —— 只搬 import 不补登记，清单会少一张表，css-manifest.test.js 会红。
+import { ORIGINAL_CSS as ORIGINAL, ADDED } from './css-manifest.js';
+const ADDED_CSS = ADDED.map(([p]) => p);   // 兼容旧引用
 
 test('split styles retain every original rule and exact cascade order',async()=>{
   const entry=readFileSync(new URL('../../src/styles/game.css',import.meta.url),'utf8');

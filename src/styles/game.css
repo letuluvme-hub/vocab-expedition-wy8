@@ -30,5 +30,7 @@
 @import './keyboard-tip.css';
 /* 敌人头像的尺寸与外壳（去框 + 放大到与角色同宽）：只作用于 #fAv，追加在最后。 */
 @import './foe-avatar.css';
+/* 全局错误提示条（VE-17）：只作用于 #errbar 及其后代，追加在最后。 */
+@import './error-guard.css';
 /* 主页的安卓 APK 下载入口：只作用于 #dlAndroid，追加在最后。 */
 @import './android-download.css';

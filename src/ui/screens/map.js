@@ -3,7 +3,7 @@
  * 状态只从 getRun() 取；进入节点、提示、呼吸音都走回调，父层负责。
  */
 import { NODES } from '../../data/nodes.js';
-import { RELICS } from '../../data/relics.js';
+import { relicById } from '../../data/lookup.js';
 import { clamp } from '../../domain/math.js';
 import { paintHpBar } from '../components/hp-bar.js';
 import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
@@ -11,7 +11,8 @@ import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
 const MAP_V_GAP = 12;        // 相邻层之间的垂直净间隙（要求 ≥8）
 const MAP_D_BASE = 56, MAP_D_BOSS = 70, MAP_D_MIN = 34;
 
-const relicById = id => RELICS.filter(r => r.id === id)[0];
+// relicById 来自 src/data/lookup.js（VE-20 统一索引）；查不到返回 undefined，
+// 调用点是 `if (!r) return;`，与旧的 `.filter(...)[0]` 语义逐字相同。
 
 export function createMapScreen({ getRun, onEnter, onToast, onNodeSound }) {
   const $ = id => document.getElementById(id);

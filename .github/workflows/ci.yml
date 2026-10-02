@@ -2,10 +2,18 @@ name: Verify modular game
 on:
   pull_request:
   push:
-    branches: [main, 'refactor/**']
+    # ★ main **不在这里**跑：deploy.yml 的 build job 已经在 push main 时执行同一套
+    #   `npm run check`（含 e2e 与 release）。两个 workflow 各跑一遍等于每次推送
+    #   浪费一整轮 CI，外加一次 `playwright install --with-deps chromium`。
+    #   门禁没有因此松动 —— main 的发布仍然被 deploy 的绿灯挡住。
+    branches: ['refactor/**']
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  # 不 cancel-in-progress：排队中的旧提交要跑完，失败证据不该被后续提交抹掉。
+  cancel-in-progress: false
 jobs:
   verify:
     runs-on: ubuntu-latest

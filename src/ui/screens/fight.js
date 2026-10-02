@@ -12,7 +12,7 @@
  */
 export { bankCols, bankRows, bankPosOf } from '../../domain/letter-bank.js';
 import { bankCols, bankRows } from '../../domain/letter-bank.js';
-import { ITEMS } from '../../data/items.js';
+import { itemById } from '../../data/lookup.js';
 import { clamp } from '../../domain/math.js';
 import { norm, wordGapBefore } from '../../domain/text.js';
 import { comboRate as calculateComboRate } from '../../domain/damage.js';
@@ -27,7 +27,8 @@ import { createFoeAttackMeter } from '../components/foe-attack-meter.js';
 import { createComboMilestoneTrack } from '../components/combo-milestones.js';
 import { FOE_ART_SCALE_MAX } from '../../data/balance.js';
 
-const itemById = id => ITEMS.filter(x => x.id === id)[0];
+// itemById 来自 src/data/lookup.js（VE-20 统一索引）；查不到返回 undefined，
+// 调用点是 `if (!it) return;`，与旧的 `.filter(...)[0]` 语义逐字相同。
 
 export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow, getFoeAttackFact }) {
   const $ = id => document.getElementById(id);

@@ -34,7 +34,8 @@ test('double-clicking the settlement continuation starts one expedition, not two
   expect((await game.state()).DB.runs).toBe(1);
   // 任务 7 之后 oNext 是「继续本单元词汇」（本单元词汇还没学完）：同一轮换一段地图，
   // 连点两次也不许变成两次远征、更不许跳到 Unit 2。
-  await expect(page.locator('#oNext')).toHaveText('继续本单元词汇');
+  // C1 有意漂移：同上，N 是变量，只咬动作词。
+  await expect(page.locator('#oNext')).toHaveText(/继续/);
   await page.locator('#oNext').evaluate(el => { el.click(); el.click(); });
   await expect(page.locator('#s-map')).toBeVisible();
   const next = await game.state();

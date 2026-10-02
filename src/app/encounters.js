@@ -62,6 +62,30 @@ export function createEncounterController({ state, ports }) {
     return '你更强了。';
   }
 
+  /* 磨砺石卡面。**限购状态必须在这里现算**，不能只在进入商店时算一次 ——
+     原实现把「还剩 N 次」写死在建卡那一刻，于是玩家买完 1 次、2 次，卡面永远
+     显示「还剩 2 次」，买满之后也不置灰：限购逻辑其实是对的（第 3 次正确拒绝、
+     不扣钱不加上限），坏的是界面。用户原话「限制可能有问题」看到的就是
+     "显示还能买，点了却没用"。
+     抽成函数是因为**实时屏与恢复屏必须共用同一份渲染**：两边各写一遍文案，
+     早晚会漂移成"刷新一次卡片又变回可买"。 */
+  function whetstoneOption(S) {
+    const left = Math.max(0, WHET_MAX_PER_RUN - (S.whetBuys | 0));
+    const soldOut = left === 0;
+    return {
+      id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
+      d: '生命上限 +10 并回满'
+        + (soldOut
+          ? '（本轮已买满 ' + WHET_MAX_PER_RUN + ' 次）'
+          : '（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 ' + left + ' 次）'),
+      // ★ 买满后置灰。cardButton 只认 cat/ic/t/d/tip/leave 这几个展示字段，
+      //   所以「不可点」是通过 d 里如实写清 + 点击时 buyWhetstone 自己拒绝实现的
+      //   —— 真正的禁用要让下面 renderShopCards 跳过绑定 onclick，见那里。
+      soldOut,
+      fn: buyWhetstone,
+    };
+  }
+
   /* 商店的遗物卡。**价格是卡面的一部分**：卡上写多少就扣多少，两者同源。
      id 里带上价格（shop:relic:<id>:<price>）是为了让暂停恢复对得上号 ——
      恢复路径靠 optionById 用 id 找回动作，id 不含价格时，一次跨版本刷新
@@ -347,9 +371,7 @@ export function createEncounterController({ state, ports }) {
         if (S.gold < 40) return '金币不够。';
         S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
       } },
-      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
-        d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
-          + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone }
+      whetstoneOption(G)
     ];
     const av = ownedRelics(G);
     if (av.length) {
@@ -369,9 +391,39 @@ export function createEncounterController({ state, ports }) {
     });
     opts.push({ id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true, fn: () => '你空手离开了。' });
     const run = state.G, node = run && run.node;
+    bindShopCards(opts, run, node);
+    publish(describe('shop', opts, { node, gold: G.gold }));
+    if (setPhase) setPhase(PHASE_ENCOUNTER);
+    show('s-rest');
+  }
+
+  /* 把商店选项画进 #rPicks 并绑好回调。**实时屏与恢复屏都走这一个入口** ——
+     否则「买完之后重画卡片」这件事只会在实时屏生效，恢复屏那份就会退回旧文案，
+     于是「暂停 → 刷新 → 继续」之后磨砺石又变回可买。
+     ★ 重画时必须用**当前 live state 重建 opts**（whetstoneOption 现算限购），
+       绝不能拿 current() 里 publish 出去的脱敏描述重新绑 —— 那份没有 fn，
+       绑上去所有购买按钮会全部失效。fn 永远来自这里新造的对象。 */
+  function bindShopCards(opts, run, node) {
+    const sbox = $('rPicks');
+    sbox.innerHTML = '';
+    // ★ 还要显式清 children。只写 innerHTML='' 在真浏览器里够用，但它把"清空"
+    //   押在 innerHTML 的副作用上：一旦这个容器被换成别的东西重建（测试台、
+    //   未来的框架渲染），重画就会变成**追加**，卡片从 7 张涨到 14 张 ——
+    //   而且界面上看不出任何异常，只是同一排按钮出现两遍。
+    if (sbox.children && sbox.children.length) sbox.children.length = 0;
+    sbox._kids = [];
     const now = () => Date.now();
     opts.forEach(o => {
       const b = cardButton(o);
+      // 买满的磨砺石：画出来但不可点。按钮文案已经如实写了"已买满"，
+      // 再加一层禁用，玩家就不必靠"点了没反应"去猜是不是坏了。
+      if (o.soldOut) {
+        b.classList.add('off');
+        b.disabled = true;
+        b.title = (o.tip ? o.tip + '\n' : '') + '本轮限购次数已用完';
+        sbox.appendChild(b);
+        return;
+      }
       b.onclick = () => {
         if (!canAct()) return;
         if (state.G !== run) return;                   // 旧商店界面不得操作新远征
@@ -396,13 +448,27 @@ export function createEncounterController({ state, ports }) {
           // 刷新后回到同一屏商店，钱已经扣过，不会免费重买。
           if (publishEncounter) publishEncounter(current());
           refreshShopGold();          // ★ 付完钱让顶部那个数字跟着变，否则看不出扣了多少
+          // ★ 卡片也要重画：限购状态（还剩 N 次 / 已买满）是**建卡那一刻**算出来的，
+          //   不重画就一直停在「还剩 2 次」—— 玩家买完 1 次、2 次看到同一张脸，
+          //   于是以为限购没生效（限购本身是对的，第 3 次正确拒绝、不扣钱不加上限）。
+          //   用户原话：「商店里面加血量上限的东西总共只能买2次，限制可能有问题」。
+          redrawShopCards(opts);
         });
       };
       sbox.appendChild(b);
     });
-    publish(describe('shop', opts, { node, gold: G.gold }));
-    if (setPhase) setPhase(PHASE_ENCOUNTER);
-    show('s-rest');
+  }
+
+  /* 买完之后重画卡片。
+   * ★ 只重画 #rPicks 并重新 publish，**绝不拿 current() 里那份脱敏描述去绑回调**
+   *   —— publish 出去的是 id + 展示字段，没有 fn；用它重建按钮会让所有购买按钮失效。
+   *   opts 一律从**当前 live state** 重造（磨砺石剩余次数就是这么现算的）。
+   * ★ 重画**不切屏、不重发相位**：还在商店里，相位本来就是 encounter。 */
+  function redrawShopCards(opts) {
+    const G = state.G;
+    const fresh = opts.map(o => (o.id === 'shop:whet' ? whetstoneOption(G) : o));
+    bindShopCards(fresh, G, G && G.node);
+    publish(describe('shop', fresh, { node: G && G.node, gold: G.gold }));
   }
 
   /* ================= 战斗奖励 =================
@@ -687,8 +753,15 @@ export function createEncounterController({ state, ports }) {
             b._at = t;
             const m = o.fn();
             if (m) toast(m);
-            if (desc.kind === 'shop' && publishEncounter) publishEncounter(current());
-            else {
+            if (desc.kind === 'shop') {
+              // ★ 恢复屏买完东西也要重画：否则磨砺石卡面停在恢复时那一版，
+              //   「刷新一次卡片又变回可买」。opts 从 live state 重造 —— 磨砺石
+              //   的剩余次数是 whetstoneOption 现算的，而快照里那份是**暂停时**的旧值。
+              if (publishEncounter) publishEncounter(current());
+              redrawShopCards(opts);
+              return;
+            }
+            {
               if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
               if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
               scheduleRun(() => { if (state.G !== run) return; if (node) node.done = true; advance(); },

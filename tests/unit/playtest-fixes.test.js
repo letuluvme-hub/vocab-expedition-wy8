@@ -203,8 +203,17 @@ function encHarness({ relics = [], gold = 100000, want = null, rnd = () => 0 } =
 }
 const published = h => h.log.filter(l => l[0] === 'publish').pop()[1];
 const optOf = (h, prefix) => published(h).options.filter(o => o.id.indexOf(prefix) === 0)[0];
+/* 点一张卡。返回是否真的点了。
+ * ★ C3 起，买满的磨砺石会被 disabled（onclick 为 null）—— 真实界面里玩家点不到它。
+ *   这里如实反映：不可点就返回 false，而不是对着 null 调 onclick 炸掉。
+ *   「买满之后既不加血也不扣钱」那条断言守的是 buyWhetstone 自己的拒绝，
+ *   与界面是否禁用无关，所以照样成立。*/
 const clickCard = (h, id) => {
-  h.ids.get('rPicks').children.find(c => c.dataset.opt === id).onclick();
+  const c = h.ids.get('rPicks').children.find(x => x.dataset.opt === id);
+  if (!c) return false;
+  if (typeof c.onclick !== 'function') return false;
+  c.onclick();
+  return true;
 };
 const lastToast = h => (h.log.filter(l => l[0] === 'toast').pop() || [])[1];
 /* 冷却：卡点击有 260ms 防连点。测试里把 _at 清掉即可连续点。 */
@@ -241,16 +250,56 @@ test('商店：买不起时金币显示不动（没扣钱就不该显示新数�
 
 /* ---- 3) 磨砺石限购 ---- */
 
-test('磨砺石每轮限购：买满之后既不加血也不扣钱，并如实告知', () => {
+test('磨砺石每轮限购：买满之后既不加血也不扣钱，且按钮不再可点', () => {
   const h = encHarness();
   h.ctrl.showShop();
   for (let i = 0; i < 2; i++) { clickCard(h, 'shop:whet'); clearCooldown(h); }
   assert.equal(h.G.maxhp, 90, '两次是这一轮允许的上限');
   const gold = h.G.gold;
-  clickCard(h, 'shop:whet');
+
+  // 第一道防线（C3 修的界面缺陷）：按钮真的不可点了 ——
+  // "显示还能买，点了却没用"正是用户看到的现象。
+  assert.equal(clickCard(h, 'shop:whet'), false, '★ 买满后按钮必须不可点');
   assert.equal(h.G.maxhp, 90, '★ 超出限购时生命上限必须停住');
   assert.equal(h.G.gold, gold, '★ 买不成就不许扣钱');
-  assert.match(lastToast(h), /本轮|已经买过/, '必须如实告诉玩家为什么买不成');
+
+  // 规则层的拒绝：上面已经断言了 maxhp 与 gold 全程不变（第 3 次购买前后逐项比对）。
+  // 那是本用例真正要守的东西 —— 买不成就不许加血、不许扣钱。
+  // 界面层的"点不到"由 whetstone-ui.test.js 单独守（那条用的是真 DOM 桩，
+  // 能直接读 disabled 与 onclick 是否为 null）。
+});
+
+/* 底层规则仍会**如实告知**为什么买不成。
+ * 界面禁用只是第一道；恢复屏、测试探针、将来任何新入口都可能不经过那个 disabled，
+ * 所以"拒绝时要说人话"这条必须单独守，不能因为按钮点不到就当它不存在。
+ * 做法：先用只买过一次的存档 roundTrip 回来（whetBuys=1），再把 whetBuys 顶满，
+ * 经 reopenEncounter 反查回带 fn 的真实选项，直接调那个 fn。 */
+test('磨砺石买满时底层结算仍会拒绝并说明原因（不依赖界面禁用）', () => {
+  const h = encHarness();
+  h.ctrl.showShop();
+  clickCard(h, 'shop:whet');                       // 买过一次
+  assert.equal(h.G.whetBuys, 1);
+  const desc = published(h);                        // 快照描述（不含 fn）
+
+  // 恢复屏：optionById 把 id 反查回真实动作
+  const back = encHarness();
+  back.ctrl.reopenEncounter(JSON.parse(JSON.stringify(desc)));
+  const card = back.ids.get('rPicks').children.find(c => c.dataset.opt === 'shop:whet');
+  assert.ok(card, '恢复屏里必须找得到磨砺石');
+
+  // 把限购顶满，模拟"玩家刷新后状态已经是买满"
+  back.G.whetBuys = 2;
+  back.ids.get('rPicks').children.forEach(c => { c._at = 0; });
+  const hp = back.G.maxhp, gold = back.G.gold;
+
+  // 直接调它绑着的回调 —— 若没有绑定，说明恢复路径把 fn 丢了，那本身就是 bug
+  assert.equal(typeof card.onclick, 'function',
+    '恢复屏必须把 fn 绑回去（快照里没有 fn，反查是唯一来源）');
+  card.onclick();
+
+  assert.equal(back.G.maxhp, hp, '★ 买满时即使绕过界面也不许加上限');
+  assert.equal(back.G.gold, gold, '★ 买不成就不许扣钱');
+  assert.match(lastToast(back), /本轮|已经买过/, '★ 必须如实告诉玩家为什么买不成');
 });
 
 test('磨砺石的限购次数跟着快照走：刷新之后不会重新归零', () => {

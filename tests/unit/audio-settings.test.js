@@ -265,10 +265,24 @@ test('runtime mounts the settings module and no longer builds a floating voice b
   assert.doesNotMatch(src, /position:fixed;top:10px;right:60px/, '旧的右上角浮动定位必须删掉');
   assert.doesNotMatch(src, /document\.body\.appendChild\(b\)/, '开关不许再挂到 body 上');
   assert.doesNotMatch(src, /new MutationObserver\(syncVoiceBtn\)/, '浮动按钮的兜底观察器不再需要');
-  // syncVoiceBtn 保留兼容入口，但必须是空转实现（不能再去按 screen 切 display）
-  const fn = src.slice(src.indexOf('function syncVoiceBtn'));
-  assert.ok(fn.length > 0, 'syncVoiceBtn 仍需保留给 show()');
-  assert.doesNotMatch(fn.slice(0, fn.indexOf('}')), /style\.display/, 'syncVoiceBtn 不许再手工切 display');
+  // syncVoiceBtn 保留兼容入口，但必须是空转实现（不能再去按 screen 切 display）。
+  //
+  // ★ 这里曾经是一条**恒真的假阳性测试**：写的是
+  //     src.slice(src.indexOf('function syncVoiceBtn'))
+  //   而 indexOf 未命中时返回 -1，slice(-1) 返回**最后一个字符**（length === 1 > 0），
+  //   随后 indexOf('}') 同样返回 -1、slice(0, -1) 返回**空串**。
+  //   于是把 syncVoiceBtn 整个删掉之后，fn.length 仍是 1、待检片段仍是 ''，
+  //   两条断言照样通过 —— 这条测试什么都防不住，而它防的恰恰是
+  //   「浮动语音开关盖住战斗页两条血条」（实测盖住 59%/60% 面积）这个已修掉的 bug。
+  //
+  // 两处必须显式守卫：未命中直接失败；片段只取到函数体结束，不许把文件剩下的部分
+  // （那里面本来就有大量 style.display）当成被检对象。
+  const at = src.indexOf('function syncVoiceBtn');
+  assert.notEqual(at, -1, 'syncVoiceBtn 仍需保留给 show()');
+  const end = src.indexOf('}', at);
+  assert.ok(end > at, 'syncVoiceBtn 必须是一个可解析的函数体');
+  const fn = src.slice(at, end + 1);
+  assert.doesNotMatch(fn, /style\s*\.\s*display/, 'syncVoiceBtn 不许再手工切 display');
 });
 
 test('the home screen owns the settings container, inside the title screen only', () => {

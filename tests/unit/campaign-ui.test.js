@@ -222,7 +222,9 @@ test('boss-first with words remaining keeps a continue-this-unit entry', () => {
     onAgain: () => acts.push('again'), onHome: () => acts.push('home') });
   const next = els.get('oNext');
   assert.equal(next.hidden, false, '不能卡住：必须有一个继续入口');
-  assert.match(next.textContent, /继续本单元词汇/);
+  // C1 有意漂移：新文案是「继续练剩下 N 个词（物资保留）」。
+  // 这里只放宽措辞 —— 下一行「不许预告下一单元」才是这条用例的语义。
+  assert.match(next.textContent, /继续/);
   assert.doesNotMatch(next.textContent, /Unit 2/, '本单元没完成，绝不许预告下一单元');
   next.onclick();
   assert.deepEqual(acts, ['continue-unit']);
@@ -315,7 +317,9 @@ test('boss-first on the custom unit keeps a same-run continuation instead of dea
     onAgain: () => acts.push('again'), onHome: () => acts.push('home') });
   const next = els.get('oNext');
   assert.equal(next.hidden, false, '★ 自定义单元也绝不能把玩家卡死');
-  assert.match(next.textContent, /继续本单元词汇/);
+  // C1 有意漂移：新文案是「继续练剩下 N 个词（物资保留）」。
+  // 这里只放宽措辞 —— 下一行「不许预告下一单元」才是这条用例的语义。
+  assert.match(next.textContent, /继续/);
   assert.doesNotMatch(next.textContent, /Unit \d/, '绝不许预告教材单元：' + next.textContent);
   next.onclick();
   assert.deepEqual(acts, ['continue-unit']);

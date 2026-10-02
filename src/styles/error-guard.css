@@ -1,0 +1,57 @@
+/* 全局错误提示条（VE-17）。
+ *
+ * 只作用于 #errbar 及其后代。这张表是「新增覆盖」而不是改动冻结表 ——
+ * combat.css / map.css / hero.css / controls.css / cards.css / responsive.css /
+ * base.css 七张必须与归档逐字相同（tests/unit/styles.test.js 会比对），
+ * 所以任何与错误条有关的样式只能开新表并追加在最后。
+ *
+ * 层级刻意压低：它必须**盖不过** HUD（z-index:90）也不能盖住战斗特效
+ * （canvas#fx 60 / .flashfx 55 / .float 70 / .finword 71 / #verbar 80）。
+ * 出错提示是"边角信息"，不是"必须立刻看到的东西" —— 挡住的按钮才是真事故。
+ */
+#errbar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + var(--sab, 0px));
+  transform: translateX(-50%);
+  z-index: 85;                /* 低于 HUD 90、高于普通页面内容 */
+  max-width: min(92vw, 520px);
+  padding: 10px 12px;
+  border: 1px solid #ff547055;
+  border-radius: var(--r2, 14px);
+  background: rgba(24, 12, 20, .96);
+  color: var(--fg, #f0f2ff);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 8px 26px #0009;
+}
+#errbar summary {
+  cursor: pointer;
+  color: var(--dim, #8b93b8);
+  font-size: 11px;
+}
+#errbar code {
+  display: block;
+  max-height: 96px;
+  overflow: auto;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #ffffff10;
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#errbar button {
+  margin-top: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--line2, #ffffff33);
+  border-radius: var(--r1, 10px);
+  background: #ffffff10;
+  color: var(--fg, #f0f2ff);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+#errbar button:hover { background: #ffffff1c; }

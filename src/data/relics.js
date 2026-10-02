@@ -22,13 +22,13 @@ export const RELICS=[
  {id:'combo',  ic:'⚔️', n:'连击徽章', d:'连击加成翻倍（更容易打出高伤害）', rarity:'rare'},
  {id:'purse',  ic:'💰', n:'聚宝盆',   d:'每场战斗胜利额外获得 25 金币', rarity:'common'},
  {id:'thorn',  ic:'🌵', n:'荆棘护符', d:'答错时反弹 5 点伤害给敌人', rarity:'common'},
- {id:'battery',ic:'🔋', n:'永动电池', d:'每通过一层回复 8 点生命', rarity:'common'},
+ {id:'battery',ic:'🔋', n:'永动电池', d:'每通过一层回复 8 点生命；每整词完成 3 个再回复 3 点', rarity:'common'},
  {id:'lucky',  ic:'🍀', n:'幸运草',   d:'每场战斗首次答错不掉血', rarity:'rare'},
- {id:'scholar',ic:'📘', n:'学者之书', d:'战斗胜利额外获得 1 张「先知卡」', rarity:'common'},
+ {id:'scholar',ic:'📘', n:'学者之书', d:'战斗胜利时有机会获得 1 张「先知卡」；第一个词完成后揭示下一词首字母', rarity:'common'},
  {id:'forge',  ic:'⚒️', n:'锻造台',   d:'营火休息改为回复 20 生命（原为 12）', rarity:'common'},
  {id:'ghost',  ic:'👻', n:'影分身',   d:'每轮远征可免费跳过一次，不计失败（用完后跳过仍需付代价）', rarity:'rare'},
  {id:'greed',  ic:'💎', n:'贪婪之眼', d:'所有金币收益 +50%', rarity:'rare'},
- {id:'focus',  ic:'🧠', n:'专注头环', d:'连击中断不清零，改为保留一半', rarity:'rare'},
+ {id:'focus',  ic:'🧠', n:'专注头环', d:'连击中断不清零，改为保留一半；每 6 连击额外 +5% 增伤', rarity:'rare'},
  // —— 传说：唯一一件改变**失败意义**的遗物 ——
  //  它的效果不是「提示水晶 +3」那种加强版，而是把「答错」这件事本身重新定义：
  //  失误仍然扣血、仍然进复习队列（学习代价一分不少），但换来的是**整词剩余
