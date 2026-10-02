@@ -5,17 +5,41 @@
 .foeAtk{margin:7px 0 0;min-height:0}
 .foeAtkBar{height:6px;border-radius:99px;background:#ffffff12;border:1px solid var(--line);
   overflow:hidden;display:block}
-.foeAtkBar>i{display:block;height:100%;background:#f59e0b;transition:width .12s linear}
+.foeAtkBar>i{display:block;width:100%;height:100%;background:#f59e0b;
+  transform-origin:left center;
+  /* ── 为什么进度是 scaleX 而不是 width ──────────────────────────
+     旧实现每 250ms 被 JS 写一次 fill.style.width，配 transition:width .12s。
+     节拍 250ms > 过渡 120ms，于是每拍「动 120ms、停 130ms」——半程静止的
+     阶梯感；而且 width 是 layout 属性，每一帧都要重排。
+     现在 fill 恒为满宽（width:100%），JS 只写 transform: scaleX(ratio)：
+     合成属性，不触发布局、不重绘光栅，交给合成器逐帧跑。
+     transform-origin 必须钉在左边缘 —— 默认的 center 会让它从中间向两边缩，
+     而蓄力条应该「从左往右退」。 */
+  /* .26s 略长于 250ms 的 UI 节拍：相邻两拍的过渡首尾重叠，于是任何时刻
+     画面上都有一个**正在跑**的过渡，不存在「动完就停」的静止缝隙。
+     再长会拖尾、再短会重新出现缝隙 —— tests/e2e/foe-meter-smooth.spec.js
+     把这条区间（>0.25s 且 ≤~0.3s）钉住了。 */
+  transition:transform .26s linear}
 .foeAtkTxt{margin-top:4px;font-size:10.5px;line-height:1.35;color:var(--mut)}
 /* 蓄力中：更醒目，并给 reduced-motion 用户留一条不闪的退路 */
 .foeAtk.tel .foeAtkBar{border-color:#f59e0b88;box-shadow:0 0 0 1px #f59e0b33}
-.foeAtk.tel .foeAtkBar>i{background:linear-gradient(90deg,#f59e0b,#ff5470)}
+.foeAtk.tel .foeAtkBar>i{background:linear-gradient(90deg,#f59e0b,#ff5470);
+  /* only while actually animating：will-change 会让这个元素常驻一个合成层，
+     不必要地占着显存。所以只挂在 .tel 上，绝不写进通配规则。 */
+  will-change:transform}
 .foeAtk.tel .foeAtkTxt{color:#ffb020}
 .foeAtk.recover .foeAtkBar>i{background:#22d3ee}
 .foeAtk.recover .foeAtkTxt{color:#7fe6b0}
 .foeAtk.idle .foeAtkBar>i,.foeAtk.defeated .foeAtkBar>i{background:#ffffff30}
 @media (prefers-reduced-motion:reduce){
-  .foeAtkBar>i{transition:none}
+  /* 降级：关掉过渡，并把那条跳动的条整条藏起来。
+     ★ 为什么是藏而不是留着：reduce 下 JS 仍会每 250ms 写一次 scaleX，
+       留着就变成「每 250ms 无过渡地猛跳一格」—— 比不显示更糟，正是要消灭的
+       突兀感。藏起来之后，秒数文案是唯一且显眼的时间来源，
+       而它本来就每秒才变一次（组件不跨秒不重写，见 foe-attack-meter.js）。
+     display:none 是刻意的：秒数在 .foeAtkTxt 上，不受牵连。 */
+  .foeAtk.tel .foeAtkBar{display:none}
+  .foeAtkBar>i{transition:none;will-change:auto}
 }
 /* 矮屏：蓄力条最多占一行高度，绝不把字母盘或底部按钮挤出可视区 */
 @media (max-height:620px){

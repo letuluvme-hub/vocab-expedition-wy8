@@ -254,8 +254,22 @@ test('a second battle after retreat still has a live countdown', async ({ game, 
   await page.locator('#tSkip').click(); await expect(page.locator('#s-map')).toBeVisible();
   await game.fight({enemyHp:10_000});
   await page.waitForFunction(()=>window.__gameTest.B.foeAttack.phase==='telegraph',null,{timeout:15_000});
-  const first=await page.locator('#fFoeAtk .foeAtkBar>i').evaluate(el=>parseFloat(el.style.width));
-  await expect.poll(()=>page.locator('#fFoeAtk .foeAtkBar>i').evaluate(el=>parseFloat(el.style.width)),{timeout:2500}).toBeLessThan(first-10);
+  // 进度现在由 transform:scaleX 承载（width 恒为满宽，见 foe-attacks.css），
+  // 所以量**视觉 bbox**而不是内联 width —— 后者在过渡期间早就写到终值了。
+  // reduce 下整条被刻意藏起（那是那条不闪的降级路径），bbox 恒为 0，
+  // 此时退回读内联 scaleX：两条路径下它都是 0..1 的同一个量。
+  const fillRatio = () => page.locator('#fFoeAtk').evaluate(() => {
+    const bar = document.querySelector('#fFoeAtk .foeAtkBar');
+    const fill = document.querySelector('#fFoeAtk .foeAtkBar > i');
+    if (!bar || !fill) return null;
+    const barW = bar.getBoundingClientRect().width;
+    const visW = fill.getBoundingClientRect().width;
+    if (barW > 0 && visW > 0) return visW / barW;
+    const m = /scaleX\(([-0-9.eE]+)\)/.exec(fill.style.transform || '');
+    return m ? parseFloat(m[1]) : null;
+  });
+  const first=await fillRatio();
+  await expect.poll(fillRatio,{timeout:2500}).toBeLessThan(first-0.1);
 });
 
 test('蓄力条的文案如实描述机制（可用字母，重复不算）', async ({ game }) => {
@@ -315,17 +329,27 @@ test('蓄力倒计时真实流动；暂停冻结剩余、继续按真实剩余�
   const read = () => game.page.evaluate(() => {
     const box = document.getElementById('fFoeAtk');
     const fill = box.querySelector('.foeAtkBar > i');
-    return { txt: box.innerText, width: fill ? fill.style.width : null };
+    const bar = box.querySelector('.foeAtkBar');
+    // 进度已改由 scaleX 承载：优先量**视觉**宽度（过渡进行到哪一帧，
+    // 就是画面上真正看到的那一帧）。reduce 下整条被刻意藏起、bbox 恒为 0，
+    // 那时退回读内联 scaleX —— 两条路径下都是同一个 0..1 的量。
+    const barW = bar ? bar.getBoundingClientRect().width : 0;
+    const visW = fill ? fill.getBoundingClientRect().width : 0;
+    let progress = null;
+    if (barW > 0 && visW > 0) progress = visW / barW;
+    else if (fill) { const m = /scaleX\(([-0-9.eE]+)\)/.exec(fill.style.transform || '');
+      progress = m ? parseFloat(m[1]) : null; }
+    return { txt: box.innerText, progress };
   });
   const m1 = /(\d+)s/.exec((await read()).txt);
   expect(m1, '蓄力文案里带秒数').toBeTruthy();
   const secs1 = Number(m1[1]);
-  const w1 = (await read()).width;
+  const w1 = (await read()).progress;
   await game.page.waitForTimeout(1200);
   const after = await read();
   const secs2 = Number(/(\d+)s/.exec(after.txt)[1]);
   expect(secs2, `1.2 秒后秒数应当变小（${secs1}s -> ?）`).toBeLessThan(secs1);
-  expect(after.width, '进度条宽度也应当变化').not.toBe(w1);
+  expect(after.progress, '进度也应当变化').not.toBe(w1);
 
   /* --- ② 暂停冻结剩余时间 --- */
   const remainingAtPause = await game.page.evaluate(() => window.__gameTest.foeAttack.remainingMs());

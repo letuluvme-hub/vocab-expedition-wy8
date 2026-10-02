@@ -27,7 +27,7 @@ import { FOE_ART_SCALE_MAX } from '../../data/balance.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0];
 
-export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow }) {
+export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow, getFoeAttackFact }) {
   const $ = id => document.getElementById(id);
   const isKbMode = () => !!getDB().kbMode;
   const isKbUpper = () => !!getDB().kbUpper;
@@ -105,7 +105,8 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     $('fAv').innerHTML = foeArtHTML(B.foe, B.boss, B.elite);
     paintFoeScale();
     // 蓄力条：数据由 app/foe-attacks.js 挂在 B.foeAttack 上（可能还没有 → 组件隐藏自己）。
-    foeAttackMeter.paint(B.foeAttack, getFoeAttackWindow ? getFoeAttackWindow() : null);
+    const attackFact = getFoeAttackFact ? getFoeAttackFact() : B.foeAttack;
+    foeAttackMeter.paint(attackFact, getFoeAttackWindow ? getFoeAttackWindow() : null);
     $('fName').textContent = B.foe.n + (B.boss ? '（首领）' : B.elite ? '（精英）' : '');
     $('fZh').textContent = B.word.z;
     // 字符数按 norm() 的字母数算（否则 keep an eye on 会显示「14 字符」，
