@@ -66,15 +66,25 @@ test('高轮次：血量与蓄力档案真的被缩放，且 UI 窗口与盘上�
     const node = t.G.rows.at(-1)[0];
     node.type = 'battle';
     t.G.floor = 1; t.G.maxFloor = 1;
-    t.enterNode(node);
-    const scaled = t.B.enMax;
-    // 临时把本局难度换成基线再开一场，得到同一公式的未缩放值。
-    const kept = t.G.difficulty;
-    t.G.difficulty = { version: 1, roundAtStart: 1, hpMultiplier: 1, damageMultiplier: 1, intervalMultiplier: 1 };
-    t.enterNode(t.G.rows.at(-1)[0]);
-    const baseline = t.B.enMax;
-    t.G.difficulty = kept;
-    return { scaled, baseline, mult: kept.hpMultiplier };
+    // ★ 怪种倍率（data/enemies.js 的 base 3..6 → 血量 ×0.65..×1.25）让「同一个
+    //   公式跑两次」不再等价：pick(ENEMIES) 每场独立随机，两场可能抽到不同怪种，
+    //   scaled 与 baseline 就不是同一只的血量，比较失去意义（这条断言会变成
+    //   看抽卡脸色的骰子）。钉死随机源，两场必定抽到同一只。
+    const realRandom = Math.random;
+    Math.random = () => 0.5;
+    try {
+      t.enterNode(node);
+      const scaled = t.B.enMax;
+      // 临时把本局难度换成基线再开一场，得到同一公式的未缩放值。
+      const kept = t.G.difficulty;
+      t.G.difficulty = { version: 1, roundAtStart: 1, hpMultiplier: 1, damageMultiplier: 1, intervalMultiplier: 1 };
+      t.enterNode(t.G.rows.at(-1)[0]);
+      const baseline = t.B.enMax;
+      t.G.difficulty = kept;
+      return { scaled, baseline, mult: kept.hpMultiplier };
+    } finally {
+      Math.random = realRandom;
+    }
   });
   expect(hp.baseline, '同一场战斗的基线血量必须为正').toBeGreaterThan(0);
   expect(hp.scaled, '★ 怪物血量确实被本轮倍率放大了（这是 Node 单测覆盖不到的那条接线）')
@@ -158,14 +168,22 @@ test('★ 同轮跨单元/续段走真实路径：unit 真变，轮号/次数/�
     const t = window.__gameTest;
     const battles = t.G.rows.flat().filter(n => n.type === 'battle');
     t.G.avail = battles.slice(); t.G.node = null;
-    t.enterNode(battles[0]);
-    const scaled = t.B.enMax;
-    const kept = t.G.difficulty;
-    t.G.difficulty = { version: 1, roundAtStart: 1, hpMultiplier: 1, damageMultiplier: 1, intervalMultiplier: 1 };
-    t.enterNode(battles[battles.length - 1]);
-    const baseline = t.B.enMax;
-    t.G.difficulty = kept;
-    return { scaled, baseline, mult: kept.hpMultiplier };
+    // ★ 同上一处：两场必须抽到同一只怪，否则怪种倍率把 scaled/baseline 变成
+    //   两只怪的血量，断言就只是在看随机数脸色。钉死随机源。
+    const realRandom = Math.random;
+    Math.random = () => 0.5;
+    try {
+      t.enterNode(battles[0]);
+      const scaled = t.B.enMax;
+      const kept = t.G.difficulty;
+      t.G.difficulty = { version: 1, roundAtStart: 1, hpMultiplier: 1, damageMultiplier: 1, intervalMultiplier: 1 };
+      t.enterNode(battles[battles.length - 1]);
+      const baseline = t.B.enMax;
+      t.G.difficulty = kept;
+      return { scaled, baseline, mult: kept.hpMultiplier };
+    } finally {
+      Math.random = realRandom;
+    }
   });
   expect(hp.baseline, '基线血量必须为正').toBeGreaterThan(0);
   expect(hp.scaled, '★ Unit 2 的战斗仍按第 5 轮倍率缩放').toBe(Math.round(hp.baseline * hp.mult));
