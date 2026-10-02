@@ -1523,7 +1523,8 @@ dailyView=createDailyDictationScreen({controller:dailyController,show,
 $('startRun').textContent='自由远征';
 const titleSub=$('s-title').querySelector('.sub');
 if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 每日短局练默写，自由远征练拼词';
-// Painting the clock is read-only. A time-budget checkpoint persists just once.
+// Refresh the clock and accumulate active time through the timing port.
+// Persist at action completion or the single time-budget checkpoint, not each tick.
 setInterval(()=>dailyView.updateTime(),1000);
 
 
