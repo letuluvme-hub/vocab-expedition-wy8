@@ -1229,6 +1229,8 @@ const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,g
 const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
 const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
   getFoeAttackWindow:()=>foeAttackCtl.window(),
+  // Render live remaining time, never the last checkpoint's old full window.
+  getFoeAttackFact:()=>foeAttackCtl.captureFact(),
   onPress:i=>{ if(progress.isPaused())return; B.sel=i;progress.pressLetter(i)},
   onUseItem:id=>progress.useItem(id),paintSayBtn});
 const pauseScreen=createPauseScreen({getRun:()=>G,

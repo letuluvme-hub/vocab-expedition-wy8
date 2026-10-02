@@ -226,8 +226,8 @@ export function createFoeAttackController({
     B.foeAttack = createFoeAttackFact(foeAttackKind(B));
     // start 本身不提交：调用点（startFight）外面还有一次事务提交，
     // 在这里再写一次只是重复写盘。
-    if (renderFight) renderFight();
     dueAt = now() + cfg.idleMs;
+    if (renderFight) renderFight();
     // start() 也走同一套代号：新一场战斗必须让上一场排出去的回调作废。
     generation++;
     const mine = generation;
