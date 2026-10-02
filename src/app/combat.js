@@ -9,6 +9,7 @@
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 import { SKIP_HP_COST } from '../data/balance.js';
 import { applyDamage, canFinishFight } from '../domain/battle-rules.js';
+import { newlyReached, milestoneGrant, milestoneToast } from '../domain/combo-milestones.js';
 
 export function createCombatController({ state, ports }) {
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
@@ -156,6 +157,40 @@ export function createCombatController({ state, ports }) {
     const lost = B.myHp <= 0;
     if (lost) loseFight();
     return { dealt: absorbed + (dmg > 0 ? dmg : 0), absorbed, lost };
+  }
+
+  /* ---------- 战意·连击里程碑（docs/feature-combo-milestones.md） ----------
+   *
+   * 这是与「知识成长」**并存**的第二条成长线：知识线跨轮次、持久，
+   * 奖励是下轮生命上限；战意线在本轮内，奖励是当轮的护盾 / 生命 / 提示。
+   * 触发口径是 B.combo —— 也就是玩家**这一串字母答得多准**。
+   *
+   * 三条不能破的边界：
+   *  1) **判据在规则层**：门槛、跨没跨过、到账多少，全由 domain/combo-milestones.js
+   *     算完返回。这里只做「按返回值加到已有字段上」——
+   *     绝不重新设计伤害 / 生命上限公式（那两条属于难度曲线）。
+   *  2) **一轮一次**：记在 run.milestones 上而不是 battle 上。护盾会跨战斗结转，
+   *     放 battle 上等于每场都发一轮 → 打得越多盾越厚的滚雪球。
+   *  3) **增量都是夹好的非负数**：满血/满盾时到账 0，绝不越上限、绝不为负。
+   *     文案由规则层生成，到账 0 时如实写「已满，未额外获得」，不谎报奖励。 */
+  function fireComboMilestones(B, G) {
+    if (!B || !G) return;
+    // run.milestones 缺失（老内存态）或形状不对（外部输入）时先归一，
+    // 否则下面 `G.milestones[m.id] = true` 会写到字符串的下标上，静默丢掉记账。
+    if (!G.milestones || typeof G.milestones !== 'object' || Array.isArray(G.milestones)) {
+      G.milestones = {};
+    }
+    const reached = newlyReached(B.combo, G.milestones);
+    for (const m of reached) {
+      const grant = milestoneGrant(m, { shield: B.shield, myHp: B.myHp, maxhp: G.maxhp });
+      // 先记账再发放：万一发放过程抛错，同一阶也不会被重复发第二次。
+      G.milestones[m.id] = true;
+      if (grant.shield) B.shield += grant.shield;
+      if (grant.heal) B.myHp = Math.min(G.maxhp, B.myHp + grant.heal);
+      if (grant.hint) B.hints += grant.hint;
+      toast(milestoneToast(m, grant));
+      sfx.combo();
+    }
   }
 
   /* ---------- 道具 ---------- */
@@ -314,6 +349,9 @@ export function createCombatController({ state, ports }) {
       }
       // 连锁闪电：额外连击
       if (B.chainNext) { B.chainNext = false; B.combo += 3; B.dmgBonus += 8; toast('⚡ 连锁触发！连击 +3'); }
+      // 战意里程碑：放在连锁闪电**之后**（道具一次 +3 会把连击推过门槛，
+      // 跨过同样算达成），放在 wordComplete **之前**（整词拼完会把 combo 清零）。
+      fireComboMilestones(B, G);
       if (hasR('focus') && B.combo > 0 && B.combo % 6 === 0) B.dmgBonus += 5;
       if (B.word.d >= 3 && B.combo > 0 && rnd(6) === 0) toast('💡 记住这个词！');
       if (wordComplete()) {
