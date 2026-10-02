@@ -4,6 +4,7 @@
 // G/B/DB 换成显式参数，DOM 与存档写入留给调用方。
 import { clamp } from './math.js';
 import { generateMap } from './map.js';
+import { createWordStreakState } from './word-streak.js';
 import { roundCompletion } from './campaign.js';
 import { floorHealBonus } from './relic-rules.js';
 
@@ -125,6 +126,13 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     //   0 与「缺失」同义，落盘时两者都不写这个键。
     whetBuys: 0,
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,
+    // ★ 完整词连胜（docs/feature-word-streak.md）：**run 级**的计数与事件序号。
+    //   它必须跨战斗存在 —— 连胜要跨战斗/跨单元保持，所以既不能放 B.wordStreak
+    //   （那是每场战斗重建的大招档位计数），也不能用 B.wordsDone 当事件 id
+    //   （它每战归零，跨战会撞 id，把第二次真实完成误判成重复投递）。
+    //   wordEventSeq 每完成一个整词或真实打错 +1，配合 roundId 拼成事件身份。
+    wordStreak: createWordStreakState(),
+    wordEventSeq: 0,
     deckHint: 0, history: [], avail: null, node: null,
     done: new Set(),      // 本局已答对的词：不再出现
     wrong: [],            // 答错过的词：下一场优先复习

@@ -108,6 +108,10 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     // 再冻结延迟任务，最后才采集快照：顺序反了会存进一个「即将执行」的状态。
     api.lifecycle.pause();
     const result = save();
+    // 完整词连胜（docs/feature-word-streak.md）：暂停要作废在途的低优先级播报，
+    // 但**不动** count/lastEventId —— 那是玩家真实的连胜事实，必须进快照、
+    // 刷新后原样接上。可选注入：没接上（本模块单测）时什么都不发生。
+    if (api.onPauseFeedback) { try { api.onPauseFeedback(); } catch (e) { /* 静默 */ } }
     paused = true;
     atTitle = false;
     pauseMeta = { screen: api.screen(), fromReload };
@@ -123,6 +127,8 @@ export function createProgressController({ state, api, store, now = Date.now }) 
 
   function resume() {
     if (!paused) return false;
+    // ★ 解冻与「补播」是两件事：这里只解冻，绝不重播暂停期间丢掉的阶段。
+    if (api.onResumeFeedback) { try { api.onResumeFeedback(); } catch (e) { /* 静默 */ } }
     paused = false;
     atTitle = false;
     pauseMeta = null;
@@ -160,6 +166,7 @@ export function createProgressController({ state, api, store, now = Date.now }) 
       if (api.pauseFoeAttack) api.pauseFoeAttack();
       api.lifecycle.pause();
       save();
+      if (api.onPauseFeedback) { try { api.onPauseFeedback(); } catch (e) { /* 静默 */ } }
       paused = true;
       pauseMeta = { screen: api.screen(), fromReload: false };
       if (!audioSuspended) suspendAudio();
@@ -299,6 +306,7 @@ export function createProgressController({ state, api, store, now = Date.now }) 
   /* ---------------- 放弃 / 清档 ---------------- */
   function abandonRun() {
     api.lifecycle.resetRun();
+    if (api.onPauseFeedback) { try { api.onPauseFeedback(); } catch (e) { /* 静默 */ } }
     try { if (api.TTS && api.TTS.stop) api.TTS.stop(); } catch (e) { /* 静默 */ }
     const cleared = store.clear(getDB());
     api.clearRun();
@@ -318,6 +326,8 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     if (!run) return false;
     if (runFinished(run)) return false;        // 绝不重复结算
     api.lifecycle.resetRun();                  // 清掉冻结待办：结算后不得再被 resume 复活
+    // 赢/败离开战斗：取消待播，但**不清**连胜计数（清零只发生在新一局）。
+    if (api.onPauseFeedback) { try { api.onPauseFeedback(); } catch (e) { /* 静默 */ } }
     paused = false;
     atTitle = false;
     pauseMeta = null;
@@ -329,6 +339,7 @@ export function createProgressController({ state, api, store, now = Date.now }) 
 
   function resetProgress() {
     const cleared = store.clear(getDB());
+    if (api.onPauseFeedback) { try { api.onPauseFeedback(); } catch (e) { /* 静默 */ } }
     api.clearRun();
     paused = false;
     atTitle = false;

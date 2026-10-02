@@ -319,6 +319,10 @@ test('11 秒自主攻击后：内存/盘/HUD 三处血量一致，存档不含�
    1200ms 处暂停（剩 3.8 秒）→ 真等 5 秒 → 继续 → 立刻 checkpoint 仍约 3.8
    → 再刷新 → 按同样剩余只挨一下。蓄力条上的秒数与宽度必须真的在变。 */
 test('蓄力倒计时真实流动；暂停冻结剩余、继续按真实剩余重定位，刷新后只挨一下', async ({ game }) => {
+  // 一个完整的 idle→telegraph 窗口，外加注释里写明的「真等 5 秒」，串起来
+  // 超过 25s 基准；并行跑时机器负载还会把这 22.9s 推过线。断言一条没减，
+  // 只是让这条测试拿到它本来就需要的墙钟时间（同文件 182 行同理）。
+  test.setTimeout(40_000);
   await game.page.setViewportSize({ width: 320, height: 568 });
   await game.open();
   await game.start();

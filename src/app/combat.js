@@ -16,7 +16,12 @@ export function createCombatController({ state, ports }) {
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
     onWordWrong, centerOf, heroPoint, toast, sfx, TTS, burst, floatTxt, flash, ring, animHero,
     wordFinisher, foeCry, renderFight, nextWord, winFight, loseFight, finishNode, saveDB,
-    scheduleBattle } = ports;
+    scheduleBattle,
+    /* 完整词连胜的可选接线（docs/feature-word-streak.md）。缺省成 no-op：
+       没接上时战斗行为逐字不变。 */
+    onWholeWordComplete, onSpellingMistake } = ports;
+  const wholeWordDone = w => { if (typeof onWholeWordComplete === 'function') { try { onWholeWordComplete(w); } catch (e) { /* 反馈失败不影响战斗 */ } } };
+  const spellingWrong = ch => { if (typeof onSpellingMistake === 'function') { try { onSpellingMistake(ch); } catch (e) { /* 同上 */ } } };
 
   /* winFight 的本地闸门。判据**只用** domain/battle-rules.js 的 canFinishFight ——
    * 不在这里另写一份 `B.over || B.finished`：本地判据一旦和 runtime 那份漂移，
@@ -433,6 +438,10 @@ export function createCombatController({ state, ports }) {
         sfx.word();
         foeCry('hit');
         TTS.word(B.word.w);
+        /* 整词完成的**唯一**发布点：word() 已经把最高优先级朗读发出去，
+           之后才是致命判定 / 换词。连胜订阅者在这之前拿到事件，
+           于是「最后一击赢下整场战斗」这一局同样能出里程碑播报。 */
+        wholeWordDone(B.word.w);
         if (hasR('battery') && B.wordsDone % 3 === 0) { B.myHp = Math.min(G.maxhp, B.myHp + 3); toast('🔋 永动电池：回复 3 生命'); }
         const fin = applyDamage(B, bonus, { allowFinish: true });
         if (fin.lethal) { renderFight(); foeCry('die'); tryWin(); return; }
@@ -448,6 +457,10 @@ export function createCombatController({ state, ports }) {
       // 打断」。但**打断与教学惩罚分开记**：下面的 12/6 点扣血、错词记录、
       // 复习队列一条都不少。打断只是额外多一个战术收益，绝不替代代价。
       notifyAttempt();
+      /* ★ 真实打错：只在这里通知（字母被接受、判定为错）。
+         已标记 bad 的重复点击、误标自动解封、字母盘上没有的输入、退格、
+         提示**都不算**知识性失手 —— 它们从没被当作一个答案接受过。 */
+      spellingWrong(ch);
       sfx.bad();
       if (keyEl) {
         keyEl.classList.add('flash');

@@ -126,6 +126,11 @@
     <div class="cat" id="fCat">Unit 1</div>
     <div class="slots" id="fSlots"></div>
     <div class="combo" id="fCombo"></div>
+    <!-- 完整词连胜的播报宿主（docs/feature-word-streak.md）：
+         留在词框**下面**的文档流里（position:static），绝不用 fixed/absolute
+         浮在 HUD 上 —— 战斗页的血条、词框、底部按钮是移动端操作区，被盖住就是误触。
+         320px 窄屏上它只是多高 30px 的一行字，不挤字母盘与工具条。 -->
+    <div id="streakFeedbackHost"></div>
     <!-- 战意·连击里程碑（docs/feature-combo-milestones.md）：由 ui/components/combo-milestones.js 画。
          挂在 #fCombo 正下方 —— 连击平时只是一行「连击 7 ✦ 伤害 ×1.7」，
          玩家不知道再答对几个字母能换到东西；把三阶摆出来，目标才可见。
