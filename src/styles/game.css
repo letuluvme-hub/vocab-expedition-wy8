@@ -20,3 +20,7 @@
 @import './foe-attacks.css';
 /* 完整词连胜的播报（只作用于 .streak-toast / #streakAnnouncement），追加在最后。 */
 @import './streak-feedback.css';
+/* 战意·连击里程碑条：只作用于 .comboMs 及其自有类名，追加在最后。 */
+@import './combo-milestones.css';
+/* 遗物图鉴的稀有度档位行与组合技提示条：只作用于 .rlc* / .rl-rar。 */
+@import './relic-depth.css';

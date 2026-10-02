@@ -9,6 +9,8 @@
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 import { SKIP_HP_COST } from '../data/balance.js';
 import { applyDamage, canFinishFight } from '../domain/battle-rules.js';
+import { newlyReached, milestoneGrant, milestoneToast } from '../domain/combo-milestones.js';
+import { synergyBonuses } from '../domain/relic-rules.js';
 
 export function createCombatController({ state, ports }) {
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
@@ -63,6 +65,49 @@ export function createCombatController({ state, ports }) {
   }
 
   /* ---------- 受伤：护盾 → 生命 → 荆棘 → 错词记录 ---------- */
+
+  /* 预知残卷（传说）：答错时把当前这个词**剩下的全部字母**揭示出来。
+   *
+   * 为什么不是「揭示下一个字母」：那只是提示水晶的加强版，传说不该是加强版。
+   * 全词揭示改的是玩家的**节奏**—— 一次失误直接换来「这个词我已经知道答案了」，
+   * 于是「答错」从纯粹的惩罚变成一次买信息。代价是 1 点提示额度：
+   * 提示是玩家唯一的应急按钮（不消耗任何资源就问答案），拿它换被动兜底，
+   * 而且额度（每场基础 3 次）用完即止 —— 于是这是取舍，不是净增益。
+   *
+   * 返回是否真的揭示了。调用点只有 hurtPlayer 一处（答错路径）；
+   * 自主攻击 enemyHit 绝不调它 —— 怪打人不是玩家的失误，不该奖励信息。
+   */
+  function prophecyReveal() {
+    const B = state.B, G = state.G;
+    if (!B || B.over || !G || !hasR('prophecy')) return false;
+    // ★ 一轮远征只触发**一次**（G.prophecyUsed，跟着快照走）。
+    //   早先它是「每次答错都揭示，代价 1 点额度」—— 而 B.hints 有 3-5 点底子
+    //   （还有遗物与卷轴加成），于是实际是每局白嫖 3-5 次完整答案。
+    //   在一个以「回忆拼写」为唯一学习动作的游戏里，那等于把这一局的教学价值抹掉。
+    //   改成一次性之后，它仍然是「把答错这件事从惩罚变成信息」那件传说遗物，
+    //   但不再摧毁后续每一个词的回忆过程。
+    if (G.prophecyUsed) return false;
+    if ((B.hints | 0) <= 0) return false;              // 额度用尽 → 彻底失效
+    const tgt = norm(B.word.w);
+    const pos = B.input.length;
+    if (pos >= tgt.length) return false;               // 词已经填完，没什么可揭示
+    // 把范围内所有被误标的正确字母解封：只解 pos 那一格不够，
+    // 全词揭示之后玩家还要能逐个按下去，漏解一格就可能把词锁死。
+    let freed = 0;
+    for (let k = pos; k < tgt.length; k++) {
+      for (let j = 0; j < B.letters.length; j++) {
+        if (!B.used[j] && B.bad[j] && B.letters[j] === tgt[k]) { B.bad[j] = false; freed++; }
+      }
+    }
+    B.hints = (B.hints | 0) - 1;
+    B.hintTotal = (B.hintTotal | 0) + 1;
+    B.hintUsed = tgt.length - pos;
+    G.prophecyUsed = true;                             // 记账在 run 上：换战斗不重置
+    toast('📜 预知残卷：' + B.hintUsed + ' 个字母全部揭示（提示 −1）'
+      + (freed ? '，顺便解开了 ' + freed + ' 个误标字母' : '')
+      + ' —— 本轮的这一次已用尽');
+    return true;
+  }
   function hurtPlayer(d, wrongCh, rightCh, opt) {
     const B = state.B, G = state.G, DB = state.DB;
     // opt.soft = 「字母在单词里、只是顺序不对」这类非知识错误：
@@ -96,11 +141,27 @@ export function createCombatController({ state, ports }) {
     // 荆棘护符：答错时反弹 5 血给敌人（只结算一次）。
     // ★ 反弹同样是非完整词伤害：可以削血，但永远打不死、也不触发胜负。
     //   玩家答错一次就把 BOSS 打死，等于绕过了「必须拼完整个词」这条底线。
+    //   荆棘壁垒组合（护盾符文 + 荆棘护符）把反弹抬到 8，并把其中 4 点转成
+    //   护盾 —— 挨打本身变成回盾的循环，这才叫组合而不是加法。
     if (hasR('thorn') && dmg > 0) {
       const tc = centerOf($('fAv'));
-      const thorn = applyDamage(B, 5);
+      const syn = synergyBonuses(G.relics);
+      const reflect = syn.thornReflect || 5;
+      const thorn = applyDamage(B, reflect);
       floatTxt(tc.x, tc.y, '荆棘 -' + thorn.dealt, '#3ddc84');
+      if (syn.thornShield) {
+        const gain = Math.min(syn.thornShield, Math.max(0, G.maxhp - B.shield));
+        if (gain > 0) {
+          B.shield += gain;
+          floatTxt(vw() / 2, vh() * 0.35, '壁垒 +' + gain, '#22d3ee');
+        }
+      }
     }
+    // 预知残卷（传说）：答错 → 把这个词剩下的字母全部揭示，代价是 1 点提示额度。
+    //   ★ 它不免除任何惩罚：照常扣血、照常记错词、照常进复习队列 ——
+    //     它买到的只是「信息」，不是「免责」。额度用完就彻底失效，
+    //     所以这是有限资源决策，不是白捡的加强版。
+    prophecyReveal();
     // 错词记录：进本局复习队列，下一场优先出现。soft（顺序错）不算。
     if (!soft) {
       if (!B.mistaken) B.mistaken = [];
@@ -163,6 +224,40 @@ export function createCombatController({ state, ports }) {
     return { dealt: absorbed + (dmg > 0 ? dmg : 0), absorbed, lost };
   }
 
+  /* ---------- 战意·连击里程碑（docs/feature-combo-milestones.md） ----------
+   *
+   * 这是与「知识成长」**并存**的第二条成长线：知识线跨轮次、持久，
+   * 奖励是下轮生命上限；战意线在本轮内，奖励是当轮的护盾 / 生命 / 提示。
+   * 触发口径是 B.combo —— 也就是玩家**这一串字母答得多准**。
+   *
+   * 三条不能破的边界：
+   *  1) **判据在规则层**：门槛、跨没跨过、到账多少，全由 domain/combo-milestones.js
+   *     算完返回。这里只做「按返回值加到已有字段上」——
+   *     绝不重新设计伤害 / 生命上限公式（那两条属于难度曲线）。
+   *  2) **一轮一次**：记在 run.milestones 上而不是 battle 上。护盾会跨战斗结转，
+   *     放 battle 上等于每场都发一轮 → 打得越多盾越厚的滚雪球。
+   *  3) **增量都是夹好的非负数**：满血/满盾时到账 0，绝不越上限、绝不为负。
+   *     文案由规则层生成，到账 0 时如实写「已满，未额外获得」，不谎报奖励。 */
+  function fireComboMilestones(B, G) {
+    if (!B || !G) return;
+    // run.milestones 缺失（老内存态）或形状不对（外部输入）时先归一，
+    // 否则下面 `G.milestones[m.id] = true` 会写到字符串的下标上，静默丢掉记账。
+    if (!G.milestones || typeof G.milestones !== 'object' || Array.isArray(G.milestones)) {
+      G.milestones = {};
+    }
+    const reached = newlyReached(B.combo, G.milestones);
+    for (const m of reached) {
+      const grant = milestoneGrant(m, { shield: B.shield, myHp: B.myHp, maxhp: G.maxhp });
+      // 先记账再发放：万一发放过程抛错，同一阶也不会被重复发第二次。
+      G.milestones[m.id] = true;
+      if (grant.shield) B.shield += grant.shield;
+      if (grant.heal) B.myHp = Math.min(G.maxhp, B.myHp + grant.heal);
+      if (grant.hint) B.hints += grant.hint;
+      toast(milestoneToast(m, grant));
+      sfx.combo();
+    }
+  }
+
   /* ---------- 道具 ---------- */
   function useItem(id) {
     const B = state.B, G = state.G;
@@ -195,6 +290,11 @@ export function createCombatController({ state, ports }) {
         break;
       case 'reveal':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
+        // ★ 代价：吃掉 1 点提示额度（与内置提示键同一个池子）。
+        //   以前这里是纯白赚 —— 揭示 2 个字母且「不消耗提示次数」，于是它永远
+        //   优于按提示键，道具就退化成了免费版按钮。现在它是一次取舍：
+        //   你要信息，就得从应急预算里扣。
+        B.hints = Math.max(0, (B.hints | 0) - 1);
         B.hintUsed = Math.max(B.hintUsed, 2);
         B.hintTotal = Math.max(B.hintTotal || 0, 2);
         {
@@ -203,7 +303,7 @@ export function createCombatController({ state, ports }) {
           for (let j = 0; j < B.letters.length; j++) {
             if (!B.used[j] && B.bad[j] && B.letters[j] === rt[rp]) B.bad[j] = false;
           }
-          msg = '👁️ 透视：已揭示接下来 ' + need + ' 个字母（不消耗提示）';
+          msg = '👁️ 透视：已揭示接下来 ' + need + ' 个字母（消耗 1 次提示）';
         }
         break;
       case 'purge':
@@ -319,6 +419,9 @@ export function createCombatController({ state, ports }) {
       }
       // 连锁闪电：额外连击
       if (B.chainNext) { B.chainNext = false; B.combo += 3; B.dmgBonus += 8; toast('⚡ 连锁触发！连击 +3'); }
+      // 战意里程碑：放在连锁闪电**之后**（道具一次 +3 会把连击推过门槛，
+      // 跨过同样算达成），放在 wordComplete **之前**（整词拼完会把 combo 清零）。
+      fireComboMilestones(B, G);
       if (hasR('focus') && B.combo > 0 && B.combo % 6 === 0) B.dmgBonus += 5;
       if (B.word.d >= 3 && B.combo > 0 && rnd(6) === 0) toast('💡 记住这个词！');
       if (wordComplete()) {
@@ -381,6 +484,17 @@ export function createCombatController({ state, ports }) {
         else hurtPlayer(B.boss ? 16 : 12, ch, tgt[pos]);
         // 专注头环：连击中断时保留一半，而不是清零
         B.combo = hasR('focus') ? Math.floor(B.combo / 2) : 0;
+        // 连击共鸣（连击徽章 + 专注头环）：**保留下来的那部分连击不许白留**。
+        //   没有这一步，组合技只是把「保留一半」念了两遍。转成本场增伤后，
+        //   答错从纯损失变成「亏血换伤害」，失误的代价与收益第一次有了交叉。
+        //   ★ 只读 B.combo 现有状态做换算，不新增任何连击触发的检查点 ——
+        //   连击里程碑的判定是另一条并行任务的地盘。
+        const perCombo = synergyBonuses(G.relics).resonancePerCombo;
+        if (perCombo && B.combo > 0) {
+          const gain = B.combo * perCombo;
+          B.dmgBonus += gain;
+          toast('⚡ 连击共鸣：保留 ' + B.combo + ' 连击，本场伤害 +' + gain + '%');
+        }
         B.wordStreak = 0;   // 真正答错 → 连续整词计数清零
       }
       renderFight();

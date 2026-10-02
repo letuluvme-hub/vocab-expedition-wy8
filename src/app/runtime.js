@@ -31,7 +31,8 @@ import { WORDS } from '../data/words.js';
 import { createStorage, initializeDB } from '../services/storage.js';
 import { norm, wordGapBefore } from '../domain/text.js';
 import { comboRate as calculateComboRate, hitDmg as calculateHitDmg, wordDmg as calculateWordDmg,
-  finTier as calculateFinTier, WORD_RATIO, WORD_COMBO_BOOST } from '../domain/damage.js';
+  finTier as calculateFinTier } from '../domain/damage.js';
+import { foeHpMax } from '../domain/foe-stats.js';
 import { hpBarGeom } from '../domain/hp.js';
 import { canFinishFight } from '../domain/battle-rules.js';
 import { unlockProgress, canSelectUnit, recordUnitComplete, transitionNextUnit,
@@ -43,6 +44,8 @@ import { checkVersion } from '../services/version.js';
 import { HEROES } from '../data/heroes.js';
 import { ITEMS } from '../data/items.js';
 import { RELICS } from '../data/relics.js';
+import { relicRarityLabel, relicPrice, victoryGoldBonus, winHealBonus,
+  activeSynergies, synergyLabel } from '../domain/relic-rules.js';
 import { UNITS } from '../data/units.js';
 import { ENEMIES, BOSS } from '../data/enemies.js';
 import { VOICE_LINES, FOE_LINES, ELITE_LINES } from '../data/voice-lines.js';
@@ -605,18 +608,14 @@ function startFight(n){
   // ★ BOSS 原本用的是一个写死的 130（≈ 第9层的 perWord），靠「5 词 vs 4 词」拉开难度。
   //   现在 perWord 整体抬高了，写死的 130 反而会低于第 9 层普通怪 —— 首领变弱。
   //   所以 BOSS 走同一套公式（base 按第 9 层算），难度差仍然由 targetWords 5 vs 4 承担。
-  const avgLen = 6;
-  const base = 7+Math.floor((boss?9:G.floor)*0.7);
-  const finMult = 1 + 1.45*comboRate()*WORD_COMBO_BOOST;
-  const perWord = Math.round(avgLen*base*1.45 + base*WORD_RATIO*finMult + (boss?9:G.floor)*1.5);
-  const targetWords = boss?5 : (elite?4 : 4);
-  // ★ 逐轮难度（清单 10）：血量缩放**只在这里发生一次**，用本局冻结的
-  //   run.difficulty（不是当前 DB.runs —— 那样换一次战斗就升一档）。
-  //   BOSS 的 +40 是**固定奖励**，在缩放之后叠加：反过来的话 BOSS 会随轮次
-  //   额外膨胀一截，那是没人设计过的难度。
+  // ★ 血量公式本身在 domain/foe-stats.js：含 8 种怪的怪种倍率，以及首领的
+  //   固定 +FOE_BOSS_HP_BONUS（精英 / 首领不吃怪种倍率，各有自己的口径）。
+  // ★ 逐轮难度（清单 10）在这之上再缩放**一次**，用本局冻结的 run.difficulty
+  //   （不是当前 DB.runs —— 那样换一次战斗就升一档）。
   //   G.difficulty 缺失（旧存档）→ scaleEnemyHealth 按基线返回原值，
   //   于是旧档的怪物血量与节奏逐字不变。
-  const hpMax = scaleEnemyHealth(Math.round(perWord*targetWords), G&&G.difficulty);
+  const { hpMax: foeBaseHpMax } = foeHpMax({ floor: G.floor, boss, elite, comboRate: comboRate(), base: e.base });
+  const hpMax = scaleEnemyHealth(foeBaseHpMax, G&&G.difficulty);
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
   const qword = drawWord(budget);
@@ -638,7 +637,7 @@ function startFight(n){
       rageLeft:0, freezeWord:false, chainNext:false, goldMult:1, usedThisFight:{} };
   if(G.nextHint) toast('🔮 水壶生效：本场已揭示首字母');
   G.nextHint=0;
-  if(boss){ B.hints+=2; B.enMax+=40; B.enHp=B.enMax }
+  if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
   if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
     if(h>0) setTimeout(()=>toast('💚 开场治疗：回复 '+h+' 点生命'),260) }
@@ -1044,7 +1043,12 @@ function winFight(){
   G.kills++;
   let g=25+(B.boss?120:B.elite?60:0)+Math.floor(G.floor*4);
   if(B.boss) g+=50;
-  if(hasR('purse')) g+=25;
+  // 聚宝盆单件 +25；凑成「点金术」（聚宝盆 + 学者之书）后抬到 +45。
+  g+=victoryGoldBonus(G.relics);
+  // 铁血循环（永动电池 + 锻造台）：战斗胜利额外回一点血。
+  //   加在 B.myHp 上 —— 加在 G.hp 上会被 finishNode 的结转整个覆盖掉。
+  const winHeal = winHealBonus(G.relics);
+  if(winHeal>0) B.myHp=Math.min(G.maxhp,B.myHp+winHeal);
   // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
   goldGain(Math.round(g*(B.goldMult||1)));   // 贪婪钱币 ×3
   // 相位切到待领奖：金币与击杀已经入账，900ms 只延迟展示。
@@ -1528,10 +1532,20 @@ $('continueRun').onclick=()=>{
 $('startRun').onclick=()=>{ startRunFromUi() };
 $('toRelics').onclick=()=>{
   const box=$('rlBox'); box.innerHTML='';
+  // 同一块版面同时展示：档位 + 标价 + 玩家已凑出的组合技。
+  // 组合技只靠 run.relics 里的 id 推导 —— 旧存档恢复后立刻就在这里亮出来。
+  const syns=activeSynergies(G&&G.relics);
+  if(syns.length){
+    const hint=document.createElement('div');
+    hint.className='rlc-syn';
+    hint.textContent='已激活的组合技：'+syns.map(synergyLabel).join('　/　');
+    box.appendChild(hint);
+  }
   RELICS.forEach(r=>{
     const d=document.createElement('div');
     d.className='rlc'+(G&&has(G.relics,r.id)?' sel':'');
-    d.innerHTML='<div class="ic">'+r.ic+'</div><b>'+r.n+'</b><span>'+r.d+'</span>';
+    d.innerHTML='<div class="ic">'+r.ic+'</div><b>'+r.n+'</b>'
+      +'<span class="rl-rar">'+relicRarityLabel(r)+' · 商店 '+relicPrice(r)+' 金币</span><span>'+r.d+'</span>';
     box.appendChild(d);
   });
   show('s-relics');

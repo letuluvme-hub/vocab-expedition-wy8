@@ -16,10 +16,28 @@ test('extracted vocabulary preserves all 259 records and their order', async () 
   assert.deepEqual(WORDS, oldValue('WORDS'));
 });
 
-test('extracted game catalogs are byte-for-byte equivalent values', async () => {
-  for (const [file, name] of [['heroes','HEROES'],['items','ITEMS'],['enemies','ENEMIES'],['units','UNITS']]) {
-    const module = await import(`../../src/data/${file}.js`);
-    assert.deepEqual(module[name], oldValue(name));
+// 遗物深度任务的有意偏离（docs/feature-relic-depth.md），偏离面精确到：
+//   1) 每条遗物多一个 rarity 字段（档位）；
+//   2) 末尾追加一件传说遗物「预知残卷」，其余 12 件的 id / 图标 / 名称 / 文案
+//      仍要求逐字相同 —— 改文案必须另开一条明确的例外，不能顺手改；
+//   3) 影分身的文案偏离（run 级免费额度，见下方注释）。
+const LEGACY_RELIC_IDS = ['hint', 'shield', 'combo', 'purse', 'thorn', 'battery',
+  'lucky', 'scholar', 'forge', 'ghost', 'greed', 'focus'];
+const NEW_RELIC_IDS = ['prophecy'];
+
+test('relic catalog keeps every legacy entry verbatim and only appends the legendary', async () => {
+  const { RELICS } = await import('../../src/data/relics.js');
+  const old = oldValue('RELICS');
+  assert.deepEqual(RELICS.slice(0, old.length).map(r => r.id), LEGACY_RELIC_IDS, '旧遗物的顺序与 id 不变');
+  assert.deepEqual(RELICS.slice(old.length).map(r => r.id), NEW_RELIC_IDS, '只允许在末尾追加新遗物');
+  for (const o of old) {
+    const now = RELICS.filter(r => r.id === o.id)[0];
+    assert.equal(now.ic, o.ic, o.id + ' 图标不许变');
+    assert.equal(now.n, o.n, o.id + ' 名称不许变');
+    // 图案逐字相同 —— 影分身是唯一已登记的文案例外。
+    if (o.id !== 'ghost') assert.equal(now.d, o.d, o.id + ' 图鉴文案不许变（例外需显式登记）');
+    assert.ok(typeof now.rarity === 'string' && now.rarity.length > 0, o.id + ' 必须标了稀有度');
+    assert.equal(now.price, undefined, '定价只能来自 balance 的档位表，不许在遗物对象上重复一份');
   }
 });
 
@@ -30,15 +48,41 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 test('relic catalog differs from legacy only in the ghost description', async () => {
   const { RELICS } = await import('../../src/data/relics.js');
   const old = oldValue('RELICS');
-  assert.equal(RELICS.length, old.length, '遗物数量不变');
-  const drift = RELICS.filter((r, i) => JSON.stringify(r) !== JSON.stringify(old[i])).map(r => r.id);
+  const legacy = RELICS.slice(0, old.length);
+  const drift = legacy.filter((r, i) => JSON.stringify({ ic: r.ic, n: r.n, d: r.d })
+    !== JSON.stringify({ ic: old[i].ic, n: old[i].n, d: old[i].d })).map(r => r.id);
   assert.deepEqual(drift, ['ghost'], '只有影分身的图鉴文案可以变');
-  assert.equal(RELICS.map(r => r.id).join(), old.map(r => r.id).join(), '顺序与 id 不变');
+  assert.equal(legacy.map(r => r.id).join(), old.map(r => r.id).join(), '顺序与 id 不变');
   assert.match(RELICS.filter(r => r.id === 'ghost')[0].d, /每轮/);
 });
 
+// 透视之眼的文案是**有意**偏离：旧版写「不消耗提示次数」，而实际行为现在是
+// 消耗 1 点提示额度。揭示类道具必须有代价，否则它永远优于按提示键 ——
+// 文案必须与实际口径一致。
+const ITEM_COPY_DRIFT = ['reveal'];
+
+test('item catalog differs from legacy only in the deliberately re-costed entries', async () => {
+  const { ITEMS } = await import('../../src/data/items.js');
+  const old = oldValue('ITEMS');
+  assert.equal(ITEMS.length, old.length, '道具数量不变');
+  assert.deepEqual(ITEMS.map(x => x.id).join(), old.map(x => x.id).join(), '顺序与 id 不变');
+  const drift = ITEMS.filter((r, i) => JSON.stringify(r) !== JSON.stringify(old[i])).map(r => r.id);
+  assert.deepEqual(drift, ITEM_COPY_DRIFT, '只有显式登记的道具允许偏离归档');
+  const reveal = ITEMS.filter(x => x.id === 'reveal')[0];
+  assert.equal(reveal.max, old.filter(x => x.id === 'reveal')[0].max, '代价只加在效果上，不许顺带改持有上限');
+  assert.equal(reveal.price, old.filter(x => x.id === 'reveal')[0].price, '这次不改售价 —— 经济面另行验证');
+  assert.match(reveal.d, /提示/, '新文案必须点明代价');
+});
+
+test('extracted game catalogs are byte-for-byte equivalent values', async () => {
+  for (const [file, name] of [['heroes','HEROES'],['enemies','ENEMIES'],['units','UNITS']]) {
+    const module = await import(`../../src/data/${file}.js`);
+    assert.deepEqual(module[name], oldValue(name));
+  }
+});
+
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css'];
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
@@ -78,6 +122,9 @@ const PAUSE_ONLY_NEW = [
   // 蓄力条容器（清单 13）：纯新增（归档里没有对应物），挂在战斗页敌人信息块里。
   // 连同上面的注释整块挖掉 —— 注释也是本次新增，留在骨架里会让「逐字相同」恒假。
   /        <!-- 蓄力条（清单 13）：[\s\S]*?<div class="foeAtk" id="fFoeAtk" hidden><\/div>\n/,
+  // 战意·连击里程碑条容器：纯新增（归档里没有对应物），挂在战斗页词卡里 #fCombo 下方。
+  // 连同上面的注释整块挖掉 —— 注释也是本次新增，留在骨架里会让「逐字相同」恒假。
+  /    <!-- 战意·连击里程碑（docs\/feature-combo-milestones\.md）：[\s\S]*?<div class="comboMs" id="fComboMs"><\/div>\n/,
 ];
 // 包裹了既有控件的改动 → 还原成归档里的原始写法（放弃远征按钮被包进了一行 .row）。
 const PAUSE_BACK_TO_LEGACY = [

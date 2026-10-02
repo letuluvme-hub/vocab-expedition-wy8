@@ -70,6 +70,17 @@
 .equip .eq-shield .eq-h { color: #9fd8ff; }
 .equip .eq-relic .eq-h,
 .equip .eq-item .eq-h { color: #e6d7a8; }
+/* 组合技：这是唯一能让玩家看出「遗物之间会说话」的地方，
+   所以给它一条独立的视觉通道（左边框 + 暖金），不许混进普通遗物行。 */
+.equip .eq-synergy {
+  margin-top: 2px;
+  padding: 6px 0 6px 8px;
+  border-left: 2px solid var(--gold, #ffce4d);
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 206, 77, .07);
+}
+.equip .eq-synergy .eq-h { color: var(--gold, #ffce4d); }
+.equip .eq-synergy .eq-d { color: #ffe6b0; }
 .equip .eq-ghost .eq-h { color: #cbb6ff; }
 .equip .eq-empty .eq-h,
 .equip .eq-empty .eq-d { color: #7c8899; }

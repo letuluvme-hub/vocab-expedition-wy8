@@ -6,6 +6,7 @@ import { clamp } from './math.js';
 import { generateMap } from './map.js';
 import { createWordStreakState } from './word-streak.js';
 import { roundCompletion } from './campaign.js';
+import { floorHealBonus } from './relic-rules.js';
 
 /* ★ 轮次身份（docs/feature-rounds.md）。
  * roundId 是**持久化**的轮次身份，必须和进程内自增的 run.id（'R1'、'R2'…）区分开：
@@ -105,6 +106,25 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     // 它**不是**次数：DB.runs 只在真正新开一轮时 +1，跨单元不加。
     campaign: { startedUnit: unit, segments: 1 },
     hcombo: M.combo || 1, hregen: M.regen || 0, hleech: M.leech || 0,
+    // ★ 本轮「战意·连击里程碑」已达成的阶（docs/feature-combo-milestones.md）。
+    //   id → true 的普通对象，**不是 Set**：AGENTS.md 明确不许把 Set 直接 JSON 保存。
+    //   ★ 它**跟着快照走**（run-snapshot.js 的可选字段 milestones，合法才写、
+    //     缺失回落成空表、脏值整份 fail closed）。早先它只活在内存里，于是
+    //     「暂停 → 刷新 → 继续」把整张表清空，每一阶都能再领一次 ——
+    //     护盾/生命被上限夹住只是顶满，而提示次数没有上限，那是无限白嫖。
+    //   一轮只发一次的原因：护盾跨战斗结转（finishBattleNode 把 B.shield 写回
+    //   run.shield），每场都发就是滚雪球。
+    milestones: {},
+    // ★ 预知残卷（传说遗物）本轮那**唯一一次**全词揭示是否已经用掉。
+    //   它必须跟着快照走：不落盘的话「暂停 → 刷新 → 继续」会把它清回 false，
+    //   于是每局又能白嫖一次完整答案 —— 和影分身当初的漏洞是同一个形状。
+    //   布尔而不是次数：语义就是 1 次，缺字段（老存档/旧快照）回落为未使用。
+    prophecyUsed: false,
+    // ★ 磨砺石（商店：生命上限 +10 并回满）本轮已经买过几次。
+    //   上限是 data/balance.js 的 WHET_MAX_PER_RUN。同样必须落盘 ——
+    //   只活在内存里的话，刷新一次就能把买满一轮重新变回 0 次。
+    //   0 与「缺失」同义，落盘时两者都不写这个键。
+    whetBuys: 0,
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,
     // ★ 完整词连胜（docs/feature-word-streak.md）：**run 级**的计数与事件序号。
     //   它必须跨战斗存在 —— 连胜要跨战斗/跨单元保持，所以既不能放 B.wordStreak
@@ -137,6 +157,10 @@ export function advanceRun(run, now = Date.now()) {
   run.floor++;
   run.maxFloor = Math.max(run.maxFloor, run.floor);
   if (run.relics.indexOf('battery') >= 0) run.hp = Math.min(run.maxhp, run.hp + 8);
+  // 铁血循环（永动电池 + 锻造台）在永动电池之外**额外**回这一份。
+  // 电池本身的 +8 留在上面不动 —— 两笔是叠加关系，不是同一笔被改写。
+  const floorHeal = floorHealBonus(run.relics);
+  if (floorHeal > 0) run.hp = Math.min(run.maxhp, run.hp + floorHeal);
   run.hp = clamp(run.hp, 1, run.maxhp);
   run.avail = (run.node && run.node.links.length) ? run.node.links.slice() : [];
   run.cur = run.node;

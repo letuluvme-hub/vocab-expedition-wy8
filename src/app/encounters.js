@@ -16,6 +16,9 @@
  */
 import { RELICS } from '../data/relics.js';
 import { ITEMS } from '../data/items.js';
+import { LEGACY_RELIC_SHOP_PRICE, WHET_MAX_PER_RUN } from '../data/balance.js';
+import { relicPrice, relicRarityLabel, pickRelicWeighted, sampleRelicsWeighted,
+  activeSynergies } from '../domain/relic-rules.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 
 export function createEncounterController({ state, ports }) {
@@ -33,6 +36,57 @@ export function createEncounterController({ state, ports }) {
      这里所有会改状态的按钮回调都必须经过它 —— 否则买药扣钱、领遗物、选营火
      这些副作用只改了内存、从不落盘。Node 测试台不注入时回落成直接调用。 */
   const mutate = ports.mutate || (fn => fn());
+
+  /* 遗物候选池：排除已持有的那几件。
+     抽取一律走 relic-rules 的**稀有度加权**（common 62 / rare 30 / legendary 8），
+     均匀洗牌会让传说和「+2 次提示」一样常见，档位就只剩一个价格标签。
+     rnd 走端口注入：真实运行时用 Math.random，单测才能固定结果。 */
+  const relicRnd = ports.relicRnd || Math.random;
+  const ownedRelics = G => RELICS.filter(r => !has(G.relics, r.id));
+  /* 抽取口。默认按稀有度加权；单测可以用 relicDraw 端口指名要哪一件
+     （加权之后「这局一定出某件遗物」本来就不可能断言）。 */
+  const drawRelic = ports.relicDraw || (pool => pickRelicWeighted(pool, relicRnd));
+
+  /* 磨砺石（生命上限 +10 并回满）的**唯一**结算入口。商店实时屏与暂停恢复屏
+     共用它 —— 两份实现一旦漂移，恢复后就会出现「同一个按钮两套限购」。
+     限购计数挂在 run 上（run.whetBuys），跟着快照走：只活在内存里的话，
+     「暂停 → 刷新 → 继续」就能把这轮买满之后重新变回 0 次。 */
+  function buyWhetstone() {
+    const S = state.G;
+    const used = S.whetBuys | 0;
+    if (used >= WHET_MAX_PER_RUN) {
+      return '磨砺石本轮已经买过 ' + WHET_MAX_PER_RUN + ' 次了 —— 一块石头磨不出第二把刀。';
+    }
+    if (S.gold < 70) return '金币不够。';            // 买不成就不扣钱、不加上限
+    S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; S.whetBuys = used + 1;
+    return '你更强了。';
+  }
+
+  /* 商店的遗物卡。**价格是卡面的一部分**：卡上写多少就扣多少，两者同源。
+     id 里带上价格（shop:relic:<id>:<price>）是为了让暂停恢复对得上号 ——
+     恢复路径靠 optionById 用 id 找回动作，id 不含价格时，一次跨版本刷新
+     （卡面还是旧价、代码已经是新价）就会对玩家凭空涨价。 */
+  function shopRelicOption(r, price) {
+    return {
+      id: 'shop:relic:' + r.id + ':' + price, cat: 'relic', ic: r.ic,
+      t: r.n + ' · ' + price + ' 金币',
+      d: relicRarityLabel(r) + ' · ' + r.d,
+      fn: () => {
+        const S = state.G;
+        if (S.gold < price) return '金币不够。';
+        S.gold -= price; S.relics.push(r.id); sfx.relic(); applyRelicInit();
+        return '你买下了 ' + r.n + '！';
+      },
+    };
+  }
+  /* 加稀有度之前的旧卡：id 不带价格、标价固定 80。旧快照里存的就是这个 id，
+     恢复时必须仍能映射回来 —— 并且按它**当时显示的** 80 收费。 */
+  function legacyShopRelicOption(r) {
+    return Object.assign({}, shopRelicOption(r, LEGACY_RELIC_SHOP_PRICE), {
+      id: 'shop:relic:' + r.id,
+      t: r.n + ' · ' + LEGACY_RELIC_SHOP_PRICE + ' 金币',
+    });
+  }
 
   // 当前已展开的描述：只存 id 与展示字段，绝不存闭包或 DOM。
   let currentDesc = null;
@@ -53,11 +107,11 @@ export function createEncounterController({ state, ports }) {
      保留原版逐字文案与数值（含赌局 / 迷路的词灵里那些手写的 return 串）。 */
   const EVENTS = [
     { ic: '🎁', t: '神秘的背包', x: '你捡到一个鼓鼓的背包，主人却不见了。', o: [
-      { id: 'pack:open', cat: 'relic', ic: '💎', t: '打开看看', d: '随机获得一个遗物', fn: () => {
+      { id: 'pack:open', cat: 'relic', ic: '💎', t: '打开看看', d: '随机获得一个遗物（越稀有越少见）', fn: () => {
         const G = state.G;
-        const av = RELICS.filter(r => !has(G.relics, r.id));
+        const av = ownedRelics(G);
         if (av.length) {
-          const r = pick(av);
+          const r = drawRelic(av);
           G.relics.push(r.id);
           applyRelicInit();
           sfx.relic();
@@ -91,9 +145,9 @@ export function createEncounterController({ state, ports }) {
       { id: 'book:study', cat: 'relic', ic: '🧠', t: '认真研读', d: '当前战斗下次的拼写正确率提升：回复 20 生命并获得遗物', fn: () => {
         const G = state.G;
         G.hp = Math.min(G.maxhp, G.hp + 20);
-        const av = RELICS.filter(r => !has(G.relics, r.id));
+        const av = ownedRelics(G);
         if (av.length) {
-          const r = pick(av);
+          const r = drawRelic(av);
           G.relics.push(r.id);
           sfx.relic();
           applyRelicInit();
@@ -107,11 +161,21 @@ export function createEncounterController({ state, ports }) {
     ] },
     { ic: '🎲', t: '命运的赌局', x: '一个蒙面人推来一枚硬币：「猜正反，赢了钱翻倍，输了归我。」', o: [
       { id: 'gamble:bet', cat: 'event', ic: '🪙', t: '押上 40 金币', d: '一半概率翻倍，一半概率全失', fn: () => {
-        const G = state.G;
-        G.gold = goldGain(40);
-        if (Math.random() < .5) { const w = G.gold; G.gold = w * 2; return '硬币停在正面！你获得了 ' + G.gold + ' 金币。'; }
-        G.gold = 0;
-        return '反面。你的金币全没了。';
+        const S = state.G;
+        // ★ 卡面写的是「押上 40 金币」，结算就必须只赌这 40。
+        //   原实现先白送 40（goldGain(40)），再把**整个钱袋**翻倍或清零，
+        //   并且把翻倍后的总额当成「你获得的」写进文案 —— 玩家押 40，
+        //   实际赌的是全部家当，而界面说的是另一回事。
+        //   现在：赌注不足不能押；赢 = 这 40 翻倍（净得 40，贪婪之眼照常加成）；
+        //   输 = 少掉这 40。文案只报这一局的输赢。
+        if (S.gold < 40) return '你连押上的 40 金币都凑不出来。';
+        if (Math.random() < .5) {
+          const before = S.gold;
+          goldGain(40);                        // 加钱与贪婪之眼加成都走同一入口
+          return '硬币停在正面！你赢得 ' + (S.gold - before) + ' 金币。';
+        }
+        S.gold -= 40;
+        return '反面。你输掉 40 金币。';
       } },
       { id: 'gamble:skip', cat: 'none', ic: '✋', t: '不赌了', d: '安全离开', fn: () => '你明智地走开了。' }
     ] },
@@ -205,7 +269,7 @@ export function createEncounterController({ state, ports }) {
     const rbox = $('rPicks');
     rbox.innerHTML = ''; rbox._kids = []; rbox._used = false;
     const healAmt = hasR('forge') ? 20 : 12;
-    const av = RELICS.filter(r => !has(G.relics, r.id));
+    const av = ownedRelics(G);
     const opts = [
       { id: 'rest:heal', cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
         const R = state.G; R.hp = Math.min(R.maxhp, R.hp + healAmt); return '你睡了个好觉。';
@@ -218,8 +282,9 @@ export function createEncounterController({ state, ports }) {
       } }
     ];
     if (av.length) {
-      const r = pick(av);
-      opts.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic, t: '冥想 · ' + r.n, d: r.d, fn: () => {
+      const r = drawRelic(av);
+      opts.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic, t: '冥想 · ' + r.n,
+          d: relicRarityLabel(r) + ' · ' + r.d, fn: () => {
         const R = state.G;
         R.relics.push(r.id);
         sfx.relic();
@@ -257,10 +322,18 @@ export function createEncounterController({ state, ports }) {
    * 原版这里曾经用整盒共用的 _used 做双击保护，导致买过任何东西之后连「离开」都点不动 —— 整局死锁。
    * 现在每按钮一层 260ms 冷却（只防手滑连点），advance() 自己的时间窗负责去重推进。 */
   const CLICK_CD_MS = 260;
+  /* 商店顶部的「你的金币」行。★ 买完东西必须重新写一次：原实现只在**进入**商店时
+     写一遍，于是玩家点了卡片、钱真的扣了，界面上那个数字纹丝不动 —— 看起来像没扣款，
+     也看不出自己还剩多少钱买东西。恢复路径（reopenEncounter）本来就会重写这一行，
+     实时路径漏了，两边的口径必须一致。 */
+  function refreshShopGold() {
+    const el = $('rSub');
+    if (el) el.textContent = '你的金币：' + ((state.G && state.G.gold) | 0) + ' 枚 —— 用金币强化自己';
+  }
   function showShop() {
     const G = state.G;
     $('rTitle').textContent = '商店 🛒';
-    $('rSub').textContent = '你的金币：' + G.gold + ' 枚 —— 用金币强化自己';
+    refreshShopGold();
     const sbox = $('rPicks');
     sbox.innerHTML = '';
     const opts = [
@@ -274,20 +347,14 @@ export function createEncounterController({ state, ports }) {
         if (S.gold < 40) return '金币不够。';
         S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
       } },
-      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
-        const S = state.G;
-        if (S.gold < 70) return '金币不够。';
-        S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
-      } }
+      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
+        d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
+          + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone }
     ];
-    const av = RELICS.filter(r => !has(G.relics, r.id));
+    const av = ownedRelics(G);
     if (av.length) {
-      const r = pick(av);
-      opts.push({ id: 'shop:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n + ' · 80 金币', d: r.d, fn: () => {
-        const S = state.G;
-        if (S.gold < 80) return '金币不够。';
-        S.gold -= 80; S.relics.push(r.id); sfx.relic(); applyRelicInit(); return '你买下了 ' + r.n + '！';
-      } });
+      const r = drawRelic(av);
+      opts.push(shopRelicOption(r, relicPrice(r)));
     }
     // 卖道具：只卖玩家还没拿满的
     const shopItems = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max)).slice(0, 3);
@@ -328,6 +395,7 @@ export function createEncounterController({ state, ports }) {
           // 买东西不推进层数：相位仍是 encounter，快照里带着「已扣钱」的 G 落盘。
           // 刷新后回到同一屏商店，钱已经扣过，不会免费重买。
           if (publishEncounter) publishEncounter(current());
+          refreshShopGold();          // ★ 付完钱让顶部那个数字跟着变，否则看不出扣了多少
         });
       };
       sbox.appendChild(b);
@@ -357,15 +425,18 @@ export function createEncounterController({ state, ports }) {
         finishNode();
       } });
     }
-    if (hasR('scholar') && rnd(3) === 0) {
+    if (hasR('scholar') && (activeSynergies(G.relics).some(s => s.id === 'alchemist') || rnd(3) === 0)) {
       opts.push({ cat: 'boost', ic: '🃏', t: '先知卡', d: '下一场战斗开始时，自动揭示一个字母', id: 'reward:seer', fn: () => {
         state.G.nextHint = true;
         finishNode();
       } });
     }
-    const availRel = RELICS.filter(r => !has(G.relics, r.id));
+    const availRel = ownedRelics(G);
     if (availRel.length) {
-      shuffle(availRel).slice(0, 3).forEach(r => opts.push({ cat: 'relic', ic: r.ic, t: r.n, d: r.d, id: 'reward:relic:' + r.id, fn: () => {
+      // 加权不重复抽样：同一批候选里，传说出现的概率远低于普通，
+      // 而均匀洗牌会让它和「+2 次提示」一样常见。
+      sampleRelicsWeighted(availRel, 3, relicRnd).forEach(r => opts.push({
+        cat: 'relic', ic: r.ic, t: r.n, d: relicRarityLabel(r) + ' · ' + r.d, id: 'reward:relic:' + r.id, fn: () => {
         const S = state.G;
         S.relics.push(r.id);
         sfx.relic();
@@ -468,7 +539,7 @@ export function createEncounterController({ state, ports }) {
       ];
       // 营火同理：冥想卡按 id 全量铺开，快照里那张才能原样恢复。
             for (const r of RELICS) table.push({ id: 'rest:relic:' + r.id, cat: 'relic', ic: r.ic,
-              t: '冥想 · ' + r.n, d: r.d, fn: () => {
+              t: '冥想 · ' + r.n, d: relicRarityLabel(r) + ' · ' + r.d, fn: () => {
                 const R = state.G; R.relics.push(r.id); sfx.relic(); applyRelicInit();
                 return '你获得了 ' + r.n + '！';
               } });
@@ -483,20 +554,19 @@ export function createEncounterController({ state, ports }) {
           const S = state.G; if (S.gold < 40) return '金币不够。';
           S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
         } },
-        { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币', d: '生命上限 +10 并回满', fn: () => {
-          const S = state.G; if (S.gold < 70) return '金币不够。';
-          S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; return '你更强了。';
-        } },
+        { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
+          d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
+            + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone },
       ];
       // 遗物/道具候选表按 id 全量铺开（而不是重新 pick 一个）：
             // 快照里记的是**当时那一张**，重新 pick 会得到别的 id，
             // 于是那张卡在恢复后凭空消失 —— 玩家会以为货变了。
-            for (const r of RELICS) table.push({ id: 'shop:relic:' + r.id, cat: 'relic', ic: r.ic,
-              t: r.n + ' · 80 金币', d: r.d, fn: () => {
-                const S = state.G; if (S.gold < 80) return '金币不够。';
-                S.gold -= 80; S.relics.push(r.id); sfx.relic(); applyRelicInit();
-                return '你买下了 ' + r.n + '！';
-              } });
+            // 商店遗物铺**两条** id：新格式（id 里带卡面价）与旧格式（无价格，
+            //   固定 80）。后者是加稀有度之前的老存档，缺了它就等于老快照整屏丢失。
+            for (const r of RELICS) {
+              table.push(shopRelicOption(r, relicPrice(r)));
+              table.push(legacyShopRelicOption(r));
+            }
       for (const it of ITEMS) table.push({
         id: 'shop:item:' + it.id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币',
         d: it.d, tip: it.tip, fn: () => {
@@ -515,7 +585,8 @@ export function createEncounterController({ state, ports }) {
       } }];
       table.push({ id: 'reward:seer', cat: 'boost', ic: '🃏', t: '先知卡',
         d: '下一场战斗开始时，自动揭示一个字母', fn: () => { state.G.nextHint = true; finishNode(); } });
-      for (const r of RELICS) table.push({ id: 'reward:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n, d: r.d, fn: () => {
+      for (const r of RELICS) table.push({ id: 'reward:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n,
+        d: relicRarityLabel(r) + ' · ' + r.d, fn: () => {
         const S = state.G; S.relics.push(r.id); sfx.relic(); toast('获得遗物：' + r.n);
         applyRelicInit(); finishNode();
       } });

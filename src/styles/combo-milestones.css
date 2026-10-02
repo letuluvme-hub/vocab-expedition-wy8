@@ -1,0 +1,23 @@
+/* ---- combo-milestones（战意·连击里程碑条）----
+   只作用于战斗页那一个容器 .comboMs（以及它自己的后代类名）。
+   ★ 绝不改既有选择器：.combo / .slot / .bank / .hud 等一律不碰 ——
+     「新增样式」不是「借机改线上外观」的名目。 */
+.comboMs{display:flex;align-items:center;gap:7px;margin:6px 0 0;min-height:14px;
+  font-size:10.5px;line-height:1.35;color:var(--mut)}
+.comboMsPips{display:inline-flex;gap:4px;flex:0 0 auto}
+.comboMsPip{width:6px;height:6px;border-radius:50%;background:#ffffff1f;
+  border:1px solid var(--line);display:block}
+/* 已达成：点亮 + 一圈微光，和战斗里其它「拿到了」的正反馈同一套绿。 */
+.comboMsPip.on{background:#3ddc84;border-color:#3ddc84;box-shadow:0 0 0 2px #3ddc8426}
+.comboMsTxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 三阶全达成：不再追下一个目标，文案改成金色收束。 */
+.comboMs.done .comboMsTxt{color:#ffce4d}
+.comboMs.done .comboMsPip.on{background:#ffce4d;border-color:#ffce4d;box-shadow:0 0 0 2px #ffce4d26}
+@media (prefers-reduced-motion:reduce){
+  .comboMsPip.on{box-shadow:none}
+}
+/* 矮屏：战意条最多占一行高度，绝不把字母盘或底部按钮挤出可视区。
+   与 foe-attacks.css 的矮屏规则同一条思路：HUD 变高 = 手机上打不到字母盘。 */
+@media (max-height:620px){
+  .comboMs{margin:3px 0 0;min-height:12px;font-size:10px}
+}
