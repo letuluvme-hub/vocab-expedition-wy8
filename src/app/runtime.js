@@ -52,6 +52,9 @@ import { createAudioCapability, CHANNEL } from '../services/audio-capability.js'
 import { createAudioCompatibility } from '../ui/components/audio-compatibility.js';
 import { growthSummary, GROWTH_VERSION } from '../domain/mastery-growth.js';
 import { createMasteryGrowth } from '../ui/components/mastery-growth.js';
+/* 逐轮难度（清单 10）：规则全在 domain/round-difficulty.js，这里只做接线 ——
+   开局派生一次存进 run.difficulty，战斗里读它，绝不在换词/换单元时重算。 */
+import { deriveRoundDifficulty, scaleEnemyHealth } from '../domain/round-difficulty.js';
 
 /* ★ 把成长摘要转换成 createRun 接受的开局事实（docs/feature-mastery-growth.md）。
  *   规则全在 domain/mastery-growth.js，这里只做形状转换：规则算出的 bonusHp 原样带过去，
@@ -469,6 +472,14 @@ function newRun(){
   assignRoundId(G,newRoundId());
   // ★ 远征次数的唯一入口：真正新开一轮才 +1，恢复/读档不经过这里。
   registerRunStart(DB,G);applyRelicInit();saveDB();
+  // ★ 逐轮难度（清单 10）：**只在真正新开一轮时派生一次**。
+  //   必须在 registerRunStart 之后 —— 它才是把 run.roundNumber 定下来的那一步
+  //   （轮次编号的唯一来源是 DB.runs，见 domain/run.js）。派生完就存进 run，
+  //   本局内换词、换战斗、跨单元、续段一律不再调用：
+  //   玩家在同一轮里并没有变强，难度就不该悄悄涨。
+  //   ★ 恢复路径根本不经过 newRun，所以恢复/刷新绝不重算（否则刷新一次就升一档）。
+  G.difficulty=deriveRoundDifficulty({roundNumber:G.roundNumber,unit:G.unit,
+    segments:(G.campaign&&G.campaign.segments)||1});
   ENCOUNTER=null; setPhase(PHASE.MAP);
   show('s-map');renderMap();
   // 新一轮：连胜清零 + 解冻。放在 show/commit 之前，且**解冻**是必须的 ——
@@ -599,7 +610,13 @@ function startFight(n){
   const finMult = 1 + 1.45*comboRate()*WORD_COMBO_BOOST;
   const perWord = Math.round(avgLen*base*1.45 + base*WORD_RATIO*finMult + (boss?9:G.floor)*1.5);
   const targetWords = boss?5 : (elite?4 : 4);
-  const hpMax = Math.round(perWord*targetWords);
+  // ★ 逐轮难度（清单 10）：血量缩放**只在这里发生一次**，用本局冻结的
+  //   run.difficulty（不是当前 DB.runs —— 那样换一次战斗就升一档）。
+  //   BOSS 的 +40 是**固定奖励**，在缩放之后叠加：反过来的话 BOSS 会随轮次
+  //   额外膨胀一截，那是没人设计过的难度。
+  //   G.difficulty 缺失（旧存档）→ scaleEnemyHealth 按基线返回原值，
+  //   于是旧档的怪物血量与节奏逐字不变。
+  const hpMax = scaleEnemyHealth(Math.round(perWord*targetWords), G&&G.difficulty);
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
   const qword = drawWord(budget);

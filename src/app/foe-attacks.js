@@ -42,6 +42,9 @@ import {
   FOE_PHASE, foeAttackKind, foeAttackProfile, createFoeAttackFact,
   phaseMs, advanceFoeAttack, interruptFoeAttack, encodeFoeAttack, decodeFoeAttack,
 } from '../domain/foe-attack.js';
+/* 逐轮难度（清单 10）。本控制器只负责「把**本轮**档案应用一次」：
+ * 规则本身全在 domain/round-difficulty.js，这里不重写任何曲线。 */
+import { scaleFoeAttackProfile } from '../domain/round-difficulty.js';
 
 // UI 刷新节拍：4Hz。够看见秒数在走，又不至于每秒四次重排。
 export const FOE_UI_TICK_MS = 250;
@@ -59,10 +62,17 @@ export function createFoeAttackController({
   // 而且不报任何错（最难查的那一类）。
   const getB = () => (state && typeof state.getBattle === 'function' ? state.getBattle()
     : (state ? state.B : null));
-  const profile = () => foeAttackProfile(foeAttackKind(getB() || {}));
+  // 逐轮难度事实只在本局读一次（本run 派生时就冻结了，见 runtime.newRun）：
+  // 缺键的旧存档按基线（倍率全 1），绝不按当前 DB.runs 重算。
+  const getG = () => (state && typeof state.getRun === 'function' ? state.getRun()
+    : (state ? state.G : null));
+  const difficulty = () => { const G = getG(); return G ? G.difficulty : undefined; };
+  // ★ 本场战斗用哪一档：**起手时算一次**（base × 本局难度），之后不因换词重算。
+  //   未缩放的档案仍然取自 domain/foe-attack.js 的 foeAttackProfile —— 单一来源。
+  const profile = () => scaleFoeAttackProfile(foeAttackProfile(foeAttackKind(getB() || {})), difficulty());
   // 本场战斗的档位在 start() 时定死一次，中途不重算：
   // 否则一个中途改 boss 标记的旧档会把正在进行的蓄力按另一档重排。
-  let cfg = foeAttackProfile('normal');
+  let cfg = scaleFoeAttackProfile(foeAttackProfile('normal'), difficulty());
   let dueAt = 0;            // 绝对到期时刻：**只在内存里**，绝不落盘
   // 暂停时冻结的剩余时间。pause() 采、resume() 用；null = 没暂停。
   // ★ 用自己的 pausedRemaining 而不是靠 frozenNow() 临时判断：
@@ -223,7 +233,10 @@ export function createFoeAttackController({
     const B = getB();
     if (!B) return false;
     pausedRemaining = null;
-    B.foeAttack = createFoeAttackFact(foeAttackKind(B));
+    // ★ 起始剩余时间必须是**缩放后**的 idle 窗口，而不是 createFoeAttackFact 里
+    //   那份未缩放的 base：事实（remainingMs）、UI 蓄力条与真实排期必须三者同源，
+    //   否则第 2 轮起「盘上写的剩余」与「真倒计时」就会差一截。
+    B.foeAttack = Object.assign({}, createFoeAttackFact(foeAttackKind(B)), { remainingMs: cfg.idleMs });
     // start 本身不提交：调用点（startFight）外面还有一次事务提交，
     // 在这里再写一次只是重复写盘。
     dueAt = now() + cfg.idleMs;
@@ -318,8 +331,9 @@ export function createFoeAttackController({
     pausedRemaining = null;
     const fact = decodeFoeAttack(raw);
     if (!fact) {
-      B.foeAttack = createFoeAttackFact(foeAttackKind(B));
+      // cfg 必须**先**算出来：干净 idle 的剩余时间是缩放后的 cfg.idleMs。
       cfg = profile();
+      B.foeAttack = Object.assign({}, createFoeAttackFact(foeAttackKind(B)), { remainingMs: cfg.idleMs });
       dueAt = now() + cfg.idleMs;
       generation++;
       const mine = generation;
