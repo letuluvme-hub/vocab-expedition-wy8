@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">词汇远征</string>
+    <string name="loading">正在载入…</string>
+    <string name="error_title">连不上网站</string>
+    <string name="error_body">请检查网络连接后重试。\n已经玩过的进度保存在本机，不会丢失。</string>
+    <string name="retry">重试</string>
+    <string name="press_again_to_exit">再按一次返回桌面</string>
+</resources>

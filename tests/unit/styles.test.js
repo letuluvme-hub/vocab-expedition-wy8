@@ -41,9 +41,9 @@ const ADDED = [
   // 敌人头像的尺寸与外壳。前缀是 #fAv —— 这两件改动不能写进冻结的
   // combat.css / responsive.css（它们要与归档逐字相同），只能新增覆盖。
   ['./foe-avatar.css', /^#fAv/, '敌人头像尺寸与外壳'],
-  // 离线单文件版下载入口。前缀是宿主 id —— <a> 当按钮用要补的几条居中/去下划线，
+  // 安卓 APK 下载入口。前缀是宿主 id —— <a> 当按钮用要补的几条居中/去下划线，
   // 不能写进冻结的 base.css。
-  ['./offline-download.css', /^#dlOffline/, '主页离线版下载入口'],
+  ['./android-download.css', /^#dlAndroid/, '主页安卓版下载入口'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

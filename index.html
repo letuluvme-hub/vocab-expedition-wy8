@@ -29,12 +29,15 @@
     <button class="btn g" id="toRelics">遗物图鉴</button>
     <button class="btn g" id="toImport">导入词表</button>
   </div>
-  <!-- 离线单文件版下载（构建产物 dist/vocab-expedition-standalone.html）。
-       用 <a download> 而不是按钮 + JS：下载是链接的本职，且禁用脚本时仍可用。
+  <!-- 安卓版 APK 下载。
+       ★ 放在 public/ 里随站点**同源**发布，而不是挂 GitHub Releases：
+         Releases 的下载走 objects.githubusercontent.com，国内经常被墙或极慢；
+         同源至少和站点走同一条路（domain 一样）。文件名带版本号，避免 CDN 缓存住旧包。
+       ★ 用 <a download> 而不是按钮 + JS：下载是链接的本职，且禁用脚本时仍可用。
        相对路径跟着 Vite 的 base 走，换域名/子路径不用改这里。 -->
   <div class="row">
-    <a class="btn g" id="dlOffline" href="vocab-expedition-standalone.html" download="vocab-expedition.html"
-      >离线版下载<small>单个 HTML 文件，双击即玩 · 无需联网 · 可拷给别人</small></a>
+    <a class="btn g" id="dlAndroid" href="vocab-expedition-1.0.0.apk" download="vocab-expedition-1.0.0.apk"
+      >下载安卓版<small>APK · 1.5 MB · 用手机浏览器打开本站下载</small></a>
   </div>
   <!-- 声音设置：音效与单词朗读两个独立开关，整块留在主页文档流里。
        旧版是一个 position:fixed 钉在右上角的浮动语音开关，窄屏会压住战斗页

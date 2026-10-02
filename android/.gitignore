@@ -1,0 +1,16 @@
+# 本地 SDK 路径（每台机器不同）
+local.properties
+
+# 签名材料：绝不入库
+keystore.properties
+keystore/
+*.jks
+*.keystore
+
+# Gradle / IDE 产物
+.gradle/
+build/
+app/build/
+.idea/
+*.iml
+captures/

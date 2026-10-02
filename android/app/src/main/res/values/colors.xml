@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 src/styles/base.css 里的背景色一致，避免启动白闪 -->
+    <color name="bg">#FF0A0A14</color>
+    <color name="acc">#FF8B5CF6</color>
+    <color name="fg">#FFF0F2FF</color>
+    <color name="mut">#FF9AA1C4</color>
+    <color name="ic_launcher_background">#FF0A0A14</color>
+</resources>

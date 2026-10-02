@@ -17,20 +17,31 @@ test('production build contains no browser test state mutation probe', () => {
   assert.ok(!bundle.includes('__VOCAB_TEST__'));
 });
 
-/* 离线单文件版下载入口（index.html 的 #dlOffline）。
+/* 安卓 APK 下载入口（index.html 的 #dlAndroid）。
  *
- * 两件事必须同时成立，缺一不可：
- *   1) 站点版**有**这个入口 —— 否则玩家没有下载离线版的路径；
- *   2) 单文件版**没有** —— 它自己就是那个文件，file:// 下没有兄弟文件可下。
- * 只测其中一个都不够：把链接整个删掉能过 (2)，忘了摘能过 (1)。
+ * 三件事必须同时成立：
+ *   1) 站点版**有**这个入口；
+ *   2) 单文件版**没有** —— 那是给 file:// 双击打开的，点了也下不到；
+ *   3) **链接指向的文件真的存在**，而且确实是个 APK。
+ * 只测前两条不够：链接写错文件名照样能过，玩家点下去才发现 404。
  */
-test('site build offers the offline download, standalone build does not', () => {
+test('site build offers the APK download, standalone build does not', () => {
   const site = readFileSync(new URL('../../dist/index.html', import.meta.url), 'utf8');
-  assert.match(site, /<a[^>]*id="dlOffline"[^>]*href="vocab-expedition-standalone\.html"[^>]*download=/,
-    '站点版必须提供离线单文件版的下载入口，且带 download 属性');
+  const m = /<a[^>]*id="dlAndroid"[^>]*href="([^"]+)"[^>]*download=/.exec(site);
+  assert.ok(m, '站点版必须提供安卓 APK 的下载入口，且带 download 属性');
+  const href = m[1];
+  assert.ok(!/^https?:|^\//.test(href),
+    '必须是相对路径（跟着 Vite 的 base 走），写死域名/绝对路径会在换域名或子路径时失效：' + href);
+
+  // 链接指向的文件必须真的在发布目录里，且是 APK（ZIP 魔数 "PK"）。
+  const apk = readFileSync(new URL('../../dist/' + href, import.meta.url));
+  assert.ok(apk.length > 100_000, 'APK 体积不合理：' + apk.length + ' bytes');
+  assert.equal(apk[0], 0x50, 'APK 应当是 ZIP 容器（首字节 P）');
+  assert.equal(apk[1], 0x4b, 'APK 应当是 ZIP 容器（次字节 K）');
+
   const offline = readFileSync(new URL('../../dist/vocab-expedition-standalone.html', import.meta.url), 'utf8');
-  assert.doesNotMatch(offline, /id="dlOffline"/,
-    '单文件版里不许再出现这个入口 —— 它自己就是那个文件');
+  assert.doesNotMatch(offline, /id="dlAndroid"/,
+    '单文件版里不许再出现这个入口 —— 它是给 file:// 双击打开用的');
   // 反向确认摘除没有误伤：单文件版本身仍然是页面（脚本与样式都已内联）。
   assert.match(offline, /<script type="module">/, '单文件版应当已内联脚本');
   assert.match(offline, /<style>/, '单文件版应当已内联样式');
