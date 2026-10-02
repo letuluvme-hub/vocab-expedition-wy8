@@ -51,6 +51,7 @@ import { createAudioCapability, CHANNEL } from '../services/audio-capability.js'
 import { createAudioCompatibility } from '../ui/components/audio-compatibility.js';
 import { growthSummary, GROWTH_VERSION } from '../domain/mastery-growth.js';
 import { createMasteryGrowth } from '../ui/components/mastery-growth.js';
+import { createKeyboardTip } from '../ui/components/keyboard-tip.js';
 
 /* ★ 把成长摘要转换成 createRun 接受的开局事实（docs/feature-mastery-growth.md）。
  *   规则全在 domain/mastery-growth.js，这里只做形状转换：规则算出的 bonusHp 原样带过去，
@@ -953,6 +954,14 @@ const masteryGrowthView=createMasteryGrowth({
 // ★ mount() 的返回值是**挂好的 DOM 盒子**，不是组件本身（与 audioSettings 同口径）：
 //   把组件另存一份，renderTitle 里要调的是它的 paint()。
 masteryGrowthView.mount(document.getElementById('masteryGrowthHost'));
+// ★ 首次进入的一次性键盘提示（index.html 的 #keyboardTipHost）。看过后写进
+//   DB.keyboardTipSeen 并落盘，此后再不出现 —— 一次性提示重复弹出来就是骚扰。
+//   onDismiss 里先改内存再标脏，由 commit 走正常的事务提交，不绕过 progress 闸门。
+const keyboardTipView=createKeyboardTip({
+  isSeen:()=>!!DB.keyboardTipSeen,
+  onDismiss:()=>{ DB.keyboardTipSeen=true; saveDB(); commit(false); },
+});
+keyboardTipView.mount(document.getElementById('keyboardTipHost'));
 // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged 再重画一次
 // 设置区 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
 try{
@@ -1209,6 +1218,7 @@ function renderTitle(){
   // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.mastered
   // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
   try{ masteryGrowthView.paint() }catch(e){}
+  try{ keyboardTipView.paint() }catch(e){}
   // 存在快照（或存在解不开的快照）时，主页必须给出入口：
   // 刷新后玩家看到的是主页，不会被自动丢进战斗或听见语音。
   const row=$('continueRow'), btn=$('continueRun');

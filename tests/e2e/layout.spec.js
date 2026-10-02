@@ -1,6 +1,11 @@
 import { test, expect } from './game-harness.js';
 
-test('shield capacity geometry preserves archived map and fight rendering', async ({ game, page }) => {
+test('shield capacity geometry preserves archived map and fight rendering', async ({ game, page }, testInfo) => {
+  // 这条同时跑归档页与新版：几何契约两边都要守，但「护盾层显示/文字带盾」是
+  // 2026-10-02 才修好的 —— 归档页**故意**保留旧 bug（登记在 tests/e2e/README.md），
+  // 所以显示层的断言按目标分支，不能一刀切。
+  const legacy = testInfo.project.metadata.target === 'legacy';
+  const shownText = legacy ? '30/60' : '30/60 +20盾';
   await game.open();
   await game.start();
   await page.evaluate(() => {
@@ -20,21 +25,29 @@ test('shield capacity geometry preserves archived map and fight rendering', asyn
         realFillWidth: h.width, realShWidth: s.width, realLeft: s.left - h.left,
         shieldDisplay: getComputedStyle(sh).display };
     }, { fill, shield });
+    // 几何契约（容量百分比、两层位置与宽度）在任何情况下都不许变 —— 两边都断言。
     expect(geometry.hpWidth).toBeCloseTo(62.5);
     expect(geometry.left).toBeCloseTo(37.5);
     expect(geometry.shWidth).toBeCloseTo(25);
-    // Characterize the archived g.sh/g.shield mismatch, do not silently invent a fix.
-    // The percentage contract is correct, but the shield layer is hidden in legacy.
-    expect(geometry.shieldDisplay).toBe('none');
+    if (legacy) {
+      // 归档页的真实行为：paintHpBar 读 g.sh，而 hpBarGeom 返回的叫 shield，
+      // 所以护盾层永远藏着。这条断言就是那份登记的旧事实本身。
+      expect(geometry.shieldDisplay).toBe('none');
+    } else {
+      // 修好之后：护盾层按几何显示出来，而且**真的占到应有的宽度**
+      // （只断言「不是 none」不够：宽度 0 的层也满足那条）。
+      expect(geometry.shieldDisplay).not.toBe('none');
+      expect(geometry.realShWidth).toBeGreaterThan(0);
+    }
     await expect.poll(async () => page.evaluate(fill => {
       const hp = document.getElementById(fill);
       return hp.getBoundingClientRect().width / (hp.parentElement.getBoundingClientRect().width - 2);
     }, fill), { message: 'Rendered fill eventually matches the 62.5% capacity contract' }).toBeCloseTo(0.625, 2);
   }
-  await expect(page.locator('#mHpT')).toHaveText('30/60');
+  await expect(page.locator('#mHpT')).toHaveText(shownText);
   await check('mHp', 'mHpS');
   await game.fight();
-  await expect(page.locator('#fMyT')).toHaveText('30/60');
+  await expect(page.locator('#fMyT')).toHaveText(shownText);
   await check('fMy', 'fMyS');
 });
 

@@ -82,7 +82,7 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css'];
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
@@ -152,6 +152,15 @@ const stripMasteryHost = html => {
   return out;
 };
 
+// 首次进入的一次性键盘提示容器：纯新增（归档里没有对应物），整段删掉再比。
+// 同样带 notEqual 守卫 —— 归一化一旦静默失配，「骨架一致」就成了永远为真的假通过。
+const KTIP_ONLY_NEW = /<!-- 首次进入的一次性提示[\s\S]*?<div id="keyboardTipHost"><\/div>\s*/;
+const stripKeyboardTipHost = html => {
+  const out = html.replace(/\r\n/g, '\n').replace(KTIP_ONLY_NEW, '');
+  assert.notEqual(out, html.replace(/\r\n/g, '\n'), '新版必须真的包含键盘提示容器（否则归一化会假通过）');
+  return out;
+};
+
 // 主页声音设置区：归档里是写在 HTML 里的 .volrow（音量一行），现在是
 // <div id="audioSettings"></div> 空容器，按钮由 audio-settings.js 画进去
 // （音效与朗读两个独立开关）。这是**同一位置**的替换，不是整段新增，
@@ -175,10 +184,10 @@ test('page skeleton preserves approved character parts and all existing controls
   // 两边都要走 stripPause：暂停新增是本任务允许的唯一偏离，其余必须逐字相同。
   // 主页声音设置区是同位置的替换：把新版容器还原成归档的 .volrow 段再比。
   // 知识成长容器是纯新增：整段删掉再比（见 stripMasteryHost）。
-  assert.equal(strip(stripPause(stripMasteryHost(backToLegacyVolrow(html))).replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
+  assert.equal(strip(stripPause(stripKeyboardTipHost(stripMasteryHost(backToLegacyVolrow(html)))).replace(SKIP_COPY_DIFF, '$1跳过代价$2')),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '$1跳过代价$2')));
   // 去掉跳过文案的归一化后，仍然必须完全对齐
-  assert.equal(strip(stripPause(stripMasteryHost(backToLegacyVolrow(html))).replace(SKIP_COPY_DIFF, '')),
+  assert.equal(strip(stripPause(stripKeyboardTipHost(stripMasteryHost(backToLegacyVolrow(html)))).replace(SKIP_COPY_DIFF, '')),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '')));
   // 并且当前文案确实点明了 50 点生命
   assert.match(html, /id="tSkip">跳过<small>损失 50 生命<\/small>/);
@@ -194,6 +203,11 @@ test('page skeleton preserves approved character parts and all existing controls
   // 知识成长区同理：容器必须落在主页 #s-title 内（否则战斗页也会显示这段说明），
   // 且宿主 id 不得与组件自建的 id=masteryGrowth 重复（重复 id 会让 getElementById 指错）。
   assert.match(titleScreen, /<div id="masteryGrowthHost"><\/div>/, '知识成长容器必须落在主页 #s-title 内');
+  // 键盘提示容器同样必须落在主页 #s-title 内（否则战斗页也会弹出这条一次性说明），
+  // 且宿主 id 不得与组件自建的 id=keyboardTip 重复。
+  assert.match(titleScreen, /<div id="keyboardTipHost"><\/div>/, '键盘提示容器必须落在主页 #s-title 内');
+  assert.equal((html.match(/id="keyboardTip"/g) || []).length, 0,
+    'HTML 里不得预置 id=keyboardTip：那个 id 属于组件自建的盒子，预置会造成重复 id');
   assert.equal((html.match(/id="masteryGrowth"/g) || []).length, 0,
     'HTML 里不得预置 id=masteryGrowth：那个 id 属于组件自建的盒子，预置会造成重复 id');
   assert.doesNotMatch(html, /class="volrow"|id="volBtn"|id="volVal"|id="voiceBtn"/, '旧的浮动音量/语音控件必须从 HTML 里移除');

@@ -1,0 +1,60 @@
+/* ---- keyboard-tip（首次进入的一次性提示）----
+ *
+ * 所有选择器都以 #keyboardTip 打头（宿主容器 id），只作用于这条提示自身，
+ * 不与既有类名共用 —— 与 audio-compatibility.css 同一套前缀约定。
+ * 留在主页文档流里：不浮动、不压住战斗页，窄屏也不会遮住字母盘。
+ */
+
+#keyboardTip {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border-radius: var(--r2, 10px);
+  border: 1px solid #ffce4d55;
+  background: linear-gradient(150deg, #ffce4d1a, #00000026);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  /* 与其它提示条同一层级语言：它是说明，不是需要立刻处理的告警。 */
+}
+
+#keyboardTip .ktip-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--mut);
+}
+
+#keyboardTip .ktip-t {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #ffce4d;
+  letter-spacing: .3px;
+}
+
+#keyboardTip .ktip-sub {
+  font-size: 11.5px;
+  opacity: .82;
+}
+
+/* 关闭按钮是主动作，不是角落里的小叉：这条提示要玩家读完再点。 */
+#keyboardTip .ktip-ok {
+  flex: none;
+  align-self: center;
+}
+
+@media (max-width: 420px) {
+  /* 窄屏改成上下排：横排会把说明文字挤成很窄的一条，读起来难受。 */
+  #keyboardTip {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  #keyboardTip .ktip-ok {
+    width: 100%;
+  }
+}

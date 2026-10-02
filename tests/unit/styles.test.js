@@ -32,6 +32,8 @@ const ADDED = [
   // 像素风怪物与装备图标。前缀是 .pxmon（怪物精灵）与 .pxicon（图标）——
   // 这两个类名只由 ui/components/pixel-art.js 产出，不与既有类名共用。
   ['./pixel-art.css', /^\.pxmon|^\.pxicon/, '像素风怪物与装备图标'],
+  // 首次进入的键盘提示。前缀是宿主容器 id，与 audio-compatibility 同一约定。
+  ['./keyboard-tip.css', /^#keyboardTip/, '主页一次性键盘提示'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

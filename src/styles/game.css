@@ -24,3 +24,5 @@
 @import './relic-depth.css';
 /* 像素风怪物与装备图标：只作用于 .pxmon / .pxicon，追加在最后。 */
 @import './pixel-art.css';
+/* 主页的一次性键盘提示：只作用于 #keyboardTip，追加在最后。 */
+@import './keyboard-tip.css';
