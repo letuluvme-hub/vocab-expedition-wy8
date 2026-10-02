@@ -16,6 +16,9 @@
 import { norm } from './text.js';
 import { ADV_LOCK_MS } from './run.js';
 import { encodeFoeAttack, decodeFoeAttack } from './foe-attack.js';
+/* 逐轮难度（清单 10）：难度事实**可选**，编解码规则全在 domain/round-difficulty.js。
+   ★ 编解码绝不剥字段洗白：脏形状是 undefined（=整份 fail closed），不是「修正」过的对象。 */
+import { encodeDifficulty, decodeDifficulty } from './round-difficulty.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -170,6 +173,12 @@ function encodeRun(run) {
   //   两个形状，深比较会因此恒假 —— 与 outcome 字段同一处理口径）。
   const growth = encodeGrowth(run.growth);
   if (growth) out.growth = growth;
+  // difficulty（清单 10）同样是**可选**：合法才写，缺失（旧 run / 旧快照）
+  //   整个键都不出现，解码后保持 undefined —— 由调用方按**基线**处理，
+  //   绝不按当前 DB.runs 重算（否则刷新一次就给老玩家凭空升一档）。
+  //   脏形状不写：内存态自己解不开时宁可整份快照都不写（见 encodeSnapshot）。
+  const difficulty = encodeDifficulty(run.difficulty);
+  if (difficulty) out.difficulty = difficulty;
   return out;
 }
 function encodeBattle(b) {
@@ -226,6 +235,10 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   const run = env && env.run;
   if (!run || typeof run.result === 'boolean') return null;
   if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
+  // difficulty（清单 10）同理：内存态有一份解不开的难度事实时**不写整份快照**，
+  //   而不是写一份缺了难度的 —— 那会让玩家刷新回来发现怪物忽然变回基线档，
+  //   而存档里看不出发生过什么。
+  if (run.difficulty !== undefined && run.difficulty !== null && encodeDifficulty(run.difficulty) === undefined) return null;
   // foeAttack 脏值同理：内存态自己解不开时**不写整份快照**（而不是写一份缺了
   //   攻击事实的快照）。缺了它看着能恢复，实际是把「蓄力还剩多久」丢掉 ——
   //   玩家会发现刷新后攻击时机凭空变了，这比明确存不下更糟。
@@ -297,6 +310,11 @@ function validRun(r) {
   // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
   // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
   if (r.growth !== undefined && r.growth !== null && !validGrowth(r.growth)) return false;
+  // difficulty（清单 10）同样可选：缺失合法（旧快照），一旦出现就必须完整合法 ——
+  //   脏值或「与 roundAtStart 不相容的倍率」整份 fail closed，绝不静默丢成
+  //   undefined：那会让一份难度已被改坏的存档看起来能恢复，而玩家会发现怪物
+  //   忽然变回基线档，没人说得清发生了什么。
+  if (r.difficulty !== undefined && r.difficulty !== null && decodeDifficulty(r.difficulty) === undefined) return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -345,6 +363,9 @@ function decodeRun(r, byId) {
     // growth：缺失就是 undefined（旧快照），**绝不由当前 DB 或 mastered 现算补填** ——
     //   恢复必须原样尊重盘上的 maxhp，否则「中途退出重进」会白赚一次上限。
     growth: encodeGrowth(r.growth),
+    // difficulty（清单 10）：同样**绝不**由当前 DB.runs 或 r.roundNumber 现算补填 ——
+    //   缺键就是旧存档，按基线跑完全程，绝不因为刷新一次就凭空升一档。
+    difficulty: decodeDifficulty(r.difficulty),
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,
