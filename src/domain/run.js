@@ -104,6 +104,13 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     // 它**不是**次数：DB.runs 只在真正新开一轮时 +1，跨单元不加。
     campaign: { startedUnit: unit, segments: 1 },
     hcombo: M.combo || 1, hregen: M.regen || 0, hleech: M.leech || 0,
+    // ★ 本轮「战意·连击里程碑」已达成的阶（docs/feature-combo-milestones.md）。
+    //   id → true 的普通对象，**不是 Set**：AGENTS.md 明确不许把 Set 直接 JSON 保存。
+    //   它是**本轮内存态**，encodeRun 不写这个键（存档格式零改动），
+    //   所以刷新恢复出来的 run 没有它 —— 接线层会自己补回空表。
+    //   一轮只发一次的原因：护盾跨战斗结转（finishBattleNode 把 B.shield 写回
+    //   run.shield），每场都发就是滚雪球。
+    milestones: {},
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,
     deckHint: 0, history: [], avail: null, node: null,
     done: new Set(),      // 本局已答对的词：不再出现

@@ -126,6 +126,11 @@
     <div class="cat" id="fCat">Unit 1</div>
     <div class="slots" id="fSlots"></div>
     <div class="combo" id="fCombo"></div>
+    <!-- 战意·连击里程碑（docs/feature-combo-milestones.md）：由 ui/components/combo-milestones.js 画。
+         挂在 #fCombo 正下方 —— 连击平时只是一行「连击 7 ✦ 伤害 ×1.7」，
+         玩家不知道再答对几个字母能换到东西；把三阶摆出来，目标才可见。
+         纯只读展示：发放在 app/combat.js，这里只把 run.milestones 画成一行。 -->
+    <div class="comboMs" id="fComboMs"></div>
   </div>
   <div class="items" id="fItems"></div>
   </div><!-- /.fmid -->

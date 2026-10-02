@@ -23,6 +23,7 @@ import { paintHpBar } from '../components/hp-bar.js';
 import { fitPhraseSlots } from '../components/phrase-slots.js';
 import { createEquipmentPanel } from '../components/equipment-panel.js';
 import { createFoeAttackMeter } from '../components/foe-attack-meter.js';
+import { createComboMilestoneTrack } from '../components/combo-milestones.js';
 import { FOE_ART_SCALE_MAX } from '../../data/balance.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0];
@@ -38,6 +39,9 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
   const equipmentPanel = createEquipmentPanel({ getRun, getBattle });
   // 蓄力条（清单 13）：只读 battle.foeAttack 这个事实，自己不排期、不改状态。
   const foeAttackMeter = createFoeAttackMeter({ $ });
+  // 战意条：只读 run.milestones 与 battle.combo，自己不发放任何奖励。
+  // 容器缺席时组件安静返回 null（未接线的测试台 / 旧页面），不影响其余渲染。
+  const comboTrack = createComboMilestoneTrack({ $ });
   // 怪物放大（清单 13）：只改 #fAv 自己的尺寸变量，上限由数据层钉死（≤1.2 倍）。
   // ★ 绝不碰 .avatar 的既有形状/动画/滤镜 —— 玩家已经认可那些形象与特效。
   //   放大走 inline style 而不是新样式表：这样 styles.test.js 那条
@@ -220,6 +224,8 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
         : '影分身本轮已用完：撤退需要损失 ' + SKIP_HP_COST + ' 点生命');
     $('tFlee').disabled = G.gold < 10;
     $('fCombo').textContent = B.combo > 0 ? ('连击 ' + B.combo + '  ✦ 伤害 ×' + (1 + B.combo * comboRate()).toFixed(1)) : '';
+    // 战意条紧挨着连击行：目标是可见才有追求。纯只读，绝不在这里发奖励。
+    comboTrack.paint(B.combo, G.milestones);
     renderItems();
     equipmentPanel.renderEquipmentPanel();
     return B.keyEls;

@@ -23,6 +23,9 @@ const ADDED = [
   // 前缀必须是 \.foeAtk（不带 \b）：自有类名形如 .foeAtkBar / .foeAtkTxt，
   // 加 \b 会把它们全部判成越界，逼着这条断言放宽成「什么都不许写」。
   ['./foe-attacks.css', /^\.foeAtk/, '战斗页蓄力条'],
+  // 战意·连击里程碑条。前缀同样不带 \b：自有类名形如 .comboMsPip / .comboMsTxt，
+  // 规则形如 .comboMsPip.on —— \b 会把它们全判成越界。
+  ['./combo-milestones.css', /^\.comboMs/, '战斗页战意条'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{
