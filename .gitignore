@@ -6,3 +6,6 @@ test-results/
 .env
 .env.*
 !.env.example
+
+# Claude Code 工作区与本地配置（worktree / launch.json 等不入库）
+.claude/
