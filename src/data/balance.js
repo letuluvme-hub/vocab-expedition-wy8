@@ -28,3 +28,22 @@ export const FOE_ATTACK = {
 // 手机竖屏上字母盘必须留在可视区内，所以这个上限由数据层钉死，
 // CSS 与 UI 组件都只读它 —— 没人能顺手写一个更大的值进去。
 export const FOE_ART_SCALE_MAX = 1.2;
+
+// 整词伤害的天花板曲线（opt/1-difficulty-curve）。
+//
+// 旧设计只有一个常数 560：连击 + 增伤 + 怒火叠满时不至于数值爆炸。但敌人血量按
+// `base = 7 + floor(floor*0.7)` 线性增长且**没有**上限，于是 floor 40 之后玩家伤害
+// 被钉死在 560、血量继续涨，「打空一个敌人需要的词数」单调恶化（实测 3.4 → 31.7）。
+//
+// 新设计：上限不是常数，而是**按同一个 base 等比增长**（见 domain/damage.js 的
+// wordDmgCap）。敌人涨多少、伤害就允许涨多少，天花板因此不再制造难度断层。
+//
+// ★ WORD_DMG_CAP 保留为**浅层上限**，不是历史包袱：floor 1-9 里 base ≤ 13，
+//   上限恰好保持 560（见 ANCHOR_BASE），所以那一段的手感逐位不变、没有任何构筑
+//   被削弱。这次改动对浅层是纯放宽。
+export const WORD_DMG_CAP = 560;
+
+// 上限开始增长的锚点：floor 9 的 base（7 + floor(9*0.7) = 13）。
+// 它是「560 还算合理」的最深一层——floor 9 满配构筑的整词伤害正好 215，远没顶到 560，
+// 而 floor 10 起 base > 13，560 就再也追不上了。
+export const WORD_DMG_CAP_ANCHOR_BASE = 13;

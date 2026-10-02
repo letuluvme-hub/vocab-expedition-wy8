@@ -135,8 +135,14 @@ function setDamageState(run, battle) {
   damageState.G = run;
   damageState.B = battle;
 }
-function* damageCases() {
-  for (const floor of [-10, 0, 1, 1.4, 2, 9, 50, 500])
+// 深层的伤害上限现在按 base 增长（opt/1-difficulty-curve），所以 floor ≥ 10 的整词
+// 伤害**故意**不再等于归档原版。hitDmg 完全没改，仍用全量楼层做基线比对；
+// wordDmg 只在上限仍然是旧常数 560 的楼层（base ≤ 13，即 floor ≤ 9）比对，
+// 深层改由 tests/unit/damage-cap.test.js 用新设计断言。
+const DEEP_FLOORS = [-10, 0, 1, 1.4, 2, 9, 50, 500];
+const SHALLOW_FLOORS = [-10, 0, 1, 1.4, 2, 9];
+function* damageCases(floors = DEEP_FLOORS) {
+  for (const floor of floors)
     for (const combo of [0, 1, 10, 1000])
       for (const dmgBonus of [-150, -50, 0, 25, 1000])
         for (const rageLeft of [0, 1])
@@ -170,13 +176,13 @@ test('hitDmg matches original rounding order, floor, relic, rage, freeze and cla
 });
 
 test('wordDmg matches legacy finisher scaling, hit-relative minimum and cap order', async t => {
-  const { wordDmg, hitDmg, WORD_RATIO, WORD_COMBO_BOOST, WORD_MIN_RATIO,
+  const { wordDmg, wordDmgCap, hitDmg, WORD_RATIO, WORD_COMBO_BOOST, WORD_MIN_RATIO,
     WORD_DMG_CAP, FIN_TIER_MAX, FIN_TIER_STEP } = await import('../../src/domain/damage.js');
   assert.deepEqual({ WORD_RATIO, WORD_COMBO_BOOST, WORD_MIN_RATIO, WORD_DMG_CAP, FIN_TIER_MAX, FIN_TIER_STEP },
     { ...legacy(['WORD_RATIO', 'WORD_COMBO_BOOST', 'WORD_MIN_RATIO', 'WORD_DMG_CAP', 'FIN_TIER_MAX'].map(originalConst),
       ['WORD_RATIO', 'WORD_COMBO_BOOST', 'WORD_MIN_RATIO', 'WORD_DMG_CAP', 'FIN_TIER_MAX', 'FIN_TIER_STEP']) });
   let count = 0;
-  for (const [run, baseBattle] of damageCases()) {
+  for (const [run, baseBattle] of damageCases(SHALLOW_FLOORS)) {
     for (const wordStreak of [0, 1, 2, 4, 5, 6]) {
       const battle = Object.freeze({ ...baseBattle, wordStreak });
       setDamageState(run, battle);
@@ -195,15 +201,41 @@ test('wordDmg matches legacy finisher scaling, hit-relative minimum and cap orde
   }
   assert.equal(wordDmg({ floor: 9, relics: ['combo'] },
     { combo: 1000, dmgBonus: 1000, rageLeft: 1, freezeWord: false, wordStreak: 5 }), WORD_DMG_CAP);
-  // Preserve the existing clamp order even when an extreme floor makes the
-  // lower bound exceed the nominal damage cap; do not silently fix gameplay.
   const extremeRun = { floor: 500, relics: [] };
   const extremeBattle = { combo: 0, dmgBonus: 0, rageLeft: 0, freezeWord: false, wordStreak: 1 };
   setDamageState(extremeRun, extremeBattle);
   assert.equal(hitDmg(extremeRun, extremeBattle), oldDamage.hitDmg());
   assert.ok(hitDmg(extremeRun, extremeBattle) > 140);
-  assert.equal(wordDmg(extremeRun, extremeBattle), oldDamage.wordDmg());
+  // Deep floors deliberately diverge from the archived constant ceiling: the ceiling
+  // now grows with base, so the raw finisher survives instead of being clipped.
+  assert.equal(wordDmg(extremeRun, extremeBattle), 1428);
   assert.ok(wordDmg(extremeRun, extremeBattle) > WORD_DMG_CAP);
+  // The old clamp-order pathology (lower bound overtaking the nominal cap) is now
+  // unreachable: the depth-scaled ceiling always sits above the 0.5x lower bound.
+  for (const floor of [0, 1, 9, 10, 50, 500, 5000]) {
+    const base = 7 + Math.floor(floor * 0.7);
+    assert.ok(wordDmgCap(base) > Math.max(Math.round(base * WORD_RATIO * 0.5), 1), `floor ${floor}`);
+  }
+  // Deep floors cannot be compared against the archived constant ceiling, but the
+  // depth-scaled one has two properties worth locking across the whole grid: the
+  // change is a pure buff (no build is ever nerfed), and the ceiling still binds
+  // runaway stacks instead of letting them run away.
+  let deepCount = 0;
+  for (const [run, baseBattle] of damageCases()) {
+    for (const wordStreak of [0, 1, 2, 4, 5, 6]) {
+      const battle = Object.freeze({ ...baseBattle, wordStreak });
+      const base = 7 + Math.floor(run.floor * 0.7);
+      const ceiling = wordDmgCap(base);
+      if (ceiling === WORD_DMG_CAP) continue;   // still the legacy ceiling: covered above, byte for byte
+      setDamageState(run, battle);
+      const actual = wordDmg(run, battle);
+      assert.ok(actual >= oldDamage.wordDmg(), `never nerfed: ${JSON.stringify([run, battle])}`);
+      assert.ok(actual <= ceiling, `never above the ceiling: ${JSON.stringify([run, battle])}`);
+      deepCount++;
+    }
+  }
+  assert.ok(deepCount > 5000, `deep grid covered ${deepCount} cases`);
+  t.diagnostic(`${deepCount} deep word damage cases checked against the legacy ceiling as a lower bound`);
   t.diagnostic(`${count} word damage cases compared against isolated legacy functions`);
 });
 
