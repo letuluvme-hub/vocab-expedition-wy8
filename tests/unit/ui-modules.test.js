@@ -380,8 +380,24 @@ test('fight.renderFight paints the same DOM as the legacy function', async () =>
     delete globalThis.innerWidth;
     // tSkip 是本任务唯一有意偏离旧版的元素（代价文案 + run 级影分身额度），单独比；
     // 其余每个 id 仍要求与旧版真实输出逐字一致。
-    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip');
+    // 清单 13 有两处有意偏离旧版：tSkip 的代价文案、#fAv 的放大 inline style。
+    // 其余每个 id 仍要求与旧版真实输出逐字一致。
+    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip' && id !== 'fAv');
+    const normalizeFoeScale = s => s
+      .replace(/\{width:\d+px\}/, '')            // 只抹掉放大写进去的尺寸
+      .replace(/;?height:\d+px;font-size:\d+px/, '');
     assert.equal(snapDoc(docMine, COMPARE_IDS), snapDoc(docOld, COMPARE_IDS), 'kb=' + DB.kbMode);
+    // 偏离面必须精确：抹掉放大后，敌人头像的 SVG 与既有结构必须与旧版逐字相同
+    // （形状/特效归既有样式表所有，本任务一个字都不许改）。
+    assert.equal(normalizeFoeScale(snap(docMine.getElementById('fAv'))),
+      snap(docOld.getElementById('fAv')), 'kb=' + DB.kbMode);
+    // 放大上限由数据层钉死：不得超过 FOE_ART_SCALE_MAX 倍基准 --avatar。
+    const { FOE_ART_SCALE_MAX } = await import('../../src/data/balance.js');
+    const avStyle = docMine.getElementById('fAv').style;
+    const scaled = parseFloat(avStyle.width);
+    assert.ok(scaled > 0, '怪物确实被放大了（否则上面的抹平就成了假通过）');
+    assert.ok(scaled <= 64 * FOE_ART_SCALE_MAX + 1,
+      `放大后 ${scaled}px 超过上限 ${FOE_ART_SCALE_MAX} 倍基准 64px`);
     // 偏离面必须精确：只多出「影分身」标签 + 免费撤退小字 + tooltip，属性/尺寸行为不变。
     // 归一化掉新文案后必须与旧版逐字相同（title 是新加的，单独抹平）。
     // 名字不叫 norm：会和模块顶部 import 的 norm(text) 撞车（TDZ）。

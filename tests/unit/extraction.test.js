@@ -38,7 +38,7 @@ test('relic catalog differs from legacy only in the ghost description', async ()
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css'];
 
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
@@ -75,6 +75,9 @@ const PAUSE_ONLY_NEW = [
   // 让「与归档逐字相同」这条断言恒假。挖掉后其余部分仍要求逐字相同：
   // 提示条不许借机改动既有控件。
   /  <!-- 音频兼容提示条：[\s\S]*?<div id="audioCompatibility"><\/div>\n/,
+  // 蓄力条容器（清单 13）：纯新增（归档里没有对应物），挂在战斗页敌人信息块里。
+  // 连同上面的注释整块挖掉 —— 注释也是本次新增，留在骨架里会让「逐字相同」恒假。
+  /        <!-- 蓄力条（清单 13）：[\s\S]*?<div class="foeAtk" id="fFoeAtk" hidden><\/div>\n/,
 ];
 // 包裹了既有控件的改动 → 还原成归档里的原始写法（放弃远征按钮被包进了一行 .row）。
 const PAUSE_BACK_TO_LEGACY = [
@@ -157,6 +160,19 @@ test('page skeleton preserves approved character parts and all existing controls
   assert.match(html, /id="s-learning-complete"/);
   assert.match(html, /id="lcBtnHome">保存并返回主页/);
   assert.match(html, /id="lcBtnQuit">结束本轮学习/);
+  // 蓄力条容器（清单 13）必须真的在战斗页里，且宿主 id 不得与组件自建的重复。
+  // 这条必须命中 —— 否则上面 PAUSE_ONLY_NEW 里那条剥离会变成静默空操作，
+  // 「骨架与归档逐字相同」就成了永远为真的假通过。
+  // ★ 结束锚点必须是 s-fight 之后的**下一个** screen：文档里 s-map 排在 s-fight
+  //   之前，用它切片会得到空串，让这条断言对不存在的容器也「通过」。
+  const fightStart = html.indexOf('<div class="screen" id="s-fight">');
+  const fightScreenHtml = html.slice(fightStart,
+    html.indexOf('<div class="screen"', fightStart + 10));
+  assert.match(fightScreenHtml, /<div class="foeAtk" id="fFoeAtk" hidden><\/div>/,
+    '蓄力条容器必须落在战斗页 #s-fight 内');
+  // 旧的敌人头像节点不许被改动：形状与特效归既有样式表所有。
+  assert.match(fightScreenHtml, /<div class="avatar" id="fAv">/,
+    '敌人头像节点的结构必须保持原样（放大只走 inline style）');
   assert.doesNotMatch(html, /id="s-learning-complete">[\s\S]*?(解锁下一单元|下一单元已)/,
     '检查点屏不许承诺解锁下一单元');
 });

@@ -99,6 +99,10 @@
       <div class="finfo">
         <div class="fname" id="fName">词灵</div>
         <div class="tagsm" id="fTags"></div>
+        <!-- 蓄力条（清单 13）：由 ui/components/foe-attack-meter.js 画。
+             放在 finfo 里而不是 vsrow 上层，这样怪物变大时它跟着敌人信息块走，
+             不会把 .fmid 顶高、把下面的字母盘挤出手机可视区。 -->
+        <div class="foeAtk" id="fFoeAtk" hidden></div>
       </div>
     </div>
     <div class="myside">

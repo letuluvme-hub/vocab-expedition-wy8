@@ -22,10 +22,12 @@ import { HERO_DEFAULT, heroById } from '../components/hero.js';
 import { paintHpBar } from '../components/hp-bar.js';
 import { fitPhraseSlots } from '../components/phrase-slots.js';
 import { createEquipmentPanel } from '../components/equipment-panel.js';
+import { createFoeAttackMeter } from '../components/foe-attack-meter.js';
+import { FOE_ART_SCALE_MAX } from '../../data/balance.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0];
 
-export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn }) {
+export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow }) {
   const $ = id => document.getElementById(id);
   const isKbMode = () => !!getDB().kbMode;
   const isKbUpper = () => !!getDB().kbUpper;
@@ -34,6 +36,26 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
   // 「装备与能力」只读面板：挂在道具栏后面，自己在 #fItems 旁边建 <details>。
   // 它读的是同一批 G/B 快照，不做任何结算；这里每帧调用也不会重复生效。
   const equipmentPanel = createEquipmentPanel({ getRun, getBattle });
+  // 蓄力条（清单 13）：只读 battle.foeAttack 这个事实，自己不排期、不改状态。
+  const foeAttackMeter = createFoeAttackMeter({ $ });
+  // 怪物放大（清单 13）：只改 #fAv 自己的尺寸变量，上限由数据层钉死（≤1.2 倍）。
+  // ★ 绝不碰 .avatar 的既有形状/动画/滤镜 —— 玩家已经认可那些形象与特效。
+  //   放大走 inline style 而不是新样式表：这样 styles.test.js 那条
+  //   「新增表只允许作用于自己的容器」的断言继续成立，也就不会回退线上外观。
+  // ★ 基准尺寸必须取**样式表**的 --avatar，不能读 #fAv 自己的 computed width：
+  //   那个值已经含了上一次写的 inline width，每帧乘一次就会指数放大成巨型怪物。
+  //   --avatar 由 responsive.css 按屏幕高度切换，所以窄屏自动跟着变小。
+  function paintFoeScale() {
+    const av = $('fAv');
+    if (!av) return;
+    const host = $('s-fight');
+    const declared = host ? getComputedStyle(host).getPropertyValue('--avatar') : '';
+    const base = parseFloat(declared) || 64;
+    const size = Math.round(base * FOE_ART_SCALE_MAX);
+    av.style.width = size + 'px';
+    av.style.height = size + 'px';
+    av.style.fontSize = Math.round(size * 0.53) + 'px';   // 与 .avatar 的 .53 比例一致
+  }
 
   /* 渲染道具栏：只显示玩家真正持有的道具，并标出快捷键 */
   function renderItems() {
@@ -81,6 +103,9 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     if (pc) pc.dataset.h = H.id;
     const nm = $('fMyName'); if (nm) nm.textContent = H.n;
     $('fAv').innerHTML = foeArtHTML(B.foe, B.boss, B.elite);
+    paintFoeScale();
+    // 蓄力条：数据由 app/foe-attacks.js 挂在 B.foeAttack 上（可能还没有 → 组件隐藏自己）。
+    foeAttackMeter.paint(B.foeAttack, getFoeAttackWindow ? getFoeAttackWindow() : null);
     $('fName').textContent = B.foe.n + (B.boss ? '（首领）' : B.elite ? '（精英）' : '');
     $('fZh').textContent = B.word.z;
     // 字符数按 norm() 的字母数算（否则 keep an eye on 会显示「14 字符」，
@@ -200,5 +225,15 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     return B.keyEls;
   }
 
-  return { renderFight, renderItems, syncBankBar, renderEquipmentPanel: equipmentPanel.renderEquipmentPanel };
+  /* 蓄力条的**刷新**口（250ms UI 节拍走它）。
+   * ★ 与 renderFight 分开是硬约束：节拍每 250ms 调一次，走整屏渲染会把字母盘
+   *   重建 —— 玩家点一个字母点到一半按钮被换掉、键盘焦点丢失，每秒四次。
+   *   这里只把事实交给 meter.paintLive（只改已有元素的宽度与文案）。
+   *   组件还没有被 renderFight 画过时（首次刷新早于首屏渲染）自动退回整块 paint。 */
+  function paintFoeAttack(fact) {
+    return foeAttackMeter.paintLive(fact, getFoeAttackWindow ? getFoeAttackWindow() : null);
+  }
+
+  return { renderFight, renderItems, syncBankBar, paintFoeAttack,
+    renderEquipmentPanel: equipmentPanel.renderEquipmentPanel };
 }

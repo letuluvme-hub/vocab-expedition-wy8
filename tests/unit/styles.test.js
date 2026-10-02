@@ -18,6 +18,11 @@ const ADDED = [
   ['./equipment-panel.css', /^\.equip\b/, '战斗页装备面板'],
   ['./audio-compatibility.css', /^#audioCompatibility\b/, '音频兼容提示条'],
   ['./mastery-growth.css', /^#masteryGrowth\b/, '知识成长区'],
+  // 蓄力条（清单 13）。注意选择器前缀是**容器 id**：容器挂在战斗页敌人信息块里，
+  // 所以 .foeAtk* 这些自有类名被 #fFoeAtk 的后代规则约束，不会漏到别处。
+  // 前缀必须是 \.foeAtk（不带 \b）：自有类名形如 .foeAtkBar / .foeAtkTxt，
+  // 加 \b 会把它们全部判成越界，逼着这条断言放宽成「什么都不许写」。
+  ['./foe-attacks.css', /^\.foeAtk/, '战斗页蓄力条'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

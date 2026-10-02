@@ -23,6 +23,7 @@ import { rewardScope, renderRewardCard } from '../ui/components/reward-card.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 import { createEffects } from '../ui/effects.js';
 import { createLifecycle } from './lifecycle.js';
+import { createFoeAttackController } from './foe-attacks.js';
 import { WORDS } from '../data/words.js';
 import { createStorage, initializeDB } from '../services/storage.js';
 import { norm, wordGapBefore } from '../domain/text.js';
@@ -619,6 +620,10 @@ function startFight(n){
   if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
     if(h>0) setTimeout(()=>toast('💚 开场治疗：回复 '+h+' 点生命'),260) }
   ENCOUNTER=null; setPhase(PHASE.BATTLE);
+  // 蓄力自主攻击（清单 13）：固定配置在这里**应用一次**。
+  // ★ 不在 nextWord 里重置 —— 换一个词不该把蓄力时间重排，否则玩家
+  //   每答完一词就获得一段新的无敌窗口，怪等于永远打不到人。
+  foeAttackCtl.start();
   show('s-fight'); renderFight();
   sfx.enemy(boss||elite);
   foeCry('spawn');                                    // ← 语音层：敌人登场叫（音高按敌人种类散开）
@@ -1001,6 +1006,7 @@ function hurtPlayer(d,wrongCh,rightCh,opt){return combat.hurtPlayer(d,wrongCh,ri
 function winFight(){
   if(!canFinishFight(B)) return false;
   B.over=true; B.won=true;
+  foeAttackCtl.stop();          // 怪已死：相位转defeated，迟到的定时回调不再结算伤害
   sfx.win();
   // 语音：胜利台词强制发声（force=true 绕过限流 —— 这一刻是整局的高潮）
   lifecycle.scheduleBattle(()=>TTS.line('win',null,{force:true}), 260);
@@ -1033,6 +1039,7 @@ function wordComplete(){ return isWordComplete(B) }
 function loseFight(){
   if(!B||B.over) return;
   B.over=true;
+  foeAttackCtl.stop();          // 战斗已结束：不再有后续主动伤害
   // 致命一击会把 myHp 扣成负数，而快照的校验口径是 [0, maxhp]：战败那一刻的
   // 快照会因此被判为损坏，于是「刚输掉就暂停/刷新」反而进不去这一局。
   // 这里夹到 0 —— 战斗已结束，负血没有任何后续语义（也不会被结转回 G）。
@@ -1221,6 +1228,7 @@ const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,g
   onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit }});
 const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
 const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
+  getFoeAttackWindow:()=>foeAttackCtl.window(),
   onPress:i=>{ if(progress.isPaused())return; B.sel=i;progress.pressLetter(i)},
   onUseItem:id=>progress.useItem(id),paintSayBtn});
 const pauseScreen=createPauseScreen({getRun:()=>G,
@@ -1290,10 +1298,32 @@ function restoreScreen(from){
   else if(from==='s-rest'||from==='s-event'||from==='s-pick') show(from)   // 原样回来
   else { show('s-map'); renderMap() }
 }
+/* 蓄力自主攻击控制器（清单 13）。必须建在 combat 之后 —— 它要调 combat.enemyHit。
+   frozen 用函数而不是常量：词汇完成屏、奖励屏、结算屏上怪都不该再主动攻击，
+   而这些相位是运行期才知道的。 */
+const foeAttackCtl=createFoeAttackController({
+  state, lifecycle, now:()=>Date.now(),
+  foeAttackHit:d=>combat.enemyHit(d),
+  // 相位变化时提交一次快照（同一个入口，与 DB 记录同一次 save）。
+  commit:()=>commit(true),
+  renderFight:()=>renderFight(),
+  toast:m=>toast(m),
+  // ★ 事务边界：整条「推进相位 → 结算伤害 → 发布」必须在**最外层**收一次口。
+  //   致死一击会在 enemyHit 里重入 loseFight → stop()/markEnding()，没有它就会
+  //   在中途写出一份「战斗已结束却仍挂在 battle 相位」的非法快照，
+  //   也让「相位已收招但血没扣」那一帧有机会落盘。
+  mutate:fn=>mutate(fn),
+  // UI 刷新节拍专用口：只 paint 蓄力条，绝不整屏 renderFight（会重建字母盘）。
+  paintAttack:f=>fightScreen.paintFoeAttack(f),
+  frozen:()=>progress.isPaused()||progress.isFinished()
+      ||(PHASE_STATE!==PHASE.BATTLE)||!B||B.over||B.finished,
+});
 const combat=createCombatController({state,ports:{$,norm,clamp,rnd,hasR,itemById,hitDmg,wordDmg,wordComplete,
   creditWord,onWordWrong,centerOf,heroPoint,toast,sfx,TTS,burst,floatTxt,flash,ring,animHero,
   wordFinisher,foeCry,renderFight,nextWord,winFight,loseFight,finishNode,saveDB,
-  scheduleBattle:lifecycle.scheduleBattle}});
+  scheduleBattle:lifecycle.scheduleBattle,
+  // 有效字母尝试 → 蓄力打断（清单 13）。只在 pressKey 真正接受输入后调用。
+  notifyLetterAttempted:()=>foeAttackCtl.notifyLetterAttempted()}});
 const encounters=createEncounterController({state,ports:{$,clamp,pick,shuffle,rnd,has,hasR,goldGain,applyRelicInit,
   sfx,toast,advance,endRun:endRunNow,finishNode,show,scheduleRun:lifecycle.scheduleRun,scheduleBattle:lifecycle.scheduleBattle,
   publishEncounter,setPhase,
@@ -1316,6 +1346,14 @@ const progress=createProgressController({state,api:{
   // 词汇完成检查点：恢复与同页返回都走这一个入口，保证是同一块屏。
   showLearningComplete:()=>showLearningComplete(),
   lifecycle,
+  // 蓄力自主攻击（清单 13）：快照采集时刷新剩余时间；恢复时按 remainingMs 重建。
+  captureFoeAttack:()=>{ if(B&&B.foeAttack) B.foeAttack=foeAttackCtl.captureFact()||B.foeAttack },
+  restoreFoeAttack:fact=>foeAttackCtl.restore(fact),
+  // 暂停/继续的蓄力冻结与重定位。pauseFoeAttack 必须在 lifecycle.pause() 之前调
+  // （采真实的 due-now 剩余），resumeFoeAttack 在 lifecycle.resume() 之后调
+  // （只重定位 dueAt，不重排已冻结的同页队列）。
+  pauseFoeAttack:()=>foeAttackCtl.pause(),
+  resumeFoeAttack:()=>foeAttackCtl.resume(),
   // 结算的内存侧（改 DB / 画结算屏）；落盘由控制器用同一次写完成。
   settleRun:w=>settleRun(w),
   // 同页恢复：把玩家放回他离开的那一屏。
@@ -1447,6 +1485,8 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     sayCurrentWord,useItem,show,TTS,AU,WORDS,UNITS,HEROES,ITEMS,RELICS,
     // 暂停/恢复测试面：只暴露动作，不暴露内部实现
     progress, pauseNow, resumeFromPause, chooseEncounter, takeReward,
+    // 蓄力自主攻击（清单 13）：只暴露动作与事实，不暴露定时器内部。
+    foeAttack:foeAttackCtl, enemyHit:d=>combat.enemyHit(d),
     get phase(){return PHASE_STATE}, get encounter(){return ENCOUNTER},
     get outcome(){return OUTCOME},
   };

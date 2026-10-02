@@ -67,6 +67,10 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     const run = getRun();
     if (runFinished(run)) return null;
     if (!run || !Array.isArray(run.rows) || !run.rows.length) return null;
+    // ★ 蓄力剩余时间必须在**采集这一刻**换算（due - now），而不是留着上一次
+    //   相位切换时写下的旧数字。少这一行的话，存档里的蓄力时间会随快照频率漂移：
+    //   刚进战斗存一次、10 秒后再存一次，两份存档的 remainingMs 完全一样。
+    if (api.captureFoeAttack) api.captureFoeAttack();
     const p = phase();
     // 结算相位只带「赢了还是输了」+ 那一场战斗：不重新开奖，也不带事件卡。
     if (p === ENDING) {
@@ -96,7 +100,12 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     const run = getRun();
     if (!run) return { saved: false, reason: 'none', message: null };
     if (runFinished(run)) return { saved: false, reason: 'finished', message: null };
-    // 先冻结延迟任务再采集快照：顺序反了会存进一个「即将执行」的状态。
+    // ★ 蓄力冻结**先于** lifecycle.pause()：controller 要在 live() 还成立、
+    //   due-now 还是真实剩余的那一刻把剩余时间采下来。顺序反了的话
+    //   lifecycle 已冻结、frozen() 转真，采到的就只是「本相位的整个窗口」，
+    //   暂停 30 秒再继续时蓄力会凭空多出 30 秒。
+    if (api.pauseFoeAttack) api.pauseFoeAttack();
+    // 再冻结延迟任务，最后才采集快照：顺序反了会存进一个「即将执行」的状态。
     api.lifecycle.pause();
     const result = save();
     paused = true;
@@ -117,7 +126,10 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     paused = false;
     atTitle = false;
     pauseMeta = null;
+    // lifecycle 先把冻结的任务按剩余时间挂回去，controller 再只重定位 dueAt
+    // （绝不重排队列 —— 同一个相位挂两个回调会凭空多挨一下）。
     api.lifecycle.resume();
+    if (api.resumeFoeAttack) api.resumeFoeAttack();
     // AudioContext 只在手势里恢复：这个 resume() 正是玩家点「继续」的路径。
     if (audioSuspended) resumeAudio();
     return true;
@@ -144,6 +156,8 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     const run = getRun();
     if (!run || runFinished(run)) return false;
     if (!paused) {
+      // 返回主页也是一次暂停：蓄力同样冻结（契约与 pause() 完全一致）。
+      if (api.pauseFoeAttack) api.pauseFoeAttack();
       api.lifecycle.pause();
       save();
       paused = true;
@@ -194,6 +208,9 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     if (snapshot.phase === PHASE.BATTLE) {
       api.setPhase(PHASE.BATTLE);
       api.setEncounter(null);
+      // 蓄力状态重建（清单 13）：按快照里的 remainingMs 精确重建，
+      // 不补打刷新期间已经过去的那一下。缺失（旧快照）→ 干净的 idle 窗口。
+      if (api.restoreFoeAttack) api.restoreFoeAttack(snapshot.battle ? snapshot.battle.foeAttack : undefined);
       api.show('s-fight');
       api.renderFight();
       return;

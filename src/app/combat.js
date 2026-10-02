@@ -112,6 +112,52 @@ export function createCombatController({ state, ports }) {
     if (B.myHp <= 0) loseFight();
   }
 
+  /* 通知「玩家刚做了一次有效字母尝试」→ 蓄力打断（清单 13）。
+   * 只在 pressKey **真正接受**一次输入后调用；越界、已用、已试过、
+   * 自动解锁、退格、提示都不算。没有这个端口（未接入战斗）时静默返回 false。 */
+  function notifyAttempt() {
+    if (typeof ports.notifyLetterAttempted !== 'function') return false;
+    return ports.notifyLetterAttempted() === true;
+  }
+
+  /* ---------- 自主攻击：怪蓄满了打玩家一下（清单 13） ----------
+   *
+   * ★ 为什么必须独立于 hurtPlayer：hurtPlayer 是「玩家答错」的惩罚路径 ——
+   *   它会把当前词记成错词、踢进本局复习队列、从 DB.mastered 里删掉，
+   *   还要消耗幸运草 / 首领首击减半。自主攻击是**怪自己在打人**，
+   *   走那条路径等于凭空把一个玩家根本没答错的词判成错词：直接破坏学习主线，
+   *   而且 mastered / G.att 这类计数会被一只怪物悄悄改掉。
+   *   所以这里只有「护盾 → 生命 → 判负」三步，别的什么都不碰。
+   *   不触发荆棘反弹（那是答错的补偿）、不发假胜利、不动任何计数。
+   */
+  function enemyHit(d) {
+    const B = state.B, G = state.G;
+    if (!B || B.over || B.finished) return { dealt: 0, lost: false };
+    let dmg = typeof d === 'number' && isFinite(d) && d > 0 ? d : 0;
+    let absorbed = 0;
+    if (dmg > 0 && B.shield > 0) {
+      absorbed = Math.min(B.shield, dmg);
+      B.shield -= absorbed;
+      dmg -= absorbed;
+      floatTxt(vw() / 2, vh() * 0.35, '护盾 -' + absorbed, '#22d3ee');
+    }
+    if (dmg > 0) {
+      B.myHp -= dmg;
+      animHero('hurt');
+      centerOf($('fAv'));
+      floatTxt(vw() / 2, vh() * 0.42, '-' + dmg, '#ff5470');
+      flash('#ff54702e');
+      sfx.hurt();
+      if (G && B.myHp > 0 && B.myHp < G.maxhp * 0.3 && !B._lowSaid) {
+        B._lowSaid = true;
+        TTS.line('low', null, { force: true });
+      } else if (G && B.myHp >= G.maxhp * 0.5) B._lowSaid = false;
+    }
+    const lost = B.myHp <= 0;
+    if (lost) loseFight();
+    return { dealt: absorbed + (dmg > 0 ? dmg : 0), absorbed, lost };
+  }
+
   /* ---------- 道具 ---------- */
   function useItem(id) {
     const B = state.B, G = state.G;
@@ -220,6 +266,10 @@ export function createCombatController({ state, ports }) {
 
     if (tgt[pos] === ch) {
       // ✅ 正确
+      // ★ 有效字母尝试 → 通知蓄力打断（清单 13）。放在**判定之后**：
+      //   只有真正被接受（不是 used / bad 重复 / 不在盘上）才算一次尝试，
+      //   所以「一直按同一个错字母」不能维持永远安全。
+      notifyAttempt();
       B.used[i] = true; B.input.push(ch);
       // 提示窗口锚在 input.length：进度 +1 会让窗口左边界右移一格，
       // 所以把已揭示数 -1 抵消掉，否则会「白赚」下一个字母的提示。
@@ -291,6 +341,10 @@ export function createCombatController({ state, ports }) {
     } else {
       // ❌ 错误：区分「单词里根本没这个字母」和「字母对、只是顺序不对」
       const inWord = tgt.indexOf(ch) >= 0;
+      // 有效尝试（清单 13）：错字母同样打断蓄力 —— 用户原意是「输入字母则可以
+      // 打断」。但**打断与教学惩罚分开记**：下面的 12/6 点扣血、错词记录、
+      // 复习队列一条都不少。打断只是额外多一个战术收益，绝不替代代价。
+      notifyAttempt();
       sfx.bad();
       if (keyEl) {
         keyEl.classList.add('flash');
@@ -435,7 +489,7 @@ export function createCombatController({ state, ports }) {
   }
 
   // 与 winFight 的奖励面板共用同一套卡片渲染（此处导出以免 runtime 重复实现）
-  return { pressKey, useItem, dealDamage, hurtPlayer, typeLetter, requestHint, skipFight, fleeFight, undoLetter };
+  return { pressKey, useItem, dealDamage, hurtPlayer, enemyHit, typeLetter, requestHint, skipFight, fleeFight, undoLetter };
 }
 
 // runtime 的奖励面板会用到奖励卡渲染，这里重导出，方便调用方只依赖本模块。
