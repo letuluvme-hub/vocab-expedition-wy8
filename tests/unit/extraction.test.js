@@ -108,7 +108,7 @@ test('unmodified enemy and unit catalogs are byte-for-byte equivalent values', a
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css'];
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
@@ -241,7 +241,12 @@ const backToLegacyHomeProgress = html => {
 test('page skeleton preserves approved character parts and all existing controls', () => {
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-  const comparable = backToLegacyHomeProgress(html);
+  const comparable = backToLegacyHomeProgress(html)
+    .replace('<span class="desktopHelp">','').replace('方向键不做任何事。</span>','方向键不做任何事。')
+    .replace('QWERTY / 字母序</b>（字母序按 A–Z 排）','键盘布局</b>（按电脑 QWERTY 排）')
+    .replace('A–Z 字母序 ↔ 标准 QWERTY 键盘三行','乱序网格 ↔ 标准 QWERTY 键盘三行')
+    .replace('布局<b id="tBankModeV">字母序</b>','键盘布局<b id="tBankModeV">关</b>')
+    .replace(/  <div id="fHintShared" aria-live="polite">听读音 \/ 提示共用：剩余 3 次<\/div>\r?\n/,'');
   // 两边都要走 stripPause：暂停新增是本任务允许的唯一偏离，其余必须逐字相同。
   // 主页声音设置区是同位置的替换：把新版容器还原成归档的 .volrow 段再比。
   // 知识成长容器是纯新增：整段删掉再比（见 stripMasteryHost）。

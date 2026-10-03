@@ -1,4 +1,4 @@
-// 字母盘：生成 + 两种布局（字母盘网格 / QWERTY 键盘模式）。
+// 字母盘：生成 + 两种布局（A–Z 网格 / QWERTY 键盘模式）。
 // 搬自 runtime.js 的 drawLetters / bankCols / bankRows / bankPosOf，纯规则、无 DOM。
 import { clamp } from './math.js';
 import { norm } from './text.js';
@@ -42,12 +42,13 @@ export function bankCols(n) {
 }
 
 // 把 letters 算成 [[行内字母索引,...], ...]，行内顺序 = 视觉从左到右
-// kbMode=false：字母盘网格（行优先）；kbMode=true：按真实 QWERTY 行分桶，空行不输出
+// kbMode=false：字母序网格（行优先）；kbMode=true：按真实 QWERTY 行分桶，空行不输出
 export function bankRows(letters, kbMode) {
   const n = letters.length, rows = [];
   if (!kbMode) {
     const cols = bankCols(n);
-    for (let i = 0; i < n; i++) { const r = (i / cols) | 0; (rows[r] = rows[r] || []).push(i); }
+    const indices = letters.map((_,i)=>i).sort((a,b)=>letters[a].localeCompare(letters[b]) || a-b);
+    indices.forEach((index,i)=>{ const r=(i/cols)|0; (rows[r]=rows[r]||[]).push(index) });
     return rows;
   }
   const bucket = [[], [], []];

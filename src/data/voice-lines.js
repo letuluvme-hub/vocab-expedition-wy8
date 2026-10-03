@@ -37,16 +37,16 @@ export const VOICE_LINES={
   lose: ['Out of arrows.','I slipped the shot.','The quarry wins this round.','Regroup in the shadows.']}
 };
 export const FOE_LINES={
- '词灵':     {rate:1.02, pitch:1.25, vo:'female', seed:1, lines:['来啦！','接招！','试试我的厉害！','别躲了！']},
- '语素蛛':   {rate:1.12, pitch:1.55, vo:'female', seed:2, lines:['织网罗你！','别想跑！','黏住你了！','乖乖留下！']},
- '石化词素': {rate:0.78, pitch:0.55, vo:'male',   seed:3, lines:['石化！','动不了吧？','重如山！','站住！']},
- '歧义章鱼': {rate:0.92, pitch:0.80, vo:'male',   seed:4, lines:['我有好几条腿！','哪个意思？','缠住你了！','猜猜我在说啥！']},
- '拼写幽灵': {rate:1.20, pitch:1.75, vo:'female', seed:5, lines:['我拼错了！','别念了！','嘿嘿嘿！','错在我这！']},
- '单复数蝎': {rate:1.08, pitch:1.35, vo:'male',   seed:6, lines:['单数还是复数？','扎你一下！','有尾巴的！','再想想！']},
- '冰封词灵': {rate:0.86, pitch:0.70, vo:'female', seed:7, lines:['冻住你！','冰冰凉凉！','别想动！','化了！']},
- '词形旋风': {rate:1.28, pitch:1.62, vo:'female', seed:8, lines:['转晕你！','词形变了！','呼——！','吹走了！']},
+ '词灵':     {rate:1.02, pitch:1.25, vo:'female', seed:1, lines:['Here I come!','Take this!','Face my power!','No hiding!']},
+ '语素蛛':   {rate:1.12, pitch:1.55, vo:'female', seed:2, lines:['Caught in my web!','You cannot escape!','Got you!','Stay right there!']},
+ '石化词素': {rate:0.78, pitch:0.55, vo:'male',   seed:3, lines:['Turn to stone!','Cannot move?','Heavy as a mountain!','Stop right there!']},
+ '歧义章鱼': {rate:0.92, pitch:0.80, vo:'male',   seed:4, lines:['Eight arms. No escape!','Which meaning?','You are tangled!','Guess what I mean!']},
+ '拼写幽灵': {rate:1.20, pitch:1.75, vo:'female', seed:5, lines:['A spelling curse!','Silence!','Ha ha ha!','Beware my spell!']},
+ '单复数蝎': {rate:1.08, pitch:1.35, vo:'male',   seed:6, lines:['Singular or plural?','Feel my sting!','Watch my tail!','Think again!']},
+ '冰封词灵': {rate:0.86, pitch:0.70, vo:'female', seed:7, lines:['Freeze!','Cold as ice!','Stay frozen!','The ice is breaking!']},
+ '词形旋风': {rate:1.28, pitch:1.62, vo:'female', seed:8, lines:['Round and round!','Words are changing!','Whoosh!','Blown away!']},
  /* BOSS：专属开场白，最慢最低最有压迫感 */
  '词汇之王': {rate:0.72, pitch:0.42, vo:'male',   seed:9, volume:1,
-              lines:['以吾之名，审判！','凡人，停笔！','词汇之王降临！','你的词，都归我！']}
+              lines:['Face my judgment!','Lay down your pen!','The word king has arrived!','Your words belong to me!']}
 };
-export const ELITE_LINES=['精英怪！','不好对付！','来真的！'];
+export const ELITE_LINES=['An elite challenger!','This will not be easy!','The real battle begins!'];

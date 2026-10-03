@@ -249,6 +249,17 @@ const sfx={
   combo(){ const b=Math.min(Math.floor(combo()/5),3);
     arp([pnote(14+b),pnote(16+b),pnote(19+b)],.06,.14,'triangle',.11);
     noise(.14,'highpass',5200,.05,{delay:.1}) },
+  /* Announcer impact: short bass hit + metallic attack, growing with the streak.
+     Triggered by speech onstart, so failed/muted utterances do not give fake audio feedback. */
+  announcement(count){
+    if(AU.muted || AU.vol<=0) return;
+    const level=clamp(Number(count)||1,1,10);
+    const power=.12+level*.008;
+    tone(96,.28,'triangle',power,38,{cut:700,send:.12});
+    noise(.075,'bandpass',1800,power*.65,{sweep:650,q:.8});
+    tone(192,.16,'sawtooth',power*.32,80,{cut:900,send:.08});
+    if(level>=3) tone(288,.22,'triangle',power*.35,144,{delay:.06,send:.18});
+  },
   /* 敌人出场：低沉锯齿 growl；首领更长更沉 */
   enemy(big){
     const d=big?.7:.42, v=big?.15:.11;
