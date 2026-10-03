@@ -27,6 +27,7 @@ import { comboMilestoneLadder } from './combo-milestones.js';
 // 编解码必须知道上限才能把「超出上限的计数」判成脏值 —— 硬编码 2 会让
 // 数据层改上限之后，旧存档里那些合法计数突然变成「损坏」。
 import { WHET_MAX_PER_RUN } from '../data/balance.js';
+import { HERO_BALANCE } from '../data/hero-balance.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -311,6 +312,21 @@ function encodeRun(run) {
   if (qStats) out.qStats = qStats;
   return out;
 }
+// Optional balance facts prevent refresh from replenishing earned-letter rewards
+// or per-battle hero budgets. Missing fields remain valid for pre-balance saves.
+function validBalanceFacts(b) {
+  if (b.letterProgress !== undefined && (!Number.isSafeInteger(b.letterProgress)
+    || b.letterProgress < (b.input || []).length || b.letterProgress > norm(b.word.w).length)) return false;
+  for (const [key, max] of [['heroHealed', HERO_BALANCE.rangerBattleHealCap], ['heroShieldGained', HERO_BALANCE.warriorBattleShieldCap]]) {
+    if (b[key] !== undefined && (!Number.isSafeInteger(b[key]) || b[key] < 0 || b[key] > max)) return false;
+  }
+  return true;
+}
+function copyBalanceFacts(from, to) {
+  for (const key of ['letterProgress', 'heroHealed', 'heroShieldGained']) {
+    if (from[key] !== undefined) to[key] = from[key];
+  }
+}
 function encodeBattle(b) {
   const out = {
     word: encodeWord(b.word), letters: b.letters.slice(),
@@ -342,6 +358,7 @@ function encodeBattle(b) {
   if (Array.isArray(b.offer) && b.offer.length) out.offer = b.offer.map(encodeWord);
   if (Number.isInteger(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
   if (b.wordLocked === true) out.wordLocked = true;
+  copyBalanceFacts(b, out);
   return out;
 }
 function encodeEncounter(e) {
@@ -399,6 +416,7 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   // Optional P0 facts follow foeAttack: dirty present values reject the whole snapshot.
   if (run.qStats != null && encodeQStats(run.qStats) === undefined) return null;
   if (env.battle && env.battle.wordQ != null && encodeWordQ(env.battle.wordQ) === undefined) return null;
+  if (env.battle && !validBalanceFacts(env.battle)) return null;
   // 完整词连胜同样**按原值** fail closed（与 growth / foeAttack 同一口径）：
   //   绝不 normalize 掩坏 —— {count:99} 被夹成 {count:8} 会让存档看起来正常，
   //   却凭空记了一个满级连胜；1e21 这类不安全序号会让 ++ 之后身份永久重复。
@@ -646,6 +664,7 @@ function validBattle(b, run, byId) {
   }
   if (b.autoHint !== undefined && b.autoHint !== null && !(isInt(b.autoHint) && b.autoHint >= 0)) return false;
   if (b.wordLocked !== undefined && b.wordLocked !== null && !isBool(b.wordLocked)) return false;
+  if (!validBalanceFacts(b)) return false;
   if (b.node === null || b.node === undefined || !byId.has(b.node)) return false;   // 战斗必须有真实节点
   return true;
 }
@@ -678,6 +697,7 @@ function decodeBattle(b, run, byId) {
   }
   if (isInt(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
   if (b.wordLocked === true) out.wordLocked = true;
+  copyBalanceFacts(b, out);
   return out;
 }
 function validEncounter(e, byId, needChoice) {

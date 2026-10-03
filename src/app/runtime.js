@@ -14,6 +14,7 @@ import { createEncounterController } from './encounters.js';
 import { createRun, advanceRun, finishBattleNode, endRunProgress, syncRoundCard, isDuplicateRunStart, registerRunStart } from '../domain/run.js';
 import { assignRoundId } from '../domain/run.js';
 import { createWordQ, decodeWordQ, appendPlayLog } from '../domain/word-quality.js';
+import { heroOpeningGrant, goldGainAmount, battleGoldBase } from '../domain/hero-rules.js';
 import { newRoundId, noteRoundUnitComplete } from './rounds.js';
 import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
@@ -536,11 +537,16 @@ function addShield(n){
   return G.shield;
 }
 function applyRelicInit(){
-  if(has(G.relics,'shield') && !G.shieldGiven){ addShield(15); G.shieldGiven=true }
-  if(has(G.relics,'battery')) G.hp=Math.min(G.maxhp,G.hp+8);
+  if(has(G.relics,'shield') && !G.shieldGiven){
+    // Reward-time shields belong to the live battle; finishNode carries them back.
+    if(B && !B.finished && PHASE_STATE===PHASE.REWARD){
+      B.shield=clamp((B.shield|0)+15,0,G.maxhp); G.shield=B.shield;
+    } else addShield(15);
+    G.shieldGiven=true;
+  }
 }
 const hasR = id => has(G.relics,id);
-const goldGain = n => G.gold += hasR('greed') ? Math.round(n*1.5) : n;
+const goldGain = n => G.gold += goldGainAmount(G,n);
 // 每层连击的加成率：遗物「连击徽章」翻倍，角色幸运儿再乘 0.9（连击更钝）
 // —— 单一来源，避免「伤害按新规则算、面板文案按老规则显示」的漂移
 const comboRate = () => calculateComboRate(G);
@@ -647,6 +653,7 @@ function startFight(n){
       hintUsed:(G.nextHint?1:0), hintTotal:(G.nextHint?1:0),
       wordQ:createWordQ(),
       combo:0, maxCombo:0, dmgBonus:0, firstWrong:true,
+      letterProgress:0, heroHealed:0, heroShieldGained:0,
       lethUsed:hasR('lucky')?1:0, wordsDone:0, over:false, mistaken:[],
       // 连续整词计数：每拼完一个词 +1（连错清零），只影响大招的档位 finTier()，
       // 有上限（FIN_TIER_MAX），所以不可能数值爆炸
@@ -663,8 +670,9 @@ function startFight(n){
   B.offer=offerWords(G,qword,null); B.autoHint=B.hintTotal;
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
-  if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
-    if(h>0) setTimeout(()=>toast('💚 开场治疗：回复 '+h+' 点生命'),260) }
+  const opening=heroOpeningGrant(G,B);
+  B.myHp+=opening.heal; B.shield+=opening.shield;
+  if(opening.heal || opening.shield) lifecycle.scheduleBattle(()=>toast('💚 开场治疗：生命 +'+opening.heal+'，护盾 +'+opening.shield),260);
   ENCOUNTER=null; setPhase(PHASE.BATTLE);
   // 蓄力自主攻击（清单 13）：固定配置在这里**应用一次**。
   // ★ 不在 nextWord 里重置 —— 换一个词不该把蓄力时间重排，否则玩家
@@ -855,6 +863,7 @@ function nextWord(){
   B.freezeWord=false;   // 寒冰护符只保护一个词
   B.input=[]; B.sel=0; B.hintUsed=0; B.hintTotal=0;
   B.wordQ=createWordQ();
+  B.letterProgress=0;
   if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1; B.wordQ.hint++; B.wordQ.revealed++ }   // 学者之书：揭示首字母
   B.offer=offerWords(G,nw,prevWord); B.autoHint=B.hintTotal; B.wordLocked=false;
   renderFight();
@@ -870,6 +879,7 @@ function chooseWord(idx){
   B.word=w; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);
   B.input=[]; B.sel=0;
+  B.letterProgress=0;
   sfx.key();
   renderFight();
   return true;
@@ -1102,11 +1112,13 @@ function winFight(){
   const winHeal = winHealBonus(G.relics);
   if(winHeal>0) B.myHp=Math.min(G.maxhp,B.myHp+winHeal);
   // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
-  goldGain(Math.round(g*(B.goldMult||1)));   // 贪婪钱币 ×3
+  const beforeGold=G.gold;
+  goldGain(battleGoldBase(g,B));
+  const earnedGold=G.gold-beforeGold;
   // 相位切到待领奖：金币与击杀已经入账，900ms 只延迟展示。
   setPhase(PHASE.REWARD);
   // 立即确定并发布同一批奖励卡，暂停或刷新都不重新抽取。
-  const rolled=encounters.rollBattleRewards(Math.round(g*(B.goldMult||1)),null);
+  const rolled=encounters.rollBattleRewards(earnedGold,null);
   lifecycle.scheduleBattle(()=>encounters.showRolledRewards(rolled),900);
 }
 function markMastered(w){
@@ -1521,7 +1533,7 @@ const progress=createProgressController({state,api:{
   // 暂停/继续的蓄力冻结与重定位。pauseFoeAttack 必须在 lifecycle.pause() 之前调
   // （采真实的 due-now 剩余），resumeFoeAttack 在 lifecycle.resume() 之后调
   // （只重定位 dueAt，不重排已冻结的同页队列）。
-  pauseFoeAttack:()=>foeAttackCtl.pause(),
+  pauseFoeAttack:()=>{ foeAttackCtl.pause(); fightScreen.pauseFoeAttack(); },
   resumeFoeAttack:()=>foeAttackCtl.resume(),
   // 结算的内存侧（改 DB / 画结算屏）；落盘由控制器用同一次写完成。
   settleRun:w=>settleRun(w),

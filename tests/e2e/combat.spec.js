@@ -7,7 +7,7 @@ const combatOutcome = state => ({
   att: state.G.att, attOk: state.G.attOk,
 });
 
-test('click and physical keyboard yield identical repeated-letter combat outcomes', async ({ game, page }) => {
+test('click and physical keyboard yield identical repeated-letter combat outcomes', async ({ game, page }, testInfo) => {
   await game.open();
   await game.start();
   await game.fight({ word: 'cotton' });
@@ -33,8 +33,9 @@ test('click and physical keyboard yield identical repeated-letter combat outcome
   expect(undone.B.input).toEqual(clicked.input);
   expect(undone.B.used).toEqual(clicked.used);
   expect(undone.G.attOk).toBe(clicked.attOk);
-  // Legacy undo releases the letter but does not rewind damage/attempts.
-  expect(undone.B.enHp).toBeLessThan(clicked.enemyHp);
+  // The archive permits duplicate damage; the current position ledger prevents it.
+  if (testInfo.project.metadata.target === 'legacy') expect(undone.B.enHp).toBeLessThan(clicked.enemyHp);
+  else expect(undone.B.enHp).toBe(clicked.enemyHp);
   expect(undone.G.att).toBe(clicked.att + 1);
 });
 

@@ -16,6 +16,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEquipmentPanel, equipmentModel } from '../../src/ui/components/equipment-panel.js';
 
+test('hero panel reports saved starting attributes and live per-battle budgets', () => {
+  const run = { heroId: 'ranger', maxhp: 62, hm: 0, hnoise: 0, hcombo: 1, hregen: 0, hleech: 1, relics: [], bag: {} };
+  const before = structuredClone(run);
+  const model = equipmentModel(run, { heroHealed: 12, usedThisFight: {}, shield: 0 });
+  assert.match(model.heroLines.join(' · '), /生命上限 62/);
+  assert.match(model.heroStatus, /12\/18/);
+  assert.deepEqual(run, before);
+});
+
 /* ---------------- 轻量 DOM 桩（不需要 jsdom）---------------- */
 class StubEl {
   constructor(tag) {
@@ -99,7 +108,7 @@ test('duplicate relics collapse to ×N without inventing a second effect', () =>
   const m = equipmentModel(baseRun({ relics: ['shield', 'shield', 'shield'] }));
   assert.equal(m.relics.length, 1, '重复遗物必须合并成一行');
   assert.equal(m.relics[0].count, 3);
-  assert.equal(m.relics[0].d, '开局获得 15 点护盾（先于生命被消耗）', '合并只改计数，不改效果文案');
+  assert.equal(m.relics[0].d, '首次获得时增加 15 点护盾（先于生命消耗），之后不重复发放', '合并只改计数，不改效果文案');
   assert.equal((m.relics[0].d.match(/护盾/g) || []).length, 1, '效果只能出现一次');
 });
 
@@ -125,8 +134,8 @@ test('model reports bag quantity plus this-fight usage cap', () => {
   const leech = m.items.find(i => i.id === 'leech');
   assert.equal(leech.owned, 4);
   assert.equal(leech.usedThisFight, 6);
-  assert.equal(leech.max, 6);
-  assert.equal(leech.spent, true, '本场用满 6 次就该算耗尽');
+  assert.equal(leech.max, 3);
+  assert.equal(leech.spent, true, '旧档已用 6 次也超过新版 3 次上限');
   assert.equal(m.items.find(i => i.id === 'stone').spent, false);
 });
 

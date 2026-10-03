@@ -27,6 +27,7 @@ import { FOE_PHASE } from '../../src/domain/foe-attack.js';
  * style / textContent / className 都记录写次数，用来证明「没重写」。 */
 function stubDom() {
   const writes = { style: [], text: [], cls: [] };
+  const animations = [];
   const mk = tag => {
     const el = {
       tagName: tag, id: '', hidden: false, children: [], isConnected: true,
@@ -48,11 +49,16 @@ function stubDom() {
       get innerHTML() { return el._html; },
       set innerHTML(v) { el._html = String(v); if (v === '') el.children = []; },
       appendChild(c) { el.children.push(c); return c; },
+      animate(frames, timing) {
+        const animation={frames,timing,playState:'running',
+          pause(){this.playState='paused'},cancel(){this.playState='idle'}};
+        animations.push(animation); return animation;
+      },
     };
     return el;
   };
   const box = mk('div');
-  return { box, mk, writes, doc: { createElement: mk }, $: id => (id === 'fFoeAtk' ? box : null) };
+  return { box, mk, writes, animations, doc: { createElement: mk }, $: id => (id === 'fFoeAtk' ? box : null) };
 }
 
 const TEL = (remainingMs, extra = {}) => Object.assign(
@@ -64,6 +70,28 @@ function meterOn(dom, opts) {
   return createFoeAttackMeter(Object.assign({ $: dom.$, doc: dom.doc }, opts));
 }
 const fillOf = dom => dom.box.children[0].children[0];
+
+test('one continuous countdown spans the real remaining time without restarting on UI ticks',()=>{
+  const dom=stubDom(), meter=meterOn(dom);
+  meter.paint(TEL(4000),WIN);
+  assert.equal(dom.animations.length,1);
+  assert.equal(dom.animations[0].timing.duration,4000);
+  assert.deepEqual(dom.animations[0].frames,[{transform:'scaleX(0.8000)'},{transform:'scaleX(0.0000)'}]);
+  meter.paintLive(TEL(3750),WIN); meter.paint(TEL(3200),WIN);
+  assert.equal(dom.animations.length,1,'late UI refreshes must not restart or postpone the countdown');
+});
+test('pause stops the compositor; resume uses frozen remaining time and phase changes cancel it',()=>{
+  const dom=stubDom(), meter=meterOn(dom);
+  meter.paint(TEL(4000),WIN); meter.pause();
+  assert.equal(dom.animations[0].playState,'paused');
+  meter.paint(TEL(3000),WIN);
+  assert.equal(dom.animations[0].playState,'idle');
+  assert.equal(dom.animations[1].timing.duration,3000);
+  meter.paint({phase:FOE_PHASE.RECOVER,remainingMs:900},WIN);
+  assert.equal(dom.animations[1].playState,'idle');
+  meter.paint(TEL(5000),WIN); meter.paint(null,WIN);
+  assert.equal(dom.animations[2].playState,'idle');
+});
 
 /* ---------------- ① 进度走 transform，绝不走 width ---------------- */
 

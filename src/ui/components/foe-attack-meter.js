@@ -24,8 +24,9 @@
  *
  * 现在：width 恒为满宽（交给 CSS），进度只由 transform: scaleX(ratio) 表示。
  * transform 是合成属性 —— 不触发布局、不重绘光栅，交给合成器跑，每帧都动。
- * CSS 的过渡时长（.26s）略长于 250ms 节拍，相邻两拍首尾重叠，于是任何时刻
- * 画面上都**有一个正在进行的**过渡，不存在静止间隙。
+ * 单次合成动画覆盖整个剩余时间；250ms 节拍只同步事实与秒数，不重启动画。
+ * 原 .26s 过渡只比节拍多 10ms，首次刷新或忙碌设备上的延迟仍会留下静止间隙。
+ * 不支持 Element.animate 的浏览器保留 CSS 过渡作为降级。
  *
  * ── reduced-motion 的降级在 CSS 里，不在这里 ────────────────────────
  * 这个组件绝不查询 matchMedia。两处真相（JS 判一次、CSS 再判一次）迟早打架，
@@ -40,6 +41,25 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
   const D = () => doc || (typeof document !== 'undefined' ? document : null);
   // 最近一次建出来的元素引用。两个 paint 口只碰这几个，绝不 appendChild（除重建）。
   let refs = null;
+
+  function cancelAnimation() {
+    if (refs && refs.animation) refs.animation.cancel();
+  }
+  function animateRemaining(fact, v) {
+    if (!refs || !v.telegraphing || typeof refs.fill.animate !== 'function') return;
+    const duration = Math.max(0, Math.min(refs.total, Number(fact.remainingMs) || 0));
+    if (!duration) return;
+    refs.animation = refs.fill.animate([
+      { transform: scaleOf(v.ratio) }, { transform: scaleOf(0) },
+    ], { duration, easing: 'linear', fill: 'forwards' });
+  }
+  // The progress controller calls this before hiding the fight screen. No new
+  // timers are involved; the next visible paint resumes from the frozen fact.
+  function pause() {
+    if (!refs) return;
+    if (refs.animation) refs.animation.pause();
+    refs.paused = true;
+  }
 
   /* 事实 → 展示量。剩余/总窗口夹在 0..1：存档里的 remainingMs 是外部输入，
      直接拿去画会算出负进度或 >100% 的条。 */
@@ -81,6 +101,11 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
     const cls = clsOf(fact, v.telegraphing);
     if (box.className !== cls) box.className = cls;
     fill.style.transform = scaleOf(v.ratio);
+    if (refs && refs.paused) {
+      cancelAnimation();
+      refs.paused = false;
+      animateRemaining(fact, v);
+    }
     // 250ms 节拍每秒四次，而秒数每秒只变一次：不跨秒就别重写这段长文案。
     if (txt.textContent !== v.text) txt.textContent = v.text;
   }
@@ -88,8 +113,8 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
   /* 整块重建或原地复用：renderFight（相位变化 / 换词 / 恢复 / 打字母）走它。 */
   function paint(fact, window) {
     const box = $('fFoeAtk');
-    if (!box) { refs = null; return null; }
-    if (!fact) { refs = null; box.hidden = true; box.textContent = ''; return null; }
+    if (!box) { cancelAnimation(); refs = null; return null; }
+    if (!fact) { cancelAnimation(); refs = null; box.hidden = true; box.textContent = ''; return null; }
     const d = D();
     if (!d) return null;
     const v = view(fact, window);
@@ -102,6 +127,7 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
       return { telegraphing: v.telegraphing, ratio: v.ratio, secs: v.secs, damage: v.damage };
     }
 
+    cancelAnimation();
     box.className = clsOf(fact, v.telegraphing);
     box.innerHTML = '';
     const bar = d.createElement('div');
@@ -118,7 +144,9 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
     box.appendChild(txt);
     refs = {
       box, bar, fill, txt, phase: fact.phase, damage: v.damage, total: totalOf(window),
+      animation: null, paused: false,
     };
+    animateRemaining(fact, v);
     return { telegraphing: v.telegraphing, ratio: v.ratio, secs: v.secs, damage: v.damage };
   }
 
@@ -135,5 +163,5 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
     return { telegraphing: v.telegraphing, ratio: v.ratio, secs: v.secs, damage: v.damage };
   }
 
-  return { paint, paintLive };
+  return { paint, paintLive, pause };
 }

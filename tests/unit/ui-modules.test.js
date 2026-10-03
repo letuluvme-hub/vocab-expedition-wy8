@@ -161,10 +161,14 @@ test('hero.pcHTML reproduces the legacy markup for every hero id', async () => {
   assert.equal(pcHTML('<img src=x onerror=alert(1)>'), old('<img src=x onerror=alert(1)>'));
 });
 
-test('hero.heroStatLines matches legacy output for every hero', async () => {
+test('hero.heroStatLines preserves stat formatting and exposes the new hero mechanics', async () => {
   const { heroStatLines } = await import('../../src/ui/components/hero.js');
   const old = legacyFn('heroStatLines');
-  for (const h of HEROES) assert.deepEqual(heroStatLines(h), old(h));
+  for (const h of HEROES) {
+    const before = old(h).filter(line => !line.startsWith('答对回血'));
+    for (const line of before) assert.ok(heroStatLines(h).includes(line), line);
+    assert.ok(heroStatLines(h).length > before.length, h.id + ' 必须有新增能力速览');
+  }
   assert.deepEqual(heroStatLines({}), old({}));
 });
 
@@ -698,7 +702,7 @@ test('map.renderMap paints the same DOM as legacy and routes clicks to callbacks
   const relics = mineDoc.getElementById('mRelics').children;
   assert.equal(relics.length, 2);
   relics[0].onclick();
-  assert.deepEqual(toasts, ['护盾符文：开局获得 15 点护盾（先于生命被消耗）']);
+  assert.deepEqual(toasts, ['护盾符文：首次获得时增加 15 点护盾（先于生命消耗），之后不重复发放']);
 });
 
 test('map.renderMap stays silent when the available set did not change', async () => {
@@ -752,7 +756,7 @@ test('title screen preserves legacy controls while separating matching expeditio
   assert.equal(heroes[5].className, 'hcard sel');
   assert.equal(heroes[5].attrs['aria-pressed'], 'true');
   assert.equal(heroes[0].attrs['aria-pressed'], 'false');
-  assert.equal(mineDoc.getElementById('heroDesc')._html, '<b>游侠</b> · <i>一击脱离</i><br>每答对一个字母回复 1 点生命，但生命上限 -8。');
+  assert.equal(mineDoc.getElementById('heroDesc')._html, '<b>游侠</b> · <i>一击脱离</i><br>未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。');
 
   const units = mineDoc.getElementById('units').children;
   assert.equal(units.length, 7);

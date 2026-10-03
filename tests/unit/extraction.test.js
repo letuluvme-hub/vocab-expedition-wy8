@@ -16,14 +16,17 @@ test('extracted vocabulary preserves all 259 records and their order', async () 
   assert.deepEqual(WORDS, oldValue('WORDS'));
 });
 
-// 遗物深度任务的有意偏离（docs/feature-relic-depth.md），偏离面精确到：
-//   1) 每条遗物多一个 rarity 字段（档位）；
-//   2) 末尾追加一件传说遗物「预知残卷」，其余 12 件的 id / 图标 / 名称 / 文案
-//      仍要求逐字相同 —— 改文案必须另开一条明确的例外，不能顺手改；
-//   3) 影分身的文案偏离（run 级免费额度，见下方注释）。
+// 遗物档位、末尾追加的预知残卷与以下文案是已登记例外。
+// 此次角色/用品平衡只修正护盾符文、学者之书的实际结算说明；
+// 身份、名称、图标、顺序仍逐项对照归档。
 const LEGACY_RELIC_IDS = ['hint', 'shield', 'combo', 'purse', 'thorn', 'battery',
   'lucky', 'scholar', 'forge', 'ghost', 'greed', 'focus'];
 const NEW_RELIC_IDS = ['prophecy'];
+const RELIC_COPY_OVERRIDES = {
+  shield: '首次获得时增加 15 点护盾（先于生命消耗），之后不重复发放',
+  scholar: '每场第二词自动揭示首字母；胜利时有 1/3 概率提供先知卡选项，与聚宝盆组合后必定提供',
+  ghost: '每轮远征可免费跳过一次，不计失败（用完后跳过仍需付代价）',
+};
 
 test('relic catalog keeps every legacy entry verbatim and only appends the legendary', async () => {
   const { RELICS } = await import('../../src/data/relics.js');
@@ -34,32 +37,36 @@ test('relic catalog keeps every legacy entry verbatim and only appends the legen
     const now = RELICS.filter(r => r.id === o.id)[0];
     assert.equal(now.ic, o.ic, o.id + ' 图标不许变');
     assert.equal(now.n, o.n, o.id + ' 名称不许变');
-    // 图案逐字相同 —— 影分身是唯一已登记的文案例外。
-    if (o.id !== 'ghost') assert.equal(now.d, o.d, o.id + ' 图鉴文案不许变（例外需显式登记）');
+    assert.equal(now.d, RELIC_COPY_OVERRIDES[o.id] ?? o.d, o.id + ' 图鉴文案需精确符合登记值');
     assert.ok(typeof now.rarity === 'string' && now.rarity.length > 0, o.id + ' 必须标了稀有度');
     assert.equal(now.price, undefined, '定价只能来自 balance 的档位表，不许在遗物对象上重复一份');
   }
 });
 
-// 影分身的图鉴文案是**有意**偏离：旧版写「每场战斗可免费跳过一次」，
-// 但免费额度现在是 run 级（一轮远征只有一次）。文案必须与实际口径一致，
-// 否则玩家会以为每场战斗都能白嫖一次撤退。
-// 偏离面精确到 RELICS 里的 ghost 一条；其余遗物、字段、顺序仍要求逐字相同。
-test('relic catalog differs from legacy only in the ghost description', async () => {
+test('relic catalog differs from legacy only in registered rule descriptions', async () => {
   const { RELICS } = await import('../../src/data/relics.js');
   const old = oldValue('RELICS');
   const legacy = RELICS.slice(0, old.length);
   const drift = legacy.filter((r, i) => JSON.stringify({ ic: r.ic, n: r.n, d: r.d })
     !== JSON.stringify({ ic: old[i].ic, n: old[i].n, d: old[i].d })).map(r => r.id);
-  assert.deepEqual(drift, ['ghost'], '只有影分身的图鉴文案可以变');
+  assert.deepEqual(drift, Object.keys(RELIC_COPY_OVERRIDES), '只有已登记的图鉴文案可以变');
   assert.equal(legacy.map(r => r.id).join(), old.map(r => r.id).join(), '顺序与 id 不变');
   assert.match(RELICS.filter(r => r.id === 'ghost')[0].d, /每轮/);
 });
 
-// 透视之眼的文案是**有意**偏离：旧版写「不消耗提示次数」，而实际行为现在是
-// 消耗 1 点提示额度。揭示类道具必须有代价，否则它永远优于按提示键 ——
-// 文案必须与实际口径一致。
-const ITEM_COPY_DRIFT = ['reveal'];
+// 每个例外精确到字段和值，不能借平衡任务更换名称、图标或增删道具。
+const ITEM_OVERRIDES = {
+  leech: { d: '主动使用，立即回复 8 生命（每场最多 3 次）', tip: '受伤后再用；满血时不消耗', max: 3 },
+  rage: { d: '后 3 个新字母伤害 ×2.5；若包含末字母，大招也加成。使用时清空连击', tip: '留给本词末尾；退格重输不重复触发' },
+  freeze: { d: '冻结当前词：免疫拼错与怪物攻击的伤害，自己的伤害减半', tip: '完成当前词后解除；错误仍进入复习' },
+  chain: { d: '下一个正确新字母额外 +3 连击、+8% 本场伤害', tip: '先蓄势，再正确拼出一个新字母' },
+  reveal: { d: '揭示接下来 2 个字母 —— 但消耗 1 次提示额度', tip: '省下手动点提示的时间，代价是应急预算' },
+  purge: { tip: '没有错误标记时不消耗', price: 25 },
+  greed: { d: '本场金币奖励 +50%，额外最多 60 金币；每场限用 1 次',
+    tip: '额外奖励先封顶，再计算角色与遗物的金币加成', max: 1, price: 75 },
+  stone: { d: '获得 16 护盾，每场最多 2 次；护盾保留至后续战斗',
+    tip: '护盾最多等于生命上限；满盾时不消耗' },
+};
 
 test('item catalog differs from legacy only in the deliberately re-costed entries', async () => {
   const { ITEMS } = await import('../../src/data/items.js');
@@ -67,15 +74,34 @@ test('item catalog differs from legacy only in the deliberately re-costed entrie
   assert.equal(ITEMS.length, old.length, '道具数量不变');
   assert.deepEqual(ITEMS.map(x => x.id).join(), old.map(x => x.id).join(), '顺序与 id 不变');
   const drift = ITEMS.filter((r, i) => JSON.stringify(r) !== JSON.stringify(old[i])).map(r => r.id);
-  assert.deepEqual(drift, ITEM_COPY_DRIFT, '只有显式登记的道具允许偏离归档');
+  assert.deepEqual(drift, Object.keys(ITEM_OVERRIDES), '只有显式登记的道具允许偏离归档');
+  for (const it of old) {
+    assert.deepEqual(ITEMS.find(x => x.id === it.id), { ...it, ...ITEM_OVERRIDES[it.id] },
+      it.id + ' 只允许登记过的字段和值发生变化');
+  }
   const reveal = ITEMS.filter(x => x.id === 'reveal')[0];
   assert.equal(reveal.max, old.filter(x => x.id === 'reveal')[0].max, '代价只加在效果上，不许顺带改持有上限');
   assert.equal(reveal.price, old.filter(x => x.id === 'reveal')[0].price, '这次不改售价 —— 经济面另行验证');
   assert.match(reveal.d, /提示/, '新文案必须点明代价');
 });
 
-test('extracted game catalogs are byte-for-byte equivalent values', async () => {
-  for (const [file, name] of [['heroes','HEROES'],['enemies','ENEMIES'],['units','UNITS']]) {
+const HERO_OVERRIDES = {
+  scholar: { d: '每场多 1 次提示，主动提示一次揭示 2 个字母；生命上限 -10。', mod: { hp: -10, hint: 1 } },
+  warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
+  scout: { d: '干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。', mod: { hp: -5, noise: -2 } },
+  lucky: { d: '开局多 15 金币，金币收益 +20%；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
+  healer: { d: '每场开场回复 10 生命，溢出治疗转为最多 4 护盾；生命上限 -5。', mod: { hp: -5, regen: 10 } },
+  ranger: { d: '未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。', mod: { hp: -20, leech: 1 } },
+};
+test('hero balance changes only registered descriptions and modifiers; identity and voice stay unchanged', async () => {
+  const { HEROES } = await import('../../src/data/heroes.js');
+  const old = oldValue('HEROES');
+  assert.deepEqual(HEROES.map(h => h.id), old.map(h => h.id));
+  for (const h of old) assert.deepEqual(HEROES.find(x => x.id === h.id), { ...h, ...HERO_OVERRIDES[h.id] });
+});
+
+test('unmodified enemy and unit catalogs are byte-for-byte equivalent values', async () => {
+  for (const [file, name] of [['enemies','ENEMIES'],['units','UNITS']]) {
     const module = await import(`../../src/data/${file}.js`);
     assert.deepEqual(module[name], oldValue(name));
   }

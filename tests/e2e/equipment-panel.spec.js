@@ -81,7 +81,7 @@ test('the title count matches the number of owned entries', async ({ game, page 
   const text = await page.locator('#fEquipment .eq-body').textContent();
   // 合并成 ×2，但护盾效果只出现一次（叠两遍不会多给一次护盾）
   expect(text).toContain('护盾符文 ×2');
-  expect(text.match(/开局获得 15 点护盾/g)).toHaveLength(1);
+  expect(text.match(/首次获得时增加 15 点护盾/g)).toHaveLength(1);
 });
 
 test('every owned relic shows, not just the first three', async ({ game, page }, testInfo) => {
@@ -122,21 +122,22 @@ test('an item at its per-fight cap is marked spent, and using one updates the pa
   // 给 5 个但本场上限是 3：这样能测到真正有意义的「还有存货却已用满」状态。
   // （若只给 3 个，用掉 3 次后 owned 归零，行会按 #fItems 的口径整行消失，
   //   测到的就不是「已用满」而是「道具没了」。）
-  await grant(page, { bag: { rage: 5 } });
+  await page.evaluate(() => { window.__gameTest.B.myHp = 10; });
+  await grant(page, { bag: { leech: 5 } });
   await page.locator('#fEquipment > summary').tap();
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本场已用 0/3');
 
   // 点道具栏的按钮真的能消耗（面板是只读的，但绝不能妨碍原有使用路径）
-  await page.locator('#fItems .item', { hasText: '怒火护符' }).click();
+  await page.locator('#fItems .item', { hasText: '吸血獠牙' }).click();
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本场已用 1/3');
   await expect(page.locator('#fEquipment .eq-body')).toContainText('×4');
 
   // 用满 3 次：面板标出已用满，道具栏按钮同步禁用（两处口径一致）
-  await page.locator('#fItems .item', { hasText: '怒火护符' }).click();
-  await page.locator('#fItems .item', { hasText: '怒火护符' }).click();
+  await page.locator('#fItems .item', { hasText: '吸血獠牙' }).click();
+  await page.locator('#fItems .item', { hasText: '吸血獠牙' }).click();
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本场已用 3/3');
   await expect(page.locator('#fEquipment .eq-body')).toContainText('已用满');
-  await expect(page.locator('#fItems .item', { hasText: '怒火护符' })).toHaveClass(/off/);
+  await expect(page.locator('#fItems .item', { hasText: '吸血獠牙' })).toHaveClass(/off/);
 });
 
 test('the panel shows the real in-fight shield, and nothing gets re-applied', async ({ game, page }, testInfo) => {

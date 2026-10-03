@@ -3,6 +3,7 @@
  * 纯字符串函数，不依赖 DOM、不改状态。
  */
 import { HEROES } from '../../data/heroes.js';
+import { HERO_BALANCE } from '../../data/hero-balance.js';
 
 export function pcHTML(id) {
   return '<div class="pc" data-h="' + id + '"><div class="pci">' +
@@ -24,8 +25,14 @@ export function heroStatLines(H) {
   if (M.shield)  out.push('护盾 +' + M.shield);
   if (M.gold)    out.push('金币 +' + M.gold);
   if (M.regen)   out.push('开场回血 +' + M.regen);
-  if (M.leech)   out.push('答对回血 +' + M.leech);
+  if (M.leech)   out.push('合格字母回血 +' + M.leech);
   if (M.combo)   out.push('连击加成 ' + (M.combo * 100 - 100).toFixed(0) + '%');
+  if (H.id === 'scholar') out.push('提示揭示 ' + HERO_BALANCE.scholarHintWidth + ' 字母');
+  if (H.id === 'warrior') out.push('整词护盾 +' + HERO_BALANCE.warriorWordShield + '，每战最多 ' + HERO_BALANCE.warriorBattleShieldCap);
+  if (H.id === 'scout') out.push('首词大招 +' + Math.round((HERO_BALANCE.scoutFirstFinisherMultiplier - 1) * 100) + '%');
+  if (H.id === 'lucky') out.push('金币收益 +' + Math.round(HERO_BALANCE.luckyGoldBonus * 100) + '%');
+  if (H.id === 'healer') out.push('溢出转盾最多 ' + HERO_BALANCE.healerOverflowShieldCap);
+  if (H.id === 'ranger') out.push('回血每战最多 ' + HERO_BALANCE.rangerBattleHealCap);
   return out;
 }
 

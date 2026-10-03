@@ -55,6 +55,20 @@ function stalledIntervals(samples) {
 test.describe('蓄力条合成动画（默认动效路径）', () => {
   test.use({ reducedMotion: 'no-preference' });
 
+  test('a late UI tick does not leave the countdown stationary',async({game,page},info)=>{
+    await game.open();
+    await page.evaluate(async basePath=>{
+      const {createFoeAttackMeter}=await import(basePath+'src/ui/components/foe-attack-meter.js');
+      document.querySelector('#fFoeAtk').id='unusedFoeMeter';
+      const box=document.createElement('div');box.id='fFoeAtk';box.style.cssText='position:fixed;top:0;left:0;width:300px;z-index:999';document.body.appendChild(box);
+      createFoeAttackMeter().paint({phase:'telegraph',remainingMs:5000,cycle:0},{telegraphMs:5000,damage:4});
+    },info.project.metadata.basePath);
+    // No paintLive calls: the next 250ms update could be late on a busy device.
+    const {samples,barWidth}=await SAMPLE(page,900);
+    expect(samples[0].w-samples.at(-1).w).toBeGreaterThan(barWidth*0.12);
+    expect(stalledIntervals(samples)/(samples.length-1)).toBeLessThan(0.15);
+  });
+
   test('默认动效下条是连续运动的，不是「动 120ms 停 130ms」', async ({ game }) => {
     test.setTimeout(60_000);
     await game.open();
