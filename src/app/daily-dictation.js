@@ -55,7 +55,7 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
       return;
     }
     const credit = creditDictation(db(), a);
-    const result = { key, word: { ...word }, eligible: credit.eligible, errors: a.errors,
+    const result = { key, word: { ...word }, eligible: credit.eligible, completed: true, errors: a.errors,
       hints: a.hints, reveals: a.reveals, assistance: [...a.assistance], completedAt: now() };
     session.results.push(result);
     onAttempt({ session, attempt: a, result, db: db(), at: now() });
@@ -119,14 +119,32 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     // Evidence has already been marked and persisted before any answer is shown.
     return session.attempt.target[session.attempt.input.length] || '';
   }
-  function next() {
-    if (blocked() || !['warmup','formal'].includes(session.phase) || !session.attempt.completed || checkTime()) return false;
+  function advanceWord() {
     session.index++;
     if (session.index >= session.words.length) {
       if (session.phase === 'warmup') { session.phase = 'formal-ready'; session.index = 0; session.attempt = null; }
       else return close('pool-exhausted');
     } else setAttempt();
     publish(); return true;
+  }
+  function next() {
+    if (blocked() || !['warmup','formal'].includes(session.phase) || !session.attempt.completed || checkTime()) return false;
+    return advanceWord();
+  }
+  function defer() {
+    if (blocked() || session.phase !== 'formal' || session.attempt.completed ||
+      !(session.attempt.errors || session.attempt.hints || session.attempt.reveals) || checkTime()) return false;
+    const a = session.attempt, word = session.words[session.index], key = dictationWordKey(word);
+    // No complete-word credit. onAttempt resolves the failed assessment and
+    // catches legacy unassessed evidence; dated failures do not replay today.
+    if (!Array.isArray(db().reviewQueue)) db().reviewQueue = [];
+    if (!db().reviewQueue.some(w => dictationWordKey(w) === key)) db().reviewQueue.push(key);
+    const result = { key, word: { ...word }, eligible: false, completed: false, deferred: true,
+      input: a.input, errors: a.errors, hints: a.hints, reveals: a.reveals,
+      assistance: [...a.assistance], deferredAt: now() };
+    session.results.push(result);
+    onAttempt({ session, attempt: a, result, db: db(), at: now() });
+    return advanceWord();
   }
   function beginFormal() {
     if (blocked() || session.phase !== 'formal-ready' || checkTime()) return false;
@@ -157,7 +175,7 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     return result;
   }
   function discard() { db().dailySession = null; source = null; session = null; bank = null; try { const r = persist(db()); saved = r === true || r?.ok === true; } catch { saved = false; } onChange(null,{ saved }); }
-  return { start, input, assist, hint, next, beginFormal, pause, resume, checkTime, letters, importWords, discard,
+  return { start, input, assist, hint, next, defer, beginFormal, pause, resume, checkTime, letters, importWords, discard,
     customWords: () => Array.isArray(db().custom) ? db().custom : [],
     finish: () => close(session?.pauseReason === 'time-budget' ? 'time-budget' : 'stopped'),
     state: () => { syncSource(); return session; }, summary: () => dailySummary(session, now()), saved: () => saved,

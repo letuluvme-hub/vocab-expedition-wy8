@@ -4,7 +4,7 @@
 
 面向上海八年级学生，把每天 10–15 分钟的选词、热身、正式默写和「今日完成」作为主页主流程，原远征继续作为自由练习。收集养成只使用原创内容和纯外观奖励，不以拉长一局作为目标。
 
-实现顺序为五个独立 PR：PR1 掌握判据与正式键盘；PR2 每日短局；PR3 跨天复习与家长日报；PR4 伙伴、词卡和打卡；PR5 降低挫败。本文当前的实现范围为 PR1–PR3。每日短局、跨天复习与家长日报已实现；奖励、伙伴与图鉴由后续独立 PR 接续。
+实现顺序为五个独立 PR：PR1 掌握判据与正式键盘；PR2 每日短局；PR3 跨天复习与家长日报；PR4 伙伴、词卡和打卡；PR5 降低挫败。本文记录 PR1–PR5 的完整改版；合并／部署与整合者全量验收另在交付报告记录，不把本地实现称为已经上线。
 
 ## PR1 掌握事实与键盘接口
 
@@ -91,7 +91,7 @@ PR1 不宣称完整每日短局 e2e 已通过；日期到期回退属于 PR3，�
 | `onWordStart` | `{session,attempt,word,db,at}`；热身或正式新词开始。可用 `session.id + phase + index` 幂等记录开始事实。 |
 | `onPractice` | `{session,attempt,word,key,db,at}`；热身/正式接受字母或分隔符输入时，同次持久化之前；退格与未接受键不调用。它证明实际练习，不能把仅展示新词算练过。 |
 | `onFailure` | `{session,attempt,word,db,at}`；正式新错误或新的提示/揭示证据即时回调。半词也调用；后续正确字母不重复发错误。 |
-| `onAttempt` | `{session,attempt,result,db,at}`；完整正式词记账一次。`result` 含 `key/word/eligible/errors/hints/reveals/assistance/completedAt`。 |
+| `onAttempt` | `{session,attempt,result,db,at}`；完整正式词或失败词延后处理一次。完整结果含 `completed:true/completedAt`；延后结果含 `completed:false/deferred:true/eligible:false/input/deferredAt`，两者均保留 `key/word/errors/hints/reveals/assistance`。延后不调用 `creditDictation`。 |
 | `onTiming` | `{session,deltaMs,at,db}`；注入时钟计算的真实活跃增量。后台等待不调用。 |
 | `onComplete` | `{session,summary,db,at}`；明确完成或提前结束一次；`summary.completed` 不包含半词、热身或未尝试词。 |
 | `onChange` | `(session,{saved})`；持久化之后画 UI，只读。 |
@@ -229,3 +229,64 @@ PR4 测试先失败提交 `d0455b6`：新单测 26 个全部失败，新浏览�
 PR4 改动文件：`src/domain/daily-collection.js`、`src/app/daily-collection.js`、`src/ui/components/daily-collection.js`、`src/styles/daily-collection.css`、`src/app/runtime.js`、`src/ui/screens/daily-dictation.js`、`tests/unit/daily-collection.test.js`、`tests/e2e/daily-collection.spec.js`、`tests/e2e/audio-compatibility-game.spec.js`、`docs/feature-daily-dictation.md`。
 
 未验证：真实学生的每日主动使用、10–15 分钟完成率、学校默写提升与伙伴阈值偏好；iOS／Android／微信真机字体、工具栏、安全区、触屏和实际声音。自动化环境中文缺字形，DOM 中文与坐标验收不等于真机字形验收。收藏和打卡仍为当前浏览器的本地存档，没有跨设备同步。
+
+## PR5 降低挫败与真实完成口径
+
+每日短局保持独立学习流程：正式拼错的生命伤害上限为 **0**，没有怪物定时攻击，也没有由错字触发整局失败的入口。多次顺序错或字母错只反馈「不对」并记录复习，不会清空已拼对的词；原自由远征的伤害、装备与蓄力规则未调整。进入每日流程时原远征冻结，正式输入慢也不会让旧怪物跨流程攻击。
+
+当正式当前词尚未拼完且已经有错误、提示或揭示证据，显示「留到复习，下一词」。它保留当前输入与错误，推进下一个词；最后一个词延后后进入「今日完成」，不自动开新局。热身、干净半词与已经完整的词不能延后。延后词只按原失败事实的复习计划再练，不按延后动作日期重新推迟；已经安排的次日到期与 1 天回退照常保留。
+
+延后结果保存 `completed:false/deferred:true/eligible:false`、`input`、`errors/hints/reveals/assistance` 和 `deferredAt`，不调用完整词掌握记账。`onAttempt` 只处理失败评估并兜底旧版尚未评估的半词；已有 token 的失败不重放到今天，也不伪造今天的练习、签到或外观奖励。完整结果增加 `completed:true`，旧 schema-1 结果缺此字段仍按原完整词解释，不删除旧记录或未知字段。恢复严格校验词顺序、当前索引和结果、失败证据与相位，拒绝把延后结果改回干净当前词或热身，以免绕过判据。
+
+结算同时显示「正式完成」「留到复习（未拼完）」与真实一次拼对率。正式评估分母包括完整结果、延后失败和主动结束时已经错误／辅助的半词；热身和干净未完成词不计分母。例：cat 一次拼对，dog 错后延后，pig 一次拼对 → 完整 2／3 词，延后 1 词，一次拼对 2／3（67%）；dog 保留中英对照和失败记录，不能显示 100%。暂停、刷新、预算终点和提前结束都保留已有正式掌握与完整结果。
+
+### PR5 测试证据
+
+先失败提交 `081ec5e`：新单测 14 个，0 通过、14 失败（缺 `defer` 与真实评估字段）；真实浏览器 1 个失败（缺延后动作）。同一基线的新增生产站点与断网单文件验收 2 个均失败，真实等待不到新动作，各在既有 20 秒超时内失败，没有修改测试配置。
+
+恢复兼容回归先失败提交 `296d35b`：15 个中 14 通过、1 失败，延后结果被改成当前干净尝试仍可恢复；加强索引／结果一致性后全绿。再先失败提交 `5867876`：16 个中 15 通过、1 失败，正式结果被改回热身相位仍可恢复；修复后 16 个全部通过，也验证正式准备相位和已完整 credited 对应结果不得是 deferred。
+
+关键变异：在延后处理里临时重新调用 `review()`，15 个中 14 通过、1 失败，准确命中「昨天已评估错误，今天仅延后不得伪造练习／签到」断言。变异子进程退出码 1；`finally` 恢复源码并确认字节一致，恢复后 15 个全绿，变异未提交。
+
+| 命令 | 实现者结果；整合者另独立全量复跑 |
+| --- | --- |
+| `node --test --test-reporter=tap tests/unit/daily-comfort.test.js` | 0；16 通过、0 失败、0 跳过。覆盖各类辅助、半词、到期回退、幂等、跨日和旧档恢复。 |
+| `npm test` | 0；1151 通过、0 失败、0 跳过。 |
+| `npm run check:data` | 0；259 条，六单元 45／55／29／50／41／39，全部原词库未改。 |
+| `npm run build`、`npm run test:build` | 0；站点与离线单文件成功，3 个构建测试通过；生产无调试状态探针。 |
+| `npx playwright test tests/e2e/daily-comfort.spec.js tests/e2e/daily-session.spec.js tests/e2e/daily-report.spec.js tests/e2e/daily-collection.spec.js --project=new` | 0；31 通过、0 失败、0 跳过。6 个新用例与 25 个日常／日报／收藏回归。 |
+| `npx playwright test tests/e2e/daily-comfort.spec.js --project=new`（最后恢复校验后） | 0；6 通过、0 失败、0 跳过，含真实 12 秒攻击周期观察、实际剪贴板、刷新恢复与 320／390px 输入／动作布局。 |
+| `npm run test:release` | 0；4 通过、0 失败，保留原 2 个自由远征验收，新增站点及断网单文件完整日常流程。新增两条仅用公开 DOM 和真实本地存档，不启用测试探针；站点实际读取剪贴板，离线按平台实际复制成功或可手选降级检查文本。 |
+| `git diff --check`、冻结词库与全部既有 CSS 对照 | 0；未改教材或任何已有样式，本 PR 无新增样式或数值平衡。 |
+
+PR5 改动文件：`src/domain/daily-session.js`、`src/app/daily-dictation.js`、`src/ui/screens/daily-dictation.js`、`tests/unit/daily-comfort.test.js`、`tests/e2e/daily-comfort.spec.js`、`tests/release/smoke.spec.js`、`README.md`、`docs/architecture.md`、`docs/product-backlog.md`、`docs/feature-daily-dictation.md`。
+
+仍未验证真实学生的主动使用、10–15 分钟完成率或学校默写提高；iOS／Android／微信的字体、工具栏、触屏、安全区、音效与语音仍须真机。320px 自动化截图缺少中文字体，显示替代字形；DOM 中文和几何位置正确不能代替实机字形验收。没有跨设备存档同步，也没有拿自动化结果代替冻结解除所需的两周上线与真实使用数据。
+
+## PR5 降低挫败与失败词延后
+
+每日局沿用独立学习战斗：拼错的生命伤害上限为 **0**，没有怪物定时攻击，也没有因拼错造成血量归零的整局失败。等待、顺序错或字母错不会清空本局早先的完整词、正式掌握或收藏；原自由远征的血量和蓄力快照仍冻结，恢复原局再继续其原有规则。没有新增遗物或战斗数值平衡。
+
+正式阶段的当前词尚未拼完，且已有错误、提示或揭示证据时，显示「留到复习，下一词」。这是一个真实可用的退出难词动作：保存当前输入、错误／帮助计数和复习事实，直接推进下词；最后一个词处理完就进入「今日完成」。热身、干净半词、完整词或暂停状态不提供延后动作，15 分钟预算到达后仍只允许结束本次。
+
+延后结果存于原 schema-1 的 `results` 中，明确 `completed:false/deferred:true/eligible:false`，保留 `input/errors/hints/reveals/assistance/deferredAt`。完整结果新增 `completed:true`；旧结果缺该字段仍代表原完整词。延后不调用 `creditDictation`、不增加完整词数或掌握，也不立即当作「尚未尝试的剩余词」优先塞回同词表下一局；后续复习由已有 `reviewSchedule` 安排。到期答错的移出掌握、回到 1 天规则仍由首次失败证据触发。
+
+延后调用幂等 `onAttempt` 处理失败词。已经在昨天记录的错误，今天只恢复后点击延后，不重放 `onFailure`，不把旧错误伪造成今天新练习、日报评估、签到或奖励；尚未记账的旧失败半词才保守以当前日期补评估。保存顺序仍是一动作一次事务，收集端口只同步伙伴，不把这个回调冒充实际字母输入。重复推进、结算或恢复不重复评估、领奖或授予掌握。
+
+结算的 `completed` 只算真正完整拼写，`deferred` 单列未拼完词，`assessed` 包含完整正式尝试与已有错误／帮助的未完成尝试。例：cat 一次拼对、dog 拼错后延后、pig 一次拼对，显示「正式完成 2／3」「留到复习 1 词」「一次拼对 2／3（67%）」，日报与纯文本复制也如实记 2／3 和 dog · 狗。已失败半词直接结束也进入分母，干净半词没有完整证据则不进入分母。
+
+恢复额外拒绝矛盾状态：延后结果伪造一次拼对、没有失败证据、输入其实已完整、词条顺序错乱、已延后词被倒退成当前干净尝试，以及正式结果被倒退成热身／准备正式相位。合法旧完整结果、未知字段、原自由远征和 `wy8a_rogue_v1` 均保留；无法恢复仍保留存档原文，用户明确丢弃前不覆盖。
+
+### PR5 测试证据
+
+先失败提交 `081ec5e`：新单测 14 个全部失败，真实 browser 1 个失败，生产网站与断网单文件 2 个失败；均缺新延后动作或真实分母。新规则首版后 14 个通过。追加恢复回归提交 `296d35b`：15 个中 14 通过、1 失败（已延后词还能恢复成当前干净词）；补一致性验证后通过。追加相位回归提交 `5867876`：16 个中 15 通过、1 失败（正式结果可回到热身）；加相位守卫后 16 个通过。此前完整 schema-1 结果缺 `completed` 的兼容例仍通过。
+
+关键变异：临时在延后动作里重新调用 `review()`，15 个中 14 通过、1 失败，准确命中「昨天失败今天只延后，不伪造今天练习／奖励」；进程退出码为 1。`finally` 恢复源码并检查原文完全一致，随后 15 个全部通过；变异未提交。
+
+新增 browser 真实走完整热身→正式→失败词延后→下一词干净→结算→主页日报→实际剪贴板读回；检验提示延后排除掌握、最后词终点、刷新保留完整／延后／半词事实。自由远征先进入实际蓄力，暂停回主页开每日，再等待 12 秒（超过普通怪 11 秒攻击周期）；旧生命与战斗快照不变，多次错词仍在正式阶段，早先正式掌握保留。320／390px 键盘、新动作和原伙伴／图鉴都在自身页面布局中，输入未遮挡；截图中文缺字体，不当作真机字形验证。
+
+发布物验收保留旧两条自由远征 smoke，并新增网站／断网 file:// 各一条完整每日流程，仅用公开 DOM 操作与 localStorage 证据，不使用生产调试探针。网站实际剪贴板读回成功；离线环境检查真实能力结果，能力拒绝时验收可手选的纯文本框，不宣称复制成功。
+
+PR5 改动文件：`src/domain/daily-session.js`、`src/app/daily-dictation.js`、`src/ui/screens/daily-dictation.js`、`tests/unit/daily-comfort.test.js`、`tests/e2e/daily-comfort.spec.js`、`tests/release/smoke.spec.js`、`README.md`、`docs/architecture.md`、`docs/product-backlog.md`、`docs/feature-daily-dictation.md`。没有改动词库、既有 CSS、旧自由远征平衡、package／配置或存档 key。最终命令与真实通过数由本 PR 实现者和整合者分别记录。
+
+未验证风险：真实学生需要多久完成、是否每天主动打开与学校默写正确率变化；iOS／Android／微信的实际触屏、中文字体、安全区、工具栏高度、后台恢复及声音。当前仍为本机存档，没有跨设备同步；自动化成功不替代上线后的真实数据。冻结项必须等实际部署满 14 天且已有使用数据才恢复。
