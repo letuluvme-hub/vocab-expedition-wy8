@@ -1,0 +1,8 @@
+#oQuality {
+  margin: 0 0 14px;
+  color: var(--mut);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}

@@ -8,6 +8,7 @@ import { RELICS } from '../../data/relics.js';
 import { clamp } from '../../domain/math.js';
 import { rewardScope, rewardRoundLine, renderRewardCard } from '../components/reward-card.js';
 import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
+import { decodeQStats, createQStats } from '../../domain/word-quality.js';
 
 const relicById = id => RELICS.filter(r => r.id === id)[0];
 
@@ -80,6 +81,20 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   $('oFloor').textContent = G.maxFloor;
   $('oKill').textContent = G.kills;
   $('oAcc').textContent = acc + '%';
+  const q = decodeQStats(G.qStats) || createQStats();
+  let quality = $('oQuality');
+  if (!quality) {
+    // Add the row at render time, preserving the archived static page skeleton.
+    const relics = $('oRelics'), card = relics && relics.parentElement;
+    if (card && card.parentElement) {
+      quality = document.createElement('p'); quality.id = 'oQuality';
+      quality.setAttribute('aria-live', 'polite');
+      card.parentElement.insertBefore(quality, card);
+    }
+  }
+  if (quality) quality.textContent = '完美 ' + q.perfect + '/' + q.words
+    + ' · 每词提示 ' + (q.hintsUsed / Math.max(1, q.words)).toFixed(1)
+    + ' · 每词错字母 ' + (q.wrongLetters / Math.max(1, q.words)).toFixed(1);
   const rb = $('oRelics'); rb.innerHTML = '';
   if (!G.relics.length) rb.innerHTML = '<span style="font-size:12px;color:var(--dim)">这次没有获得遗物</span>';
   G.relics.forEach(id => { const r = relicById(id); if (!r) return;

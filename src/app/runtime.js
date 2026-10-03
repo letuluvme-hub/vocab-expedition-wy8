@@ -13,6 +13,7 @@ import { createCombatController } from './combat.js';
 import { createEncounterController } from './encounters.js';
 import { createRun, advanceRun, finishBattleNode, endRunProgress, syncRoundCard, isDuplicateRunStart, registerRunStart } from '../domain/run.js';
 import { assignRoundId } from '../domain/run.js';
+import { createWordQ, decodeWordQ, appendPlayLog } from '../domain/word-quality.js';
 import { newRoundId, noteRoundUnitComplete } from './rounds.js';
 import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
@@ -30,6 +31,7 @@ import { createWordStreakFeedback } from './word-streak-feedback.js';
 import { showStreakAnnouncement } from '../ui/components/streak-announcement.js';
 import { normalizeWordStreakState } from '../domain/word-streak.js';
 import { renderOver } from '../ui/screens/over.js';
+import '../styles/quality-stats.css';
 import { paintHpBar } from '../ui/components/hp-bar.js';
 import { pcHTML, heroStatLines, heroById, HERO_DEFAULT } from '../ui/components/hero.js';
 import { rewardScope, renderRewardCard } from '../ui/components/reward-card.js';
@@ -642,6 +644,7 @@ function startFight(n){
       input:[], sel:0, hints:3+(G.hm||0)+(hasR('hint')?2:0)+(G.shopHints||0)+(G.nextHint||0),
       // hintUsed=提示窗口宽度（相对当前位置，敲字母会消耗）；hintTotal=累计用了几次（只增不减，给标签/统计用）
       hintUsed:(G.nextHint?1:0), hintTotal:(G.nextHint?1:0),
+      wordQ:createWordQ(),
       combo:0, maxCombo:0, dmgBonus:0, firstWrong:true,
       lethUsed:hasR('lucky')?1:0, wordsDone:0, over:false, mistaken:[],
       // 连续整词计数：每拼完一个词 +1（连错清零），只影响大招的档位 finTier()，
@@ -652,7 +655,7 @@ function startFight(n){
   //   战斗奖励里的先知卡、学者营火的先知卡。拿先知卡的玩家会看到一句自己没做过的事，
   //   只能理解成「莫名其妙多给了一个提示」。
   //   改成只描述**发生了什么**，不猜来源 —— 玩家自己知道刚才拿了哪张卡。
-  if(G.nextHint) toast('🔮 开场奖励：本场已自动揭示首字母');
+  if(G.nextHint){ B.wordQ.hint++; B.wordQ.revealed++; toast('🔮 开场奖励：本场已自动揭示首字母') }
   G.nextHint=0;
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
@@ -846,7 +849,8 @@ function nextWord(){
   B.bad=new Array(nl.letters.length).fill(false);
   B.freezeWord=false;   // 寒冰护符只保护一个词
   B.input=[]; B.sel=0; B.hintUsed=0; B.hintTotal=0;
-  if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1 }   // 学者之书：揭示首字母
+  B.wordQ=createWordQ();
+  if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1; B.wordQ.hint++; B.wordQ.revealed++ }   // 学者之书：揭示首字母
   renderFight();
 }
 // 字母盘列数：唯一来源，渲染与键盘导航共用，避免两处算法漂移
@@ -923,6 +927,8 @@ function sayCurrentWord(times){
      拼完整词的自动朗读走 TTS.word()，不消耗 hints —— 那是完成后的奖励。 */
   if(B.hints<=0){ toast('没有提示次数了，自己拼拼看'); return false }
   B.hints--;
+  if(!B.wordQ) B.wordQ=decodeWordQ(undefined);
+  B.wordQ.listen++;
   if(typeof paintHintBtn==='function') paintHintBtn();
   const n=times||1;
   for(let i=0;i<n;i++){
@@ -1208,6 +1214,8 @@ function settleRun(win){
   if(typeof G.result==='boolean')return;   // 绝不重复结算
   lifecycle.resetRun();                    // 冻结中的待办全部作废：已结束的局不得再动
   endRunProgress(G,DB,win);
+  DB.playLog=appendPlayLog(DB.playLog,{endedAt:new Date().toISOString(),hero:G.heroId,
+    unit:G.unit,qStats:G.qStats,win:!!win});
   ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
   // 结算屏的三个动作各自语义明确：复习=新开一轮；继续下一单元/继续本单元词汇=
   // 同一轮跨段继续。oNext 的可见性与文案由 over.js 按「本单元词汇是否完成」决定。
