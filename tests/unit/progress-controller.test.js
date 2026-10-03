@@ -456,13 +456,13 @@ test('已选定的相位存 chosenId，刷新后不再重新执行副作用', ()
   const h = harness();
   const run = startRun(h);
   run.node = run.rows[0][0];
-  run.hp = 52;                       // 回血已经生效过
+  run.hp = 42;                       // 回血已经生效过；仍在游侠50上限内
   h.setPhase(PHASE.ENCOUNTER_DONE);
   h.setEncounter({ kind: 'rest', chosenId: 'rest:heal', node: run.node, options: [] });
   h.pause({});
   const snap = h.peekSnapshot();
   assert.equal(snap.value.encounter.chosenId, 'rest:heal');
-  assert.equal(snap.value.run.hp, 52, '副作用只算过一次');
+  assert.equal(snap.value.run.hp, 42, '副作用只算过一次');
 });
 
 /* ================= 4. 恢复 ================= */
@@ -580,7 +580,7 @@ test('恢复已选定的营火：直接重建「待推进」，不再重新执�
   const h = harness();
   const run = startRun(h);
   const node = run.rows[0][0];
-  run.node = node; run.hp = 52;
+  run.node = node; run.hp = 42;
   h.setPhase(PHASE.ENCOUNTER_DONE);
   h.setEncounter({ kind: 'rest', chosenId: 'rest:heal', node, options: [] });
   h.pause({});
@@ -588,7 +588,7 @@ test('恢复已选定的营火：直接重建「待推进」，不再重新执�
   const h2 = harness();
   reloadInto(h2, h);
   assert.equal(h2.continueRun().ok, true);
-  assert.equal(h2.getRun().hp, 52, '不再加一次回血');
+  assert.equal(h2.getRun().hp, 42, '不再加一次回血');
   assert.equal(h2.log.filter(e => e[0] === 'advance').length, 1, '只推进一次');
   assert.equal(h2.getRun().floor, 2);
   assert.equal(h2.getRun().node.done, true);

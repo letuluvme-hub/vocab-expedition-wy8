@@ -13,6 +13,8 @@ import { newlyReached, milestoneGrant, milestoneToast } from '../domain/combo-mi
 import { synergyBonuses } from '../domain/relic-rules.js';
 import { dictationWordKey } from '../domain/dictation.js';
 import { completeWordStats, decodeWordQ } from '../domain/word-quality.js';
+import { heroHintWidth, heroWordShield, rangerHealAmount } from '../domain/hero-rules.js';
+import { ITEM_BALANCE } from '../data/hero-balance.js';
 
 export function createCombatController({ state, ports }) {
   const wordQ = b => b.wordQ || (b.wordQ = decodeWordQ(undefined));
@@ -131,6 +133,7 @@ export function createCombatController({ state, ports }) {
     let dmg = d;
     if (B.lethUsed > 0) { B.lethUsed--; dmg = 0; toast('🍀 幸运草：免于本次惩罚'); }
     else if (B.firstWrong && B.boss) { B.firstWrong = false; dmg = Math.round(dmg / 2); toast('🛡️ 首领首击减半'); }
+    const incomingDamage = dmg;
     if (dmg > 0) {
       if (B.shield > 0) {
         const a = Math.min(B.shield, dmg);
@@ -158,7 +161,7 @@ export function createCombatController({ state, ports }) {
     //   玩家答错一次就把 BOSS 打死，等于绕过了「必须拼完整个词」这条底线。
     //   荆棘壁垒组合（护盾符文 + 荆棘护符）把反弹抬到 8，并把其中 4 点转成
     //   护盾 —— 挨打本身变成回盾的循环，这才叫组合而不是加法。
-    if (hasR('thorn') && dmg > 0) {
+    if (hasR('thorn') && incomingDamage > 0) {
       const tc = centerOf($('fAv'));
       const syn = synergyBonuses(G.relics);
       const reflect = syn.thornReflect || 5;
@@ -206,6 +209,7 @@ export function createCombatController({ state, ports }) {
   function enemyHit(d) {
     const B = state.B, G = state.G;
     if (!B || B.over || B.finished) return { dealt: 0, lost: false };
+    if (B.freezeWord) return { dealt: 0, absorbed: 0, lost: false };
     let dmg = typeof d === 'number' && isFinite(d) && d > 0 ? d : 0;
     let absorbed = 0;
     if (dmg > 0 && B.shield > 0) {
@@ -273,17 +277,27 @@ export function createCombatController({ state, ports }) {
     if (!it) return;
     if ((G.bag[id] | 0) <= 0) { toast('🎒 没有' + it.n + '了'); return; }
     if ((B.usedThisFight[id] | 0) >= it.max) { toast('本场已用满 ' + it.n + '（上限 ' + it.max + ' 次）'); return; }
+    const left = norm(B.word.w).length - B.input.length;
+    const unavailable = (id === 'leech' && B.myHp >= G.maxhp)
+      || (id === 'stone' && B.shield >= G.maxhp)
+      || (id === 'rage' && B.rageLeft > 0)
+      || (id === 'freeze' && B.freezeWord)
+      || (id === 'chain' && B.chainNext)
+      || (id === 'greed' && B.goldMult > 1)
+      || (id === 'purge' && !B.bad.some(Boolean))
+      || (id === 'reveal' && (B.hints <= 0 || left <= 0 || B.hintUsed >= Math.min(2, left)));
+    if (unavailable) { toast('当前无需使用' + it.n + '，道具已保留'); return; }
     let msg = '';
     switch (id) {
       case 'leech':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
-        B.myHp = Math.min(G.maxhp, B.myHp + 1);
-        msg = '🩸 獠牙吸取了 1 点生命';
+        { const heal = Math.min(ITEM_BALANCE.leechHeal, G.maxhp - B.myHp);
+          B.myHp += heal; msg = '🩸 獠牙回复了 ' + heal + ' 点生命'; }
         break;
       case 'rage':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
-        B.rageLeft = 3; B.combo = 0;
-        msg = '🔥 怒火点燃！接下来伤害 ×2.5（连击已清空）';
+        B.rageLeft = ITEM_BALANCE.rageLetters; B.combo = 0;
+        msg = '🔥 后 ' + B.rageLeft + ' 个新字母伤害 ×' + ITEM_BALANCE.rageMultiplier + '，末字母包含大招（连击已清空）';
         break;
       case 'freeze':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
@@ -325,15 +339,14 @@ export function createCombatController({ state, ports }) {
         break;
       case 'greed':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
-        B.goldMult = 3;
-        msg = '💰 本场金币 ×3';
+        B.goldMult = ITEM_BALANCE.greedMultiplier;
+        msg = '💰 本场基础战利金币 +50%（额外最多 ' + ITEM_BALANCE.greedBonusCap + '，再结算角色和遗物加成）';
         break;
       case 'stone':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
         // ★ 战斗中护盾存在 B.shield 上，不是 G.shield。
-        B.shield = clamp((B.shield | 0) + 20, 0, G.maxhp);
-        renderFight();
-        msg = '🪨 获得 20 点护盾';
+        { const gain = Math.min(ITEM_BALANCE.stoneShield, G.maxhp - (B.shield | 0));
+          B.shield += gain; msg = '🪨 获得 ' + gain + ' 点护盾'; }
         break;
     }
     if (msg) {
@@ -385,7 +398,12 @@ export function createCombatController({ state, ports }) {
       // ★ 有效字母尝试 → 通知蓄力打断（清单 13）。放在**判定之后**：
       //   只有真正被接受（不是 used / bad 重复 / 不在盘上）才算一次尝试，
       //   所以「一直按同一个错字母」不能维持永远安全。
-      notifyAttempt();
+      // A position earns combat rewards only on its first accepted input. Undo does
+      // not rewind this ledger, so retyping cannot farm healing, damage or interrupts.
+      const fresh = pos >= (B.letterProgress ?? pos);
+      const revealed = B.hintUsed > 0;
+      B.letterProgress = Math.max(B.letterProgress ?? pos, pos + 1);
+      if (fresh) notifyAttempt();
       B.used[i] = true; B.input.push(ch);
       // 提示窗口锚在 input.length：进度 +1 会让窗口左边界右移一格，
       // 所以把已揭示数 -1 抵消掉，否则会「白赚」下一个字母的提示。
@@ -396,14 +414,14 @@ export function createCombatController({ state, ports }) {
         keyEl.classList.add('good');
         const c = centerOf(keyEl);
         burst(c.x, c.y, '#3ddc84', 14, 4);
-        floatTxt(c.x, c.y - 14, '+' + hitDmg(), '#3ddc84');
+        if (fresh) floatTxt(c.x, c.y - 14, '+' + hitDmg(), '#3ddc84');
       }
-      B.combo++;
+      if (fresh) B.combo++;
       B.maxCombo = Math.max(B.maxCombo, B.combo);
       if (B.combo > 1) {
         const cb = $('fCombo');
         if (cb) { cb.classList.remove('hot'); void cb.offsetWidth; cb.classList.add('hot'); }
-        if (B.combo % 5 === 0) {
+        if (fresh && B.combo % 5 === 0) {
           toast('🔥 ' + B.combo + ' 连击！伤害 +' + (5 * Math.ceil(B.combo / 5)) + '%');
           B.dmgBonus += 5 * Math.ceil(B.combo / 5);
           sfx.combo();
@@ -413,27 +431,23 @@ export function createCombatController({ state, ports }) {
       // 语音：攻击台词。普通字母命中概率很低，连击越高越爱喊。
       if (B.combo >= 3) TTS.line('atk', null, { p: .18 + Math.min(.42, B.combo * .05) });
       else TTS.line('atk', null, { p: .12 });
-      dealDamage(hitDmg());
-      if (B.rageLeft > 0) { B.rageLeft--; if (B.rageLeft === 0) toast('🔥 怒火熄灭了'); }
-      // 吸血獠牙：答对就回血
-      if ((G.bag.leech | 0) > 0 && (B.usedThisFight.leech | 0) < 6 && B.myHp < G.maxhp) {
-        B.usedThisFight.leech = (B.usedThisFight.leech | 0) + 1;
-        G.bag.leech--;
-        B.myHp = Math.min(G.maxhp, B.myHp + 1);
-        floatTxt(vw() / 2, vh() * 0.5, '+1', '#ff6b8a');
-      }
-      // 游侠特性：每个正确字母回 1 点血（不消耗道具背包，与吸血獠牙独立共存）
-      if ((G.hleech | 0) > 0 && B.myHp < G.maxhp) {
-        B.myHp = Math.min(G.maxhp, B.myHp + G.hleech);
+      if (fresh) dealDamage(hitDmg());
+      const consumeRage = () => {
+        if (fresh && B.rageLeft > 0 && --B.rageLeft === 0) toast('🔥 怒火熄灭了');
+      };
+      const healing = rangerHealAmount(G, B, { fresh, revealed });
+      if (healing > 0) {
+        B.myHp += healing;
+        B.heroHealed = (B.heroHealed || 0) + healing;
         const hp2 = centerOf($('fMy'));
-        floatTxt(hp2.x, hp2.y - 4, '+' + G.hleech, '#3ddc84');
+        floatTxt(hp2.x, hp2.y - 4, '+' + healing, '#3ddc84');
       }
       // 连锁闪电：额外连击
-      if (B.chainNext) { B.chainNext = false; B.combo += 3; B.dmgBonus += 8; toast('⚡ 连锁触发！连击 +3'); }
+      if (fresh && B.chainNext) { B.chainNext = false; B.combo += 3; B.dmgBonus += 8; toast('⚡ 连锁触发！连击 +3'); }
       // 战意里程碑：放在连锁闪电**之后**（道具一次 +3 会把连击推过门槛，
       // 跨过同样算达成），放在 wordComplete **之前**（整词拼完会把 combo 清零）。
-      fireComboMilestones(B, G);
-      if (hasR('focus') && B.combo > 0 && B.combo % 6 === 0) B.dmgBonus += 5;
+      if (fresh) fireComboMilestones(B, G);
+      if (fresh && hasR('focus') && B.combo > 0 && B.combo % 6 === 0) B.dmgBonus += 5;
       if (B.word.d >= 3 && B.combo > 0 && rnd(6) === 0) toast('💡 记住这个词！');
       if (wordComplete()) {
         // ── 整词拼完：一次大招，也是全游戏唯一的致命伤害 ───────────────────
@@ -442,6 +456,13 @@ export function createCombatController({ state, ports }) {
         //   dealDamage 里那个字母命中已经先把敌人扣到 1 血地板，所以这里
         //   「最后一个字母的普通 hit」绝不会抢先赢 —— 赢一定发生在大招上。
         const bonus = wordDmg();       // 大招伤害：≥ 单字母 ×3.2
+        consumeRage();                // The third charge also covers this finisher.
+        const guard = heroWordShield(G, B);
+        if (guard > 0) {
+          B.shield += guard;
+          B.heroShieldGained = (B.heroShieldGained || 0) + guard;
+          toast('🛡️ 战士守势：护盾 +' + guard);
+        }
         G.qStats = completeWordStats(G.qStats, B.word.w, B.wordQ);
         creditWord(B.word.w);          // 整词拼完 → 记为学会（掌握表 + 本局退休）
         B.wordsDone = (B.wordsDone || 0) + 1;
@@ -454,13 +475,13 @@ export function createCombatController({ state, ports }) {
            之后才是致命判定 / 换词。连胜订阅者在这之前拿到事件，
            于是「最后一击赢下整场战斗」这一局同样能出里程碑播报。 */
         wholeWordDone(B.word.w);
-        if (hasR('battery') && B.wordsDone % 3 === 0) { B.myHp = Math.min(G.maxhp, B.myHp + 3); toast('🔋 永动电池：回复 3 生命'); }
         const fin = applyDamage(B, bonus, { allowFinish: true });
         if (fin.lethal) { renderFight(); foeCry('die'); tryWin(); return; }
         B.combo = 0;          // 换词时连击结算：防止伤害跨词无限叠加
         nextWord();
         return;
       }
+      consumeRage();
       renderFight();
     } else {
       // ❌ 错误：区分「单词里根本没这个字母」和「字母对、只是顺序不对」
@@ -541,12 +562,16 @@ export function createCombatController({ state, ports }) {
   function undoLetter() {
     const B = state.B, G = state.G;
     if (!B || B.over || !B.input.length) return false;
+    // Older half-word saves have no ledger. Preserve their already-paid prefix
+    // before removing a letter; a subsequent snapshot must retain that fact.
+    B.letterProgress = Math.max(B.letterProgress ?? 0, B.input.length);
     const ch = B.input.pop();
     for (let i = B.letters.length - 1; i >= 0; i--) {
       if (B.used[i] && B.letters[i] === ch) { B.used[i] = false; B.bad[i] = false; break; }
     }
     G.attOk = Math.max(0, G.attOk - 1);
-    B.combo = Math.max(0, B.combo - 1);
+    // Undo edits input only. Already settled combo stays put, and retyping cannot
+    // restore a combo that rage or a mistake has since cleared.
     sfx.undo();
     renderFight();
     return true;
@@ -554,7 +579,7 @@ export function createCombatController({ state, ports }) {
 
   // 提示：揭示当前位置的下一个字母。剩下的字母已全揭示时不再白扣次数。
   function requestHint() {
-    const B = state.B;
+    const B = state.B, G = state.G;
     if (!B || B.over || B.hints <= 0) return false;
     const tgt = norm(B.word.w);
     const pos = B.input.length;
@@ -563,13 +588,14 @@ export function createCombatController({ state, ports }) {
       toast(pos >= tgt.length ? '这个词已经填完啦' : '剩余字母已经全部揭示');
       return false;
     }
-    B.hints--; B.hintUsed++; B.hintTotal = (B.hintTotal || 0) + 1;
+    const revealCount = Math.min(heroHintWidth(G), left - B.hintUsed);
+    B.hints--; B.hintUsed += revealCount; B.hintTotal = (B.hintTotal || 0) + 1;
     const q = wordQ(B);
-    q.hint++; q.revealed++;
+    q.hint++; q.revealed += revealCount;
     // 提示同时解开被误标的字母，避免死局
     let freed = 0;
     for (let j = 0; j < B.letters.length; j++) {
-      if (!B.used[j] && B.bad[j] && B.letters[j] === tgt[pos]) { B.bad[j] = false; freed++; }
+      if (!B.used[j] && B.bad[j] && tgt.slice(pos, pos + B.hintUsed).includes(B.letters[j])) { B.bad[j] = false; freed++; }
     }
     sfx.hint();
     renderFight();

@@ -88,14 +88,15 @@ test('quality: overlapping hint, reveal and prophecy count only new visible lett
   h.combat.useItem('reveal');
   assert.deepEqual(h.B.wordQ, q({ hint: 2, revealed: 2 }));
   h.combat.useItem('reveal');
-  assert.deepEqual(h.B.wordQ, q({ hint: 3, revealed: 2 }));
+  assert.deepEqual(h.B.wordQ, q({ hint: 2, revealed: 2 }));
+  assert.equal(h.G.bag.reveal, 1, '重复揭示不花道具、不增加帮助事件');
   h.B.hints = 2;
   h.G.relics = ['prophecy'];
   h.combat.typeLetter('p');
-  assert.deepEqual(h.B.wordQ, q({ wrong: 1, hint: 4, revealed: 4 }));
+  assert.deepEqual(h.B.wordQ, q({ wrong: 1, hint: 3, revealed: 4 }));
   assert.equal(h.G.prophecyUsed, true);
   h.combat.typeLetter('p');
-  assert.deepEqual(h.B.wordQ, q({ wrong: 2, hint: 4, revealed: 4 }), 'prophecy stays once per run');
+  assert.deepEqual(h.B.wordQ, q({ wrong: 2, hint: 3, revealed: 4 }), 'prophecy stays once per run');
 });
 
 test('quality: prophecy after partial input reveals only the remaining letters', () => {

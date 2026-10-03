@@ -24,6 +24,7 @@ import { RELICS } from '../../data/relics.js';
 import { HERO_DEFAULT, heroById, heroStatLines } from './hero.js';
 import { relicRarity, relicRarityLabel, activeSynergies, synergyLabel } from '../../domain/relic-rules.js';
 import { pixelIconSVG, relicIconKey } from './pixel-art.js';
+import { HERO_BALANCE } from '../../data/hero-balance.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0] || null;
 const relicById = id => RELICS.filter(x => x.id === id)[0] || null;
@@ -101,7 +102,20 @@ export function equipmentModel(G, B) {
   /* 护盾：战斗中是 B.shield（真实剩余，可能已被打掉）；不在战斗才读 G.shield。 */
   const shield = { value: bat ? (bat.shield | 0) : (run.shield | 0), inFight: !!bat };
 
-  return { hero, heroLines: heroStatLines(hero), relics, synergies, items, ghost, shield, count: 1 + relics.length + items.length };
+  // Current runs retain their saved opening stats across a balance update.
+  const saved = Number.isFinite(run.hm);
+  const heroLines = saved ? [
+    '本轮生命上限 ' + run.maxhp,
+    '基础提示 ' + (3 + run.hm) + ' 次',
+    ...(run.hnoise ? ['干扰字母 ' + run.hnoise] : []),
+    ...(run.hregen ? ['开场回血 +' + run.hregen] : []),
+  ] : heroStatLines(hero);
+  let heroStatus = '';
+  if (bat && hero.id === 'ranger') heroStatus = '本场已回血 ' + (bat.heroHealed || 0) + '/' + HERO_BALANCE.rangerBattleHealCap;
+  if (bat && hero.id === 'warrior') heroStatus = '本场已获得守势护盾 ' + (bat.heroShieldGained || 0) + '/' + HERO_BALANCE.warriorBattleShieldCap;
+  if (bat && hero.id === 'scout') heroStatus = (bat.wordsDone || 0) === 0 ? '先手大招待触发' : '本场先手大招已用';
+  if (saved) heroLines.push('基础属性沿用本轮开局记录');
+  return { hero, heroLines, heroStatus, relics, synergies, items, ghost, shield, count: 1 + relics.length + items.length };
 }
 
 /* ---------------- 渲染：只读快照 → DOM ---------------- */
@@ -158,7 +172,8 @@ export function createEquipmentPanel({ getRun, getBattle }) {
 
     /* 角色被动 */
     const hs = m.heroLines.length ? ' · ' + m.heroLines.join(' · ') : '';
-    line(body, 'eq-hero', m.hero.n + ' · ' + m.hero.tag, m.hero.d + hs);
+    line(body, 'eq-hero', m.hero.n + ' · ' + m.hero.tag,
+      '新局能力：' + m.hero.d + hs + (m.heroStatus ? ' · ' + m.heroStatus : ''));
 
     /* 护盾：战斗中与地图上是两个来源，文案要写清楚现在看的是哪一个 */
     line(body, 'eq-shield', '当前护盾', m.shield.value + ' 点' + (m.shield.inFight ? '（本场实时剩余）' : '（未进入战斗）'));

@@ -110,6 +110,16 @@ export const RELIC_RARITY_ORDER = ['common', 'rare', 'legendary'];
 // 写的是「· 80 金币」，点下去就必须还是 80，刷新一次凭空涨价是不能接受的。
 export const LEGACY_RELIC_SHOP_PRICE = 80;
 
+// 首次把道具价格写入卡片 id 之前的固定价格。跨版本恢复旧卡时只查这张表，
+// 不查 ITEMS 的现价，避免已展开的商店在刷新后凭空涨价。
+export const LEGACY_ITEM_SHOP_PRICES = Object.freeze({
+  leech: 60, rage: 65, freeze: 50, chain: 55,
+  reveal: 45, purge: 40, greed: 35, stone: 70,
+});
+
+// 只限制商店卷轴积累的下一场额外提示；不改写旧存档已有额度。
+export const SHOP_HINT_LIMIT = 6;
+
 // ============ 组合技数值 ============
 // 组合技刻意只挑 3-5 组有主题的搭配（见 src/domain/relic-rules.js），
 // 而不是 12 件遗物的两两笛卡尔积 —— 66 种组合里能讲出故事的不到五种，
@@ -153,4 +163,7 @@ export const REWARD_ECONOMY = {
   normalItemChoices: 2,
   eliteRelics: 2,
   bossRelics: 3,
+  // 回血卡固定按战斗类型定额，不再跟敌人血量膨胀；卡面只写实际缺血量。
+  normalHeal: 12,
+  eliteHeal: 18,
 };

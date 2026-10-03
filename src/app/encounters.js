@@ -16,7 +16,8 @@
  */
 import { RELICS } from '../data/relics.js';
 import { ITEMS } from '../data/items.js';
-import { LEGACY_RELIC_SHOP_PRICE, WHET_MAX_PER_RUN, REWARD_ECONOMY } from '../data/balance.js';
+import { LEGACY_RELIC_SHOP_PRICE, LEGACY_ITEM_SHOP_PRICES, SHOP_HINT_LIMIT,
+  WHET_MAX_PER_RUN, REWARD_ECONOMY } from '../data/balance.js';
 import { relicPrice, relicRarityLabel, pickRelicWeighted, sampleRelicsWeighted,
   activeSynergies } from '../domain/relic-rules.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
@@ -62,6 +63,25 @@ export function createEncounterController({ state, ports }) {
     return '你更强了。';
   }
 
+  // 实时商店与恢复商店共用购买动作，防止刷新绕过限购或扣掉无效治疗的钱。
+  function buyPotion() {
+    const S = state.G;
+    if (S.gold < 45) return '金币不够。';
+    if (S.hp >= S.maxhp) return '生命已满，无需购买疗伤药。';
+    S.gold -= 45;
+    S.hp = Math.min(S.maxhp, S.hp + 35);
+    return '伤口愈合了。';
+  }
+
+  function buyHintScroll() {
+    const S = state.G, held = S.shopHints || 0;
+    if (held + 3 > SHOP_HINT_LIMIT) return '提示卷轴最多为下一场积累 ' + SHOP_HINT_LIMIT + ' 次提示，不能继续购买。';
+    if (S.gold < 40) return '金币不够。';
+    S.gold -= 40;
+    S.shopHints = held + 3;
+    return '卷轴收入行囊。';
+  }
+
   /* 商店的遗物卡。**价格是卡面的一部分**：卡上写多少就扣多少，两者同源。
      id 里带上价格（shop:relic:<id>:<price>）是为了让暂停恢复对得上号 ——
      恢复路径靠 optionById 用 id 找回动作，id 不含价格时，一次跨版本刷新
@@ -73,6 +93,7 @@ export function createEncounterController({ state, ports }) {
       d: relicRarityLabel(r) + ' · ' + r.d,
       fn: () => {
         const S = state.G;
+        if (has(S.relics, r.id)) return '已经拥有 ' + r.n + '，无需重复购买。';
         if (S.gold < price) return '金币不够。';
         S.gold -= price; S.relics.push(r.id); sfx.relic(); applyRelicInit();
         return '你买下了 ' + r.n + '！';
@@ -87,6 +108,30 @@ export function createEncounterController({ state, ports }) {
       t: r.n + ' · ' + LEGACY_RELIC_SHOP_PRICE + ' 金币',
     });
   }
+
+  function shopItemOption(it, price, id = 'shop:item:' + it.id + ':' + price) {
+    return { id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + price + ' 金币',
+      d: it.d, tip: it.tip, fn: () => {
+        const S = state.G;
+        if (S.gold < price) return '金币不够。';
+        S.gold -= price;
+        S.bag[it.id] = (S.bag[it.id] | 0) + 3;
+        sfx.coin();
+        return '获得 ' + it.n + ' ×3！';
+      } };
+  }
+
+  function rewardHealOption(amount, id = 'reward:heal:' + amount) {
+    return { id, cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + amount + ' 点生命', fn: () => {
+      const S = state.G, b = state.B;
+      // 战斗生命是结转来源；写 G.hp 会被 finishNode 覆盖。
+      b.myHp = Math.min(S.maxhp, b.myHp + amount);
+      finishNode();
+    } };
+  }
+
+  // 卡面金额/治疗额属于已作出的承诺，允许跨配置版本恢复；异常数值不映射动作。
+  const positiveInteger = text => /^[1-9]\d*$/.test(text) && Number.isSafeInteger(Number(text));
 
   // 当前已展开的描述：只存 id 与展示字段，绝不存闭包或 DOM。
   let currentDesc = null;
@@ -337,16 +382,9 @@ export function createEncounterController({ state, ports }) {
     const sbox = $('rPicks');
     sbox.innerHTML = '';
     const opts = [
-      { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: () => {
-        const S = state.G;
-        if (S.gold < 45) return '金币不够。';
-        S.gold -= 45; S.hp = Math.min(S.maxhp, S.hp + 35); return '伤口愈合了。';
-      } },
-      { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币', d: '下一场战斗 +3 次提示', fn: () => {
-        const S = state.G;
-        if (S.gold < 40) return '金币不够。';
-        S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
-      } },
+      { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: buyPotion },
+      { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币',
+        d: '下一场战斗 +3 次提示（卷轴最多积累 ' + SHOP_HINT_LIMIT + ' 次）', fn: buyHintScroll },
       { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
         d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
           + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone }
@@ -356,16 +394,10 @@ export function createEncounterController({ state, ports }) {
       const r = drawRelic(av);
       opts.push(shopRelicOption(r, relicPrice(r)));
     }
-    // 卖道具：只卖玩家还没拿满的
-    const shopItems = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max)).slice(0, 3);
+    // max 是单场使用额度，bag 是跨战斗库存；库存达到 max 仍然可以买三件补给。
+    const shopItems = shuffle(ITEMS.slice()).slice(0, 3);
     shopItems.forEach(it => {
-      opts.push({ id: 'shop:item:' + it.id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币', d: it.d, tip: it.tip, fn: () => {
-        const S = state.G;
-        if (S.gold < it.price) return '金币不够。';
-        S.gold -= it.price; S.bag[it.id] = (S.bag[it.id] | 0) + 3;
-        sfx.coin();
-        return '获得 ' + it.n + ' ×3！';
-      } });
+      opts.push(shopItemOption(it, it.price));
     });
     opts.push({ id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true, fn: () => '你空手离开了。' });
     const run = state.G, node = run && run.node;
@@ -418,13 +450,8 @@ export function createEncounterController({ state, ports }) {
     const opts = [];
     // 受伤才给回血卡：满血时一张「回复 71 点生命」只是占位。
     if (!B.boss && B.myHp < G.maxhp) {
-      const heal = Math.round(12 + B.enMax * 0.12);
-      // 回血要作用在 B.myHp 上，否则会被 finishNode 的结转覆盖
-      opts.push({ cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + heal + ' 点生命', id: 'reward:heal', fn: () => {
-        const S = state.G, b = state.B;
-        b.myHp = Math.min(S.maxhp, b.myHp + heal);
-        finishNode();
-      } });
+      const heal = Math.min(G.maxhp - B.myHp, B.elite ? REWARD_ECONOMY.eliteHeal : REWARD_ECONOMY.normalHeal);
+      opts.push(rewardHealOption(heal));
     }
     if (hasR('scholar') && (activeSynergies(G.relics).some(s => s.id === 'alchemist') || rnd(3) === 0)) {
       opts.push({ cat: 'boost', ic: '🃏', t: '先知卡', d: '下一场战斗开始时，自动揭示一个字母', id: 'reward:seer', fn: () => {
@@ -451,8 +478,8 @@ export function createEncounterController({ state, ports }) {
         finishNode();
       } }));
     }
-    // 道具：普通战二选一（不同种），精英 / 首领一张大份。只给还没拿满的。
-    const itemPool = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max));
+    // 道具：普通战二选一（不同种），精英 / 首领一张大份；库存不限于单场使用额度。
+    const itemPool = shuffle(ITEMS.slice());
     const drops = itemPool.slice(0, (B.elite || B.boss) ? 1 : REWARD_ECONOMY.normalItemChoices);
     drops.forEach(drop => {
       const n = B.boss ? 3 : (B.elite ? 2 : 1);
@@ -554,44 +581,38 @@ export function createEncounterController({ state, ports }) {
               } });
     } else if (kind === 'shop') {
       const G = state.G;
+      const priced = /^shop:(relic|item):([^:]+):([^:]+)$/.exec(id);
+      if (priced) {
+        if (!positiveInteger(priced[3])) return null;
+        const price = Number(priced[3]);
+        const entry = (priced[1] === 'relic' ? RELICS : ITEMS).find(value => value.id === priced[2]);
+        if (!entry) return null;
+        return priced[1] === 'relic' ? shopRelicOption(entry, price) : shopItemOption(entry, price);
+      }
       table = [
-        { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: () => {
-          const S = state.G; if (S.gold < 45) return '金币不够。';
-          S.gold -= 45; S.hp = Math.min(S.maxhp, S.hp + 35); return '伤口愈合了。';
-        } },
-        { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币', d: '下一场战斗 +3 次提示', fn: () => {
-          const S = state.G; if (S.gold < 40) return '金币不够。';
-          S.gold -= 40; S.shopHints = (S.shopHints || 0) + 3; return '卷轴收入行囊。';
-        } },
+        { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 45 金币', d: '回复 35 点生命', fn: buyPotion },
+        { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币',
+          d: '下一场战斗 +3 次提示（卷轴最多积累 ' + SHOP_HINT_LIMIT + ' 次）', fn: buyHintScroll },
         { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
           d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
             + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone },
       ];
-      // 遗物/道具候选表按 id 全量铺开（而不是重新 pick 一个）：
-            // 快照里记的是**当时那一张**，重新 pick 会得到别的 id，
-            // 于是那张卡在恢复后凭空消失 —— 玩家会以为货变了。
-            // 商店遗物铺**两条** id：新格式（id 里带卡面价）与旧格式（无价格，
-            //   固定 80）。后者是加稀有度之前的老存档，缺了它就等于老快照整屏丢失。
-            for (const r of RELICS) {
-              table.push(shopRelicOption(r, relicPrice(r)));
-              table.push(legacyShopRelicOption(r));
-            }
-      for (const it of ITEMS) table.push({
-        id: 'shop:item:' + it.id, cat: 'item', ic: it.ic, t: it.n + ' ×3 · ' + it.price + ' 金币',
-        d: it.d, tip: it.tip, fn: () => {
-          const S = state.G; if (S.gold < it.price) return '金币不够。';
-          S.gold -= it.price; S.bag[it.id] = (S.bag[it.id] | 0) + 3; sfx.coin();
-          return '获得 ' + it.n + ' ×3！';
-        } });
+      // 无价格 id 是旧快照，按历史表重建；带价格的新卡已在上方解析。
+      for (const r of RELICS) table.push(legacyShopRelicOption(r));
+      for (const it of ITEMS) {
+        const price = LEGACY_ITEM_SHOP_PRICES[it.id];
+        if (Number.isSafeInteger(price) && price > 0) table.push(shopItemOption(it, price, 'shop:item:' + it.id));
+      }
       table.push({ id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true,
         fn: () => '你空手离开了。' });
     } else if (kind === 'reward') {
       const B = state.B, G = state.G;
       if (!B || !G) return null;
+      const versionedHeal = /^reward:heal:([^:]+)$/.exec(id);
+      if (versionedHeal) return positiveInteger(versionedHeal[1]) ? rewardHealOption(Number(versionedHeal[1])) : null;
+      // 已展开的旧回血卡仍兑现旧公式；新卡的额度已经写进 id，不受新配置影响。
       const heal = Math.round(12 + B.enMax * 0.12);
-      table = [{ id: 'reward:heal', cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + heal + ' 点生命', fn: () => {
-        const S = state.G, b = state.B; b.myHp = Math.min(S.maxhp, b.myHp + heal); finishNode();
-      } }];
+      table = [rewardHealOption(heal, 'reward:heal')];
       table.push({ id: 'reward:seer', cat: 'boost', ic: '🃏', t: '先知卡',
         d: '下一场战斗开始时，自动揭示一个字母', fn: () => { state.G.nextHint = true; finishNode(); } });
       for (const r of RELICS) table.push({ id: 'reward:relic:' + r.id, cat: 'relic', ic: r.ic, t: r.n,
@@ -696,8 +717,10 @@ export function createEncounterController({ state, ports }) {
             b._at = t;
             const m = o.fn();
             if (m) toast(m);
-            if (desc.kind === 'shop' && publishEncounter) publishEncounter(current());
-            else {
+            if (desc.kind === 'shop') {
+              if (publishEncounter) publishEncounter(current());
+              refreshShopGold();
+            } else {
               if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
               if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
               scheduleRun(() => { if (state.G !== run) return; if (node) node.done = true; advance(); },

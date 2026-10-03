@@ -187,12 +187,13 @@ test('透视之眼揭示 2 个字母，但消耗 1 点提示额度', () => {
   assert.equal(h.G.bag.reveal, 0);
 });
 
-test('提示额度为 0 时透视之眼照样揭示（道具效果不取消），但额度不会变负', () => {
+test('提示额度为 0 时透视之眼拒绝使用，保留道具', () => {
   const h = harness({ relics: [], hints: 0 });
   h.G.bag.reveal = 1;
   h.combat.useItem('reveal');
-  assert.equal(h.B.hintUsed, 2);
+  assert.equal(h.B.hintUsed, 0);
   assert.equal(h.B.hints, 0, '额度绝不能被扣成负数');
+  assert.equal(h.G.bag.reveal, 1);
 });
 
 test('透视之眼的文案必须说明这个代价', () => {

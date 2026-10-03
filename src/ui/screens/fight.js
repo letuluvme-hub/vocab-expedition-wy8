@@ -276,6 +276,6 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     return foeAttackMeter.paintLive(fact, getFoeAttackWindow ? getFoeAttackWindow() : null);
   }
 
-  return { renderFight, renderItems, syncBankBar, paintFoeAttack,
+  return { renderFight, renderItems, syncBankBar, paintFoeAttack, pauseFoeAttack: foeAttackMeter.pause,
     renderEquipmentPanel: equipmentPanel.renderEquipmentPanel };
 }

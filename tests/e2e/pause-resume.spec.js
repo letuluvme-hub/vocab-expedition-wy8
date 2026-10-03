@@ -256,6 +256,7 @@ test('shop inventory is not re-rolled and purchases are not free after reload', 
   await page.evaluate(() => {
     const t = window.__gameTest;
     t.G.gold = 200;
+    t.G.hp = 1; // Both potion purchases must have a real effect.
     const n = t.G.rows[0][0];
     n.type = 'shop';
     t.enterNode(n);
@@ -702,6 +703,7 @@ test('a half word, a hint and a spent item are all on disk at once', async ({ ga
   // 道具：吸血獠牙是真实背包里真实持有的那一个
   const bagBefore = (await game.state()).G.bag.leech;
   expect(bagBefore).toBeGreaterThan(0);
+  await page.evaluate(() => { window.__gameTest.B.myHp -= 10; });
   await page.evaluate(() => window.__gameTest.progress.useItem('leech'));
   const saved2 = await game.saved();
   expect(saved2.activeRun.run.bag.leech, '道具必须当场扣在盘上').toBe(bagBefore - 1);
@@ -787,6 +789,7 @@ test('a shop purchase and leaving the shop both reach storage', async ({ game, p
   await page.evaluate(() => {
     const t = window.__gameTest;
     t.G.gold = 200;
+    t.G.hp = 20; // Full-health players correctly cannot buy a wasted potion.
     const n = t.G.rows[0][0];
     n.type = 'shop';
     t.enterNode(n);

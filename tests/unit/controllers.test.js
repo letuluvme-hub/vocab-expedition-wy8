@@ -318,7 +318,7 @@ test('useItem：吸血獠牙回血扣库存，石之躯加护盾且受上限夹�
   assert.equal(h.state.B.myHp, 50);
   assert.equal(h.state.G.bag.leech, 1);
   h.ctrl.useItem('stone');
-  assert.equal(h.state.B.shield, 20);
+  assert.equal(h.state.B.shield, 16);
   assert.ok(h.sfx.calls.some(c => c[0] === 'item'));
 });
 
@@ -380,7 +380,7 @@ test('undoLetter：退回最后输入的字母并重置对应实例', async () =
   assert.deepEqual(h.state.B.input, []);
   assert.equal(h.state.B.used[0], false);
   assert.equal(h.state.G.attOk, 0);
-  assert.equal(h.state.B.combo, 0);
+  assert.equal(h.state.B.combo, 1, '退格只改输入，已结算连击不回滚，重输也不再增加');
   assert.equal(h.ctrl.undoLetter(), false, '空输入时无操作');
 });
 
@@ -562,6 +562,7 @@ test('showRest：锻造台让休息回 20、只能选一次', async () => {
 
 test('showShop：可重复购买、单按钮有 260ms 冷却、金币不足只提示', async () => {
   const h = await makeEncounters();
+  h.state.G.hp = 5;                                   // 满血时现在会拒绝无效治疗；这里验证有效购买与冷却。
   h.ctrl.showShop();
   const potion = h.ids.rPicks.children[0];
   potion.onclick();
@@ -575,6 +576,7 @@ test('showShop：可重复购买、单按钮有 260ms 冷却、金币不足只�
 
 test('showShop：冷却到期后可以再买一次（连买多件是商店的正常玩法）', async () => {
   const h = await makeEncounters();
+  h.state.G.hp = 5; h.state.G.maxhp = 80;              // 缺血足够让两份治疗都有效。
   h.ctrl.showShop();
   const potion = h.ids.rPicks.children[0];
   potion.onclick();                                    // 第 1 次
@@ -609,23 +611,16 @@ test('showShop：远征换掉后旧商店卡不得扣新远征的钱、不得推
   assert.equal(fresh.G.node.done, false);
 });
 
-test('showShop：只卖玩家还没拿满的道具（每种最多 3 件）', async () => {
+test('showShop：每次上架3种道具，背包库存不受单场使用额度限制', async () => {
   const h = await makeEncounters();
-  // 把背包塞满：leech 上限 6、greed 上限 9，其余为 0
-  h.state.G.bag = { leech: 6, greed: 9, rage: 3, freeze: 3, chain: 4 };
+  h.state.G.bag = { leech: 100, greed: 100, rage: 100, freeze: 100,
+    chain: 100, reveal: 100, purge: 100, stone: 100 };
   h.ctrl.showShop();
   const cards = h.ids.rPicks.children.filter(c => c.dataset.cat === 'item');
-  assert.equal(cards.length, 3, '只上架还没拿满的 3 种');
-  // 背包已满的是 吸血獠牙/怒火护符/寒冰护符/连锁闪电/贪婪钱币，
-  // 因此上架的只可能是 透视之眼/扫除术/磐石之躯
-  const names = cards.map(c => c.innerHTML).join('|');
-  for (const gone of ['吸血獠牙', '怒火护符', '寒冰护符', '连锁闪电', '贪婪钱币'])
-    assert.equal(names.indexOf(gone) < 0, true, '已拿满上限的道具不上架：' + gone);
-  assert.equal(/透视之眼|扫除术|磐石之躯/.test(names), true);
-  // 买一件：+3，仍不超过上限
-  const before = JSON.stringify(h.state.G.bag);
+  assert.equal(cards.length, 3, '库存超过单场额度仍可购买三种补给');
+  const id = cards[0].dataset.opt.split(':')[2];
   cards[0].onclick();
-  assert.notEqual(JSON.stringify(h.state.G.bag), before);
+  assert.equal(h.state.G.bag[id], 103, '一次购买仍是三件库存');
 });
 
 test('showShop：提示卷轴累加 shopHints，离开按钮走 advance 且不触发购买', async () => {

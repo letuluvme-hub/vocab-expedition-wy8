@@ -1,6 +1,8 @@
 import { clamp } from './math.js';
 import { WORD_DMG_CAP, WORD_DMG_CAP_ANCHOR_BASE } from '../data/balance.js';
 import { foeLetterMult, foeFinisherMult } from './foe-traits.js';
+import { heroFinisherMultiplier } from './hero-rules.js';
+import { ITEM_BALANCE } from '../data/hero-balance.js';
 
 export const WORD_RATIO = 4;
 export const WORD_COMBO_BOOST = 1.8;
@@ -41,7 +43,7 @@ export function hitDmg(run, battle) {
   const base = baseDamage(run.floor);
   const mult = 1 + battle.combo * comboRate(run);
   let d = Math.round(base * mult * (1 + battle.dmgBonus / 100));
-  if (battle.rageLeft > 0) d = Math.round(d * 2.5);
+  if (battle.rageLeft > 0) d = Math.round(d * ITEM_BALANCE.rageMultiplier);
   if (battle.freezeWord) d = Math.round(d * 0.5);
   // 怪种机制（石化词素等）：按 foe.n 解析，没有机制 / 认不出来时恒为 1，
   // 所以对没有 foe 字段的老战斗对象逐字不变。
@@ -55,9 +57,10 @@ export function wordDmg(run, battle) {
   const base = baseDamage(run.floor);
   const mult = 1 + battle.combo * comboRate(run) * WORD_COMBO_BOOST;
   let d = Math.round(base * WORD_RATIO * mult * finTier(battle) * (1 + battle.dmgBonus / 100));
-  if (battle.rageLeft > 0) d = Math.round(d * 2.5);
+  if (battle.rageLeft > 0) d = Math.round(d * ITEM_BALANCE.rageMultiplier);
   if (battle.freezeWord) d = Math.round(d * 0.5);
   d = Math.round(d * foeFinisherMult(battle.foe));
+  d = Math.round(d * heroFinisherMultiplier(run, battle));
   const lo = Math.max(Math.round(base * WORD_RATIO * 0.5), 1);
   // 双重夹逼：夹上限（随深度增长，见 wordDmgCap），再对 hitDmg() 取硬下限倍率 ——
   // 任何参数组合下倍率都落在 [3.2, ~4.3]，同时不再有深度相关的天花板。

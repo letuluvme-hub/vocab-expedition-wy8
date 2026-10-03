@@ -52,7 +52,7 @@ test('P0: pause and real refresh preserve help and totals without recounting', a
   await page.locator('#tHint').click(); await page.locator('#tSay').click();
   await page.keyboard.type('l');
   const before = await quality(page);
-  expect(before.q).toEqual({ ...zeroQ, hint: 1, listen: 1, revealed: 1 });
+  expect(before.q).toEqual({ ...zeroQ, hint: 1, listen: 1, revealed: 2 });
   await page.locator('#tPause').click();
   const saved = await game.saved();
   expect(saved.activeRun.battle.wordQ).toEqual(before.q);
