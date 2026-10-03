@@ -61,6 +61,11 @@
   color: #f0e4c0;
   font-weight: 600;
 }
+.equip .eq-ic {
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
 .equip .eq-d {
   min-width: 0;
   overflow-wrap: anywhere;         /* 未知 id 里可能带长串，不能撑破 320px */
