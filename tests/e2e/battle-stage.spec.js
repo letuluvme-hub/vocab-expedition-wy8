@@ -28,3 +28,12 @@ test('monster animation persists through real typing; eyelids open and close, re
  const transforms=await page.locator('#fAv .pm-lid').evaluate(async n=>{const a=n.getAnimations()[0];a.pause();const delay=a.effect.getTiming().delay;a.currentTime=delay;await new Promise(requestAnimationFrame);const open=getComputedStyle(n).transform;a.currentTime=2900+delay;await new Promise(requestAnimationFrame);return [open,getComputedStyle(n).transform]});
  expect(transforms[0]).not.toBe(transforms[1]);await page.emulateMedia({reducedMotion:'reduce'});expect(await page.locator('#fAv .pm-lid').evaluate(n=>n.getAnimations().length)).toBe(0);
 });
+
+test('finisher feedback appears over opponents while HUD stays above effects',async({game,page},info)=>{
+ only(info);await game.open();await game.start();await game.fight();await page.waitForTimeout(450);
+ const hits=await page.evaluate(()=>{
+  const probe=document.createElement('div');probe.className='finword';probe.style.cssText='width:32px;height:24px;background:gold;pointer-events:auto;transform:none';document.body.appendChild(probe);
+  const check=id=>{const n=document.getElementById(id),r=n.getBoundingClientRect();probe.style.left=(r.x+r.width/2-16)+'px';probe.style.top=(r.y+r.height/2-12)+'px';return document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)};
+  const feedbackVisible=check('fAv')===probe;const hud=check('fMy');const hudProtected=document.getElementById('fMy').parentElement.contains(hud);probe.remove();return {feedbackVisible,hudProtected};
+ });expect(hits).toEqual({feedbackVisible:true,hudProtected:true});
+});
