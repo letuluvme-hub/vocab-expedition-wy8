@@ -85,3 +85,32 @@ test('pause, reload and continue restore the same candidates and current word', 
     .toEqual({ word: before.word, offer: before.offer, letters: before.letters });
   await expect(page.locator('#fOffer .wcCard.on')).toHaveCount(1);
 });
+
+test('backspacing every letter does not unlock the choice', async ({ game, page }, info) => {
+  newOnly(info); await game.open(); await game.start(); await enterBattle(page);
+  const { word } = await facts(page);
+  await page.keyboard.press(word.replace(/[^a-z]/gi, '')[0].toLowerCase());
+  await page.keyboard.press('Backspace');
+  expect(await page.evaluate(() => window.__gameTest.B.input.length)).toBe(0);
+  await page.keyboard.press('Tab');
+  expect((await facts(page)).word).toBe(word);
+  await expect(page.locator('#fOffer')).toHaveClass(/locked/);
+});
+
+test('when the last word also kills the boss, the unit completion is recorded and the next unit opens', async ({ game, page }, info) => {
+  newOnly(info); await game.open(); await game.start();
+  await page.evaluate(() => {
+    const t = window.__gameTest;
+    for (const w of t.G.pool) if (w.w !== 'litre') t.G.done.add(w.w);
+  });
+  await game.fight({ boss: true, word: 'litre', enemyHp: 1 });
+  await page.keyboard.type('litre');
+  await page.locator('#pPicks .pick').first().click();
+  await expect(page.locator('#s-over')).toBeVisible();
+  await expect(page.locator('#oNext')).toHaveText('继续 Unit 2');
+  const saved = await game.saved();
+  expect(typeof saved.unitProgress['1'].completedAt).toBe('string');
+  await page.locator('#oNext').click();
+  await expect(page.locator('#s-map')).toBeVisible();
+  expect(await page.evaluate(() => window.__gameTest.G.unit)).toBe(2);
+});

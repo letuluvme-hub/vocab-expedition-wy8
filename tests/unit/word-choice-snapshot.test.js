@@ -51,10 +51,19 @@ test('dirty offers fail closed', () => {
     b => { b.offer = [POOL[0], POOL[2]]; },                                   // 当前词不在候选里
     b => { b.autoHint = -1; },
     b => { b.autoHint = 'x'; },
+    b => { b.wordLocked = 'yes'; },
   ];
   for (const mutate of variants) {
     const snap = JSON.parse(JSON.stringify(base));
     mutate(snap.battle);
     assert.equal(decodeSnapshot(snap).ok, false, String(mutate));
   }
+});
+
+test('wordLocked survives a round trip and is omitted when false', () => {
+  const env = envelope({ offer: POOL.slice(), wordLocked: true });
+  const got = roundTrip(env);
+  assert.equal(got.ok, true, got.reason);
+  assert.equal(got.value.battle.wordLocked, true);
+  assert.equal('wordLocked' in encodeSnapshot(envelope({ offer: POOL.slice(), wordLocked: false })).battle, false);
 });

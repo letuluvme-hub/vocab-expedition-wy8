@@ -321,3 +321,29 @@ test('boss-first on the custom unit keeps a same-run continuation instead of dea
   next.onclick();
   assert.deepEqual(acts, ['continue-unit']);
 });
+
+/* ---------------- 远征完成凭据在两个续玩屏上同样生效（PR #28 review） ----------------
+ * 只玩远征的学生 complete 恒为 false（它只表示正式默写）；续玩屏若只看 complete，
+ * 刚被允许的「同一轮进入下一单元」在界面上就够不着，只能放弃本轮回主页重开。 */
+test('learning-complete offers the next unit on expedition completion alone', () => {
+  const db = mkDb({ unitProgress: { 1: { complete: true, completedAt: 'now' } } });
+  const G = createRun(1, HERO, wordsFor(1));
+  G.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
+  const els = renderLc({ db, run: G, battle: { enHp: 40, enMax: 100, boss: false } });
+  assert.equal(els.get('lcBtnNext').hidden, false);
+  assert.match(els.get('lcBtnNext').textContent, /Unit 2/);
+  assert.match(els.get('lcNext').textContent, /已解锁/);
+});
+
+test('boss screen offers the next unit on expedition completion alone', () => {
+  const db = mkDb({ unitProgress: { 1: { complete: true, completedAt: 'now' } } });
+  const G = wonRun(1, db);
+  G.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
+  const acts = [];
+  const els = renderOverInto({ run: G, db, win: true, campaign: view(db),
+    onNextUnit: () => acts.push('next-unit'), onContinueUnit: () => acts.push('continue-unit') });
+  assert.equal(els.get('oNext').hidden, false);
+  assert.match(els.get('oNext').textContent, /继续 Unit 2/);
+  els.get('oNext').onclick();
+  assert.deepEqual(acts, ['next-unit']);
+});

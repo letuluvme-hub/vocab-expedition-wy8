@@ -61,6 +61,7 @@ export function estimateWordDamage(run, battle, word) {
   const sim = {
     combo: battle.combo | 0, dmgBonus: battle.dmgBonus | 0, rageLeft: battle.rageLeft | 0,
     freezeWord: !!battle.freezeWord, wordStreak: battle.wordStreak | 0, foe: battle.foe,
+    chainNext: !!battle.chainNext,
   };
   const focus = !!(run && run.relics && run.relics.indexOf('focus') >= 0);
   let letters = 0;
@@ -69,7 +70,9 @@ export function estimateWordDamage(run, battle, word) {
     if (sim.combo > 1 && sim.combo % 5 === 0) sim.dmgBonus += 5 * Math.ceil(sim.combo / 5);
     letters += hitDmg(run, sim);
     if (sim.rageLeft > 0) sim.rageLeft--;
-    if (focus && sim.combo % 6 === 0) sim.dmgBonus += 5;
+    // 连锁闪电：与 combat.pressKey 同序 —— 命中之后连击 +3、增伤 +8（只触发一次）。
+    if (sim.chainNext) { sim.chainNext = false; sim.combo += 3; sim.dmgBonus += 8; }
+    if (focus && sim.combo > 0 && sim.combo % 6 === 0) sim.dmgBonus += 5;
   }
   const finisher = wordDmg(run, sim);
   return { letters, finisher, total: letters + finisher };
@@ -80,7 +83,8 @@ export function estimateWordDamage(run, battle, word) {
 export function canSwitchWord(battle) {
   if (!battle || battle.over) return false;
   if (!Array.isArray(battle.offer) || battle.offer.length < 2) return false;
-  if ((battle.input || []).length) return false;
+  // wordLocked：本词有过任何被接受的字母尝试（伤害已结算），退格清空 input 也不解锁。
+  if (battle.wordLocked || (battle.input || []).length) return false;
   const q = battle.wordQ || {};
   if ((q.wrong | 0) > 0 || (q.listen | 0) > 0) return false;
   return (battle.hintTotal | 0) <= (battle.autoHint | 0);

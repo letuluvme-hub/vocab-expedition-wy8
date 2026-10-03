@@ -341,6 +341,7 @@ function encodeBattle(b) {
   //   没有候选（旧战斗 / 词池只剩一个词）时整个键不出现，与 foeAttack 同一口径。
   if (Array.isArray(b.offer) && b.offer.length) out.offer = b.offer.map(encodeWord);
   if (Number.isInteger(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
+  if (b.wordLocked === true) out.wordLocked = true;
   return out;
 }
 function encodeEncounter(e) {
@@ -644,6 +645,7 @@ function validBattle(b, run, byId) {
     if (!b.offer.some(o => o.w === b.word.w)) return false;
   }
   if (b.autoHint !== undefined && b.autoHint !== null && !(isInt(b.autoHint) && b.autoHint >= 0)) return false;
+  if (b.wordLocked !== undefined && b.wordLocked !== null && !isBool(b.wordLocked)) return false;
   if (b.node === null || b.node === undefined || !byId.has(b.node)) return false;   // 战斗必须有真实节点
   return true;
 }
@@ -675,6 +677,7 @@ function decodeBattle(b, run, byId) {
     out.offer = b.offer.map(o => run.pool.filter(w => w.w === o.w)[0]);
   }
   if (isInt(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
+  if (b.wordLocked === true) out.wordLocked = true;
   return out;
 }
 function validEncounter(e, byId, needChoice) {

@@ -68,8 +68,12 @@ export function unitCounts({ unit, words, db }) {
 export function recordUnitComplete(db, unit, { now = Date.now() } = {}) {
   const progress = ensureProgress(db);
   const key = String(unit);
-  if (progress[key] && progress[key].complete === true) return false;
-  progress[key] = { complete: true, completedAt: new Date(now).toISOString() };
+  const rec = progress[key];
+  // 已有带时间戳的凭据 → 幂等。只有 complete:true 而没有时间戳的旧记录不算凭据
+  // （见 expeditionComplete），一次新的真实完成要把时间戳补上，否则这份存档永远解不开。
+  if (rec && rec.complete === true && typeof rec.completedAt === 'string') return false;
+  progress[key] = Object.assign({}, rec && typeof rec === 'object' ? rec : {},
+    { complete: true, completedAt: new Date(now).toISOString() });
   return true;
 }
 

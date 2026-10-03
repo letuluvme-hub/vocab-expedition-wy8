@@ -107,3 +107,26 @@ test('canSwitchWord locks once the word has been touched', () => {
   assert.equal(canSwitchWord(Object.assign(fresh(), { offer: [POOL[0]] })), false, '只有一个候选');
   assert.equal(canSwitchWord(null), false);
 });
+
+test('canSwitchWord stays locked after every letter has been backspaced', () => {
+  const b = battle({ over: false, input: [], hintTotal: 0, autoHint: 0, wordQ: createWordQ(),
+    offer: [POOL[0], POOL[1]], wordLocked: true });
+  assert.equal(canSwitchWord(b), false, '敲过字母（伤害已结算）后退格清空也不能换词');
+});
+
+test('estimateWordDamage includes a pending chain lightning', () => {
+  const run = mkRun();
+  const plain = estimateWordDamage(run, battle(), W('factory', '工厂', 2));
+  const chained = estimateWordDamage(run, battle({ chainNext: true }), W('factory', '工厂', 2));
+  // 手算：与 combat.pressKey 同序 —— 第 1 个字母命中后连击 +3、增伤 +8。
+  const sim = battle();
+  let letters = 0, chain = true;
+  for (let i = 0; i < 7; i++) {
+    sim.combo++;
+    if (sim.combo > 1 && sim.combo % 5 === 0) sim.dmgBonus += 5 * Math.ceil(sim.combo / 5);
+    letters += hitDmg(run, sim);
+    if (chain) { chain = false; sim.combo += 3; sim.dmgBonus += 8; }
+  }
+  assert.equal(chained.total, letters + wordDmg(run, sim));
+  assert.ok(chained.total > plain.total);
+});

@@ -313,3 +313,13 @@ test('transitionNextUnit accepts expedition completion as the source unit being 
   recordUnitComplete(db, 1, { now: 5 });
   assert.deepEqual(transitionNextUnit({ run, progress: view(db) }), { ok: true, from: 1, to: 2 });
 });
+
+test('a genuine completion repairs an undated legacy record, but never rewrites a dated one', () => {
+  const db = mkDb({ unitProgress: { 1: { complete: true } } });
+  assert.equal(view(db).isUnlocked(2), false, '无时间戳的旧记录本身不算');
+  assert.equal(recordUnitComplete(db, 1, { now: 3000 }), true, '新的真实完成要补上时间戳');
+  assert.equal(db.unitProgress['1'].completedAt, new Date(3000).toISOString());
+  assert.equal(view(db).isUnlocked(2), true);
+  assert.equal(recordUnitComplete(db, 1, { now: 9000 }), false);
+  assert.equal(db.unitProgress['1'].completedAt, new Date(3000).toISOString(), '已有时间戳不许被覆盖');
+});

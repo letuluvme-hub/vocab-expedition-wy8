@@ -856,7 +856,7 @@ function nextWord(){
   B.input=[]; B.sel=0; B.hintUsed=0; B.hintTotal=0;
   B.wordQ=createWordQ();
   if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1; B.wordQ.hint++; B.wordQ.revealed++ }   // 学者之书：揭示首字母
-  B.offer=offerWords(G,nw,prevWord); B.autoHint=B.hintTotal;
+  B.offer=offerWords(G,nw,prevWord); B.autoHint=B.hintTotal; B.wordLocked=false;
   renderFight();
 }
 /* 选词出招：在这个词还没被动过时，换成候选里的另一个词（docs/feature-word-choice.md）。
@@ -1243,6 +1243,9 @@ function settleRun(win){
   if(typeof G.result==='boolean')return;   // 绝不重复结算
   lifecycle.resetRun();                    // 冻结中的待办全部作废：已结束的局不得再动
   endRunProgress(G,DB,win);
+  // 最后一个词正好打死首领：这一局不会再经过 advance()/showLearningComplete()，
+  // 本单元词池抽干这件事必须在这里记下（与结算同一次落盘），否则下一单元永远解不开。
+  if(win && isPoolComplete(G)) recordUnitComplete(DB,G.unit);
   DB.playLog=appendPlayLog(DB.playLog,{endedAt:new Date().toISOString(),hero:G.heroId,
     unit:G.unit,qStats:G.qStats,win:!!win});
   ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
