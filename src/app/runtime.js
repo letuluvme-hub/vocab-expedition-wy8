@@ -1,3 +1,6 @@
+import { createDailyLearning } from './daily-learning.js';
+import { createDailyReportView } from '../ui/components/daily-report.js';
+import '../styles/daily-report.css';
 import { createDailyDictationController } from './daily-dictation.js';
 import { createDailyDictationScreen } from '../ui/screens/daily-dictation.js';
 import '../styles/dictation.css';
@@ -229,6 +232,7 @@ let dbDirty=false;
 const saveDB=()=>{ dbDirty=true };
 let dailyView=null;
 let dailyController=null;
+let dailyReportView=null;
 let progressCtl=null;   // progress 在本文件后面才创建；用可变引用避免 TDZ。
 /* ★ 真正的提交点。
  *   force=true（受闸门动作的事务末尾）：**无条件**把当前快照写下去。
@@ -1247,6 +1251,7 @@ function renderHeroes(){return titleScreen.renderHeroes()}
 function renderTitle(){
   titleScreen.renderTitle();
   dailyView?.paintEntry();
+  dailyReportView?.paint();
   // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.dictationMastered
   // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
   try{ masteryGrowthView.paint() }catch(e){}
@@ -1511,21 +1516,28 @@ const progress=createProgressController({state,api:{
 progressCtl=progress;
 
 // Daily sessions own a separate checkpoint, never a replacement for G/B/activeRun.
+const dailyLearning=createDailyLearning({getDB:()=>DB,getWords:()=>WORDS});
 dailyController=createDailyDictationController({
   getDB:()=>DB, getWords:unit=>allWords(unit),
   persist:()=>{saveDB();return commit(false)},
-  onChange:()=>dailyView?.render(),
+  ...dailyLearning.ports,
+  onChange:()=>{dailyView?.render();dailyReportView?.paint()},
 });
 dailyView=createDailyDictationScreen({controller:dailyController,show,
   onEnter:()=>{if(G&&!progress.isFinished())progress.returnToTitle();TTS.stop()},
   onHome:()=>{renderTitle();show('s-title')},
 });
+dailyView.paintEntry();
+dailyReportView=createDailyReportView({host:$('dailyHomeReport'),getReport:()=>dailyLearning.report(),
+  copy:text=>navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(new Error('Clipboard unavailable')),
+});
+dailyReportView.paint();
 $('startRun').textContent='自由远征';
 const titleSub=$('s-title').querySelector('.sub');
 if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 每日短局练默写，自由远征练拼词';
 // Refresh the clock and accumulate active time through the timing port.
 // Persist at action completion or the single time-budget checkpoint, not each tick.
-setInterval(()=>dailyView.updateTime(),1000);
+setInterval(()=>{dailyView.updateTime();dailyReportView.updateDate()},1000);
 
 
         // 字母光标

@@ -1,0 +1,12 @@
+.daily-report { margin-top: 18px; border: 1px solid #d5e4dc; border-radius: 10px; padding: 14px; box-sizing: border-box; background: #fbfdf6; color: #2f4142; text-align: left; }
+.daily-report h3 { font-size: 18px; margin: 0 0 6px; }
+.daily-report p { margin: 6px 0; overflow-wrap: anywhere; }
+.daily-report .daily-report-facts { display: grid; grid-template-columns: 1fr; gap: 3px; font-size: 15px; }
+.daily-report .daily-report-note { font-size: 12px; line-height: 1.6; color: #59686d; }
+.daily-report ul { padding-left: 20px; margin: 6px 0 12px; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.daily-report button { min-height: 44px; max-width: 100%; border: 1px solid #667976; border-radius: 8px; padding: 10px 15px; color: #243d36; background: #f2f7ee; font-family: inherit; font-size: 14px; cursor: pointer; }
+.daily-report button:disabled { opacity: .7; cursor: wait; }
+.daily-report textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; padding: 10px; border: 1px solid #657776; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5; }
+.daily-report textarea[hidden] { display: none; }
+.daily-report #dailyReportCopyStatus { min-height: 20px; font-size: 13px; color: #476354; }
+.daily-report textarea, .daily-report p, .daily-report li { -webkit-user-select: text; user-select: text; }

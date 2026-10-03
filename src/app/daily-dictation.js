@@ -8,7 +8,7 @@ import { parseCustomWords } from '../domain/custom-words.js';
 export function createDailyDictationController({ getDB, getWords, getDueWords = () => [],
   persist = () => false, now = Date.now, random = Math.random, onChange = () => {},
   onAttempt = () => {}, onComplete = () => {}, onStart = () => {}, onTiming = () => {},
-  onFailure = () => {}, onWordStart = () => {} } = {}) {
+  onFailure = () => {}, onWordStart = () => {}, onPractice = () => {} } = {}) {
   let source = getDB().dailySession;
   let session = source ? restoreDailySession(source) : null;
   let saved = null, bank = null;
@@ -105,6 +105,7 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
       if (key === 'Backspace' && session.phase === 'warmup') bank = null;
     }
     if (old === JSON.stringify(a)) return false;
+    if (key !== 'Backspace') onPractice({ session, attempt: a, word: session.words[session.index], key, db: db(), at: now() });
     if (a.phase === 'formal' && a.errors > JSON.parse(old).errors) review();
     completeWord(); publish(); return true;
   }
