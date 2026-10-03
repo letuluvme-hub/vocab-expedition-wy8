@@ -23,6 +23,15 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   const active = () => screen.classList.contains('on');
   function home() { if(state() && state().phase !== 'completed')controller.pause('home'); keyboard.destroy(); onHome(); }
   function open() { onEnter(); show('s-daily'); if(state()?.phase === 'completed')renderSelection(); else if(state())render(); else renderSelection(); }
+  // 知识成长旁的近路沿用同一个入口，不新建每日流程，也不改任何学习记录。
+  const growthHost = doc.getElementById('masteryGrowthHost');
+  if (growthHost) {
+    const row = el('div', 'row');
+    const shortcut = button('进入每日默写', 'growthDailyOpen', open, true);
+    shortcut.className = 'btn g';
+    row.append(shortcut);
+    growthHost.append(row);
+  }
   function paintEntry() {
     const extraHosts = ['dailyCollectionHost','dailyHomeReport'].map(id => entry.querySelector('#'+id) || el('div','',undefined,id));
     entry.replaceChildren(entrySummary,el('p','daily-note','按需练习，伙伴、收藏和学习记录都在这里。'));

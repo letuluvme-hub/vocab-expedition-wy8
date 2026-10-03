@@ -287,7 +287,7 @@ test('the custom unit shows its real progress on the title and never offers a te
   const buttons = els.get('units').children;
   const custom = buttons[6];
   assert.equal(custom.getAttribute('data-unit'), '0');
-  assert.match(custom.textContent, /已掌握 1\/2/, '★ 自定义单元不许伪报 0 词/未开始：' + custom.textContent);
+  assert.match(custom.textContent, /默写 1\/2/, '★ 自定义单元不许伪报 0 词/未开始：' + custom.textContent);
   assert.equal(custom.disabled, false);
   // 教材单元仍然锁着：自定义学完也不解锁课本。
   assert.ok(buttons[1].className.split(' ').includes('locked'));
