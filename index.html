@@ -65,9 +65,9 @@
     <div id="rewardCards"></div>
   </details>
   <div class="note" style="margin-top:11px">💡 直接<b style="color:var(--acc2)">点击</b>字母键填入 ·
- 也可以用电脑键盘<b style="color:var(--acc2)">直接打字</b>（A-Z，效果和点击完全一样）·
- <b style="color:var(--acc2)">退格</b>撤销。字母盘没有光标，方向键不做任何事。
- 字母盘上方可切换 <b style="color:var(--acc2)">键盘布局</b>（按电脑 QWERTY 排）和 <b style="color:var(--acc2)">大写显示</b>。进度自动存本机。</div>
+ <span class="desktopHelp">也可以用电脑键盘<b style="color:var(--acc2)">直接打字</b>（A-Z，效果和点击完全一样）·
+ <b style="color:var(--acc2)">退格</b>撤销。字母盘没有光标，方向键不做任何事。</span>
+ 字母盘上方可切换 <b style="color:var(--acc2)">QWERTY / 字母序</b>（字母序按 A–Z 排）和 <b style="color:var(--acc2)">大写显示</b>。进度自动存本机。</div>
 </div>
 
 <div class="screen" id="s-map">
@@ -156,10 +156,11 @@
   <div class="items" id="fItems"></div>
   </div><!-- /.fmid -->
   <div class="bankbar">
-    <button class="bkbtn" id="tBankMode" title="切换字母盘排布：乱序网格 ↔ 标准 QWERTY 键盘三行（只显示本词需要的字母）"><i class="dot"></i>键盘布局<b id="tBankModeV">关</b></button>
+    <button class="bkbtn" id="tBankMode" title="切换字母盘排布：A–Z 字母序 ↔ 标准 QWERTY 键盘三行（只显示本词需要的字母）"><i class="dot"></i>布局<b id="tBankModeV">字母序</b></button>
     <button class="bkbtn" id="tBankCase" title="切换字母盘显示大小写（纯显示，不影响判定）"><i class="dot"></i>大写显示<b id="tBankCaseV">关</b></button>
     <button class="bkbtn say" id="tSay" title="🔊 听读音：慢速朗读当前目标单词（长按 = 连读两遍）"><span class="spk">🔊</span>听读音<small id="tSayV">慢速</small></button>
   </div>
+  <div id="fHintShared" aria-live="polite">听读音 / 提示共用：剩余 3 次</div>
   <div class="bank" id="fBank"></div>
   <div class="tools">
     <button class="tool" id="tHint">提示<small id="tHintN">3 次</small></button>

@@ -1,3 +1,4 @@
+import { deviceProfile } from '../../services/device.js';
 /* 首次进入的一次性提示：建议用电脑键盘玩。
  *
  * 为什么需要它：这个游戏的输入是「按字母拼词」，在电脑键盘上比在手机字母盘上
@@ -17,7 +18,7 @@
 
 export const KEYBOARD_TIP_ID = 'keyboardTip';
 
-export function createKeyboardTip({ isSeen, onDismiss, document: doc = globalThis.document } = {}) {
+export function createKeyboardTip({ isSeen, onDismiss, isDesktop = () => deviceProfile().desktop, document: doc = globalThis.document } = {}) {
   let host = null;
   let el = null;
 
@@ -41,7 +42,7 @@ export function createKeyboardTip({ isSeen, onDismiss, document: doc = globalThi
 
     const p2 = doc.createElement('span');
     p2.className = 'ktip-sub';
-    p2.textContent = '想换回手机字母盘？战斗中随时点「键盘布局」切换。';
+    p2.textContent = '战斗中可切换「QWERTY / 字母序」布局。';
     body.appendChild(p2);
 
     const btn = doc.createElement('button');
@@ -64,7 +65,7 @@ export function createKeyboardTip({ isSeen, onDismiss, document: doc = globalThi
   function paint() {
     if (!host) return null;
     host.textContent = '';
-    if (isSeen && isSeen()) return null;   // 看过就不再出现
+    if (!isDesktop() || (isSeen && isSeen())) return null;   // 看过就不再出现
     host.appendChild(build());
     return host;
   }

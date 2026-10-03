@@ -25,12 +25,12 @@ test('fresh save without kbMode enters a real fight on the QWERTY keyboard', asy
     expect(letters.map(ch => layout.indexOf(ch)))
       .toEqual(letters.map(ch => layout.indexOf(ch)).sort((a, b) => a - b));
   }
-  await expect(page.locator('#tBankModeV')).toHaveText('开');
+  await expect(page.locator('#tBankModeV')).toHaveText('QWERTY');
   // 不完成整词，避免与击杀/相位记账相交。
   expect((await game.state()).DB.mastered).toEqual([]);
 });
 
-test('explicit kbMode false stays on the shuffled grid across reload', async ({ game, page }) => {
+test('explicit kbMode false stays on the shuffled grid across reload', async ({ game, page }, testInfo) => {
   // 这条对两个目标都成立：明确 false 的旧档必须保持网格。
   await game.open({ saved: { kbMode: false } });
   expect((await game.state()).DB.kbMode).toBe(false);
@@ -38,7 +38,7 @@ test('explicit kbMode false stays on the shuffled grid across reload', async ({ 
   await game.fight({ word: 'cotton' });
   await expect(page.locator('#fBank')).not.toHaveClass(/\bkb\b/);
   await expect(page.locator('#fBank')).toHaveClass(/\bgrid\b/);
-  await expect(page.locator('#tBankModeV')).toHaveText('关');
+  await expect(page.locator('#tBankModeV')).toHaveText(testInfo.project.metadata.target==='legacy'?'关':'字母序');
   await game.reload();
   expect((await game.state()).DB.kbMode).toBe(false);
 });

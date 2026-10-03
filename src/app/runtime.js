@@ -1,3 +1,4 @@
+import { applyDevicePresentation } from '../services/device.js';
 import { createDailyCollection } from './daily-collection.js';
 import { createDailyCollectionView } from '../ui/components/daily-collection.js';
 import '../styles/daily-collection.css';
@@ -87,6 +88,7 @@ const growthFact=(mastered,words,hero)=>{
 
 // Transitional coordinator: preserve original event ordering during extraction.
 export function startGame() {
+applyDevicePresentation();
 const lifecycle=createLifecycle();
 
 // ============================================================
@@ -947,8 +949,10 @@ function paintSayBtn(){
   b.className='bkbtn say'+(usable?'':' off');
   b.title = !TTS.supported ? '当前浏览器不支持语音朗读（不影响游戏）'
     : !TTS.on ? '语音已关闭 —— 点击重新开启'
-    : '🔊 听读音：慢速朗读当前目标单词（长按 = 连读两遍）';
-  if(v) v.textContent = !TTS.supported?'不可用':(TTS.on?'慢速':'已关');
+    : '🔊 听读音：慢速朗读当前目标单词，和字母提示共用次数（长按 = 连读两遍）';
+  if(v) v.textContent = !TTS.supported?'不可用':(TTS.on?'1 次提示':'已关');
+  const shared=$('fHintShared');
+  if(shared && B) shared.textContent='听读音 / 提示共用：剩余 ' + B.hints + ' 次';
 }
 // 发声成功才做喇叭脉冲动画：无声/关闭环境下没有动画，不会给假反馈
 function pulseSay(){
@@ -957,6 +961,7 @@ function pulseSay(){
   setTimeout(()=>{ try{ b.classList.remove('on2') }catch(e){} },480);
 }
 function sayCurrentWord(times){
+  if(progress.isPaused()) return false;
   if(!B||B.over||!B.word) { toast('还没有开始战斗'); return false }
   if(!TTS.supported){ toast('当前浏览器不支持语音朗读，不影响游戏'); return false }
   if(!TTS.on){ TTS.setOn(true); paintSayBtn(); audioSettings.paint(); }        // 死结保护：先开回来再念
@@ -967,7 +972,8 @@ function sayCurrentWord(times){
   B.hints--;
   if(!B.wordQ) B.wordQ=decodeWordQ(undefined);
   B.wordQ.listen++;
-  if(typeof paintHintBtn==='function') paintHintBtn();
+  commit(false);
+  renderFight(); // Listening and letter hints share the same visible counter.
   const n=times||1;
   for(let i=0;i<n;i++){
     // 连读要错开：speak 内部每次都会 cancel，所以必须串行 setTimeout，
@@ -979,10 +985,11 @@ function sayCurrentWord(times){
 }
 (function mountSayBtn(){
   const b=$('tSay'); if(!b) return;
-  b.onclick=()=>{ TTS.unlock(); sayCurrentWord(1) };
+  let held=false;
+  b.onclick=()=>{ if(held){ held=false; return } TTS.unlock(); sayCurrentWord(1) };
   // 长按 = 连读两遍。pointerdown/up 在移动端和桌面都稳，比 mouse 事件可靠。
   let holdT=0;
-  const start=()=>{ holdT=setTimeout(()=>sayCurrentWord(2),420) };
+  const start=()=>{ held=false; holdT=setTimeout(()=>{ held=true; sayCurrentWord(2) },420) };
   const end  =()=>{ clearTimeout(holdT) };
   if(b.addEventListener){
     b.addEventListener('pointerdown',start);
@@ -1042,6 +1049,7 @@ const keyboardTipView=createKeyboardTip({
   onDismiss:()=>{ DB.keyboardTipSeen=true; saveDB(); commit(false); },
 });
 keyboardTipView.mount(document.getElementById('keyboardTipHost'));
+window.addEventListener('resize',()=>{ applyDevicePresentation(); keyboardTipView.paint(); });
 // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged 再重画一次
 // 设置区 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。
 try{

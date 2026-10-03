@@ -121,7 +121,7 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     const mb = $('tBankMode'), cb = $('tBankCase'), mv = $('tBankModeV'), cv = $('tBankCaseV');
     if (mb) mb.className = 'bkbtn' + (isKbMode() ? ' on' : '');
     if (cb) cb.className = 'bkbtn' + (isKbUpper() ? ' on' : '');
-    if (mv) mv.textContent = isKbMode() ? '开' : '关';
+    if (mv) mv.textContent = isKbMode() ? 'QWERTY' : '字母序';
     if (cv) cv.textContent = isKbUpper() ? '开' : '关';
     try { paintSayBtn(); } catch (e) { }     // 语音按钮状态跟着战斗渲染一起刷新
   }
@@ -244,6 +244,8 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     }
     syncBankBar();
     $('tHintN').textContent = B.hints + ' 次';
+    const shared=$('fHintShared');
+    if(shared) shared.textContent='听读音 / 提示共用：剩余 ' + B.hints + ' 次';
     $('tHint').disabled = B.hints <= 0;
     // 跳过按钮：innerHTML 而不是 textContent —— textContent 会抹掉 <small> 里的代价说明。
     // ★ 影分身额度是 run 级（G.ghostUsed），不是本场（B 上没有任何 ghost 状态）：

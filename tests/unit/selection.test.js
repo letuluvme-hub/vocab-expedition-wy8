@@ -639,3 +639,9 @@ test('endRunProgress default earnedAt is derived from now', () => {
 test('endRunProgress ignores a null run like the legacy guard', () => {
   assert.equal(endRunProgress(null, mkDb(), true, 1), null);
 });
+
+ test('alphabetical grid sorts visual indices without changing duplicate instances', () => {
+   const letters=['z','e','b','e','a','m','c']; const before=letters.slice();
+   assert.deepEqual(bankRows(letters,false),[[4,2,6,1],[3,5,0]]);
+   assert.deepEqual(letters,before); assert.deepEqual(bankPosOf(letters,false,3),{row:1,col:0,rows:2});
+ });

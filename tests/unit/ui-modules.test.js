@@ -365,10 +365,10 @@ test('fight bankCols / bankRows / bankPosOf agree with legacy for both modes', a
       const deps = { B, DB, bankCols: oldCols, isKbMode: () => !!DB.kbMode, ...LEGACY_QWERTY };
       const oldRows = legacyFn('bankRows', deps);
       const oldPos = legacyFn('bankPosOf', { ...deps, bankRows: oldRows });
-      const expected = oldRows();
+      const expected = kbMode ? oldRows() : letters.map((_,i)=>i).sort((a,b)=>letters[a].localeCompare(letters[b])||a-b).reduce((rows,i,n)=>{const r=(n/bankCols(letters.length))|0;(rows[r]=rows[r]||[]).push(i);return rows},[]);
       assert.deepEqual(bankRows(letters, kbMode), expected, `${name} kb=${kbMode}`);
       for (let i = 0; i < letters.length; i++) {
-        assert.deepEqual(bankPosOf(letters, kbMode, i), oldPos(i), `${name} kb=${kbMode} i=${i}`);
+        assert.deepEqual(bankPosOf(letters, kbMode, i), kbMode ? oldPos(i) : (()=>{const row=expected.findIndex(r=>r.includes(i));return {row,col:expected[row].indexOf(i),rows:expected.length}})(), `${name} kb=${kbMode} i=${i}`);
       }
       assert.equal(bankPosOf(letters, kbMode, 999), null);
     }
@@ -429,7 +429,7 @@ test('fight.renderFight paints the same DOM as the legacy function', async () =>
     // 其余每个 id 仍要求与旧版真实输出逐字一致。
     // 清单 13 有两处有意偏离旧版：tSkip 的代价文案、#fAv 的放大 inline style。
     // 其余每个 id 仍要求与旧版真实输出逐字一致。
-    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip' && id !== 'fAv');
+    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip' && id !== 'fAv' && (DB.kbMode || id !== 'fBank'));
     const normalizeFoeScale = s => s
       .replace(/\{width:\d+px\}/, '')            // 只抹掉放大写进去的尺寸
       .replace(/;?height:\d+px;font-size:\d+px/, '');
@@ -470,7 +470,7 @@ test('fight.renderFight routes key presses through onPress and never mutates sel
     bank.children[9].onclick();
     return null;
   });
-  assert.deepEqual(pressed, [4, 9]);
+  assert.deepEqual(pressed, [6, 9], '字母序第 5 与第 10 个按钮仍路由到原实例');
   assert.equal(B.sel, 2, 'the screen must not set B.sel — that is the parent state owner');
 });
 
@@ -598,7 +598,8 @@ test('fight.syncBankBar mirrors legacy button state and repaints the say button'
     });
     const old = createDocument(ids);
     legacyFn('syncBankBar', { $: $for(old), isKbMode: () => !!DB.kbMode, isKbUpper: () => !!DB.kbUpper, paintSayBtn: () => { said++; } })();
-    assert.equal(snapDoc(mineDoc, ids), snapDoc(old, ids));
+    assert.equal(snapDoc(mineDoc, ids.filter(id=>id!=='tBankModeV')), snapDoc(old, ids.filter(id=>id!=='tBankModeV')));
+    assert.equal(mineDoc.getElementById('tBankModeV').textContent,DB.kbMode?'QWERTY':'字母序');
   }
   assert.equal(said, 4);
 });
