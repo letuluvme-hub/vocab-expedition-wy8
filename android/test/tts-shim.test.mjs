@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createSpeech } from '../../src/services/speech.js';
+import { FOE_LINES } from '../../src/data/voice-lines.js';
 import { createAudioCapability, STATUS, CHANNEL } from '../../src/services/audio-capability.js';
 
 const SHIM = readFileSync(new URL('../app/src/main/assets/tts-shim.js', import.meta.url), 'utf8');
@@ -64,7 +65,7 @@ function makeGame(win) {
     curHeroId: () => 'scholar',
     rnd: () => 0,
     voiceLines: { scholar: { atk: ['attack'], win: ['win'], lose: ['lose'] } },
-    foeLineCfg: () => ({ lines: ['你好呀'], rate: 1, pitch: 1, seed: 0, vo: 'female', key: 'k' }),
+    foeLineCfg: () => ({ ...FOE_LINES['词灵'], key:'k' }),
     onChange: () => {},
     environment: win,
     capability: cap,
@@ -241,15 +242,15 @@ test('原生真报错时兼容层会判 blocked —— 证明上一条不是恒�
   assert.equal(cap.channelState(CHANNEL.SPEECH), STATUS.BLOCKED);
 });
 
-test('有中文音色时怪物中文台词能发出去；没有时就静默跳过', () => {
-  const withZh = installShim(makeBridge());
-  const g1 = makeGame(withZh);
-  assert.ok(g1.tts.voices.some(v => v.lang === 'zh-CN'));
-  assert.equal(g1.tts.foeLine({ ic: 'a1' }, { force: true }), true);
-
-  const noZh = installShim(makeBridge([VOICES[0], VOICES[1]]));
-  const g2 = makeGame(noZh);
-  assert.equal(g2.tts.foeLine({ ic: 'a1' }, { force: true }), false);
+test('原生桥用英文说怪物台词，不需要中文音色', () => {
+  for(const voices of [VOICES,[VOICES[0],VOICES[1]]]) {
+    const bridge=makeBridge(voices),win=installShim(bridge),game=makeGame(win);
+    assert.equal(game.tts.foeLine({ic:'a1'},{force:true}),true);
+    const spoken=bridge.calls.find(c=>c.kind==='speak');
+    assert.equal(spoken.lang,'en-US'); assert.match(spoken.text,/[A-Za-z]/);
+    assert.doesNotMatch(spoken.text,/[\u3400-\u9fff]/);
+    assert.ok(spoken.voice.startsWith('en-'));game.tts.stop();
+  }
 });
 
 test('非原生环境（普通浏览器）里 shim 完全不插嘴', () => {

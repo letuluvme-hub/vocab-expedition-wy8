@@ -23,6 +23,17 @@ for (const [width, height] of [[390, 844], [375, 667], [360, 780], [320, 568]]) 
 
     // Scroll a real portrait through the sticky row, as when browsing the heroes.
     // The initial viewport alone can miss the overlap by only a few pixels.
+    await start.evaluate(button => {
+      // The mobile computer tip is now absent. First assert the natural layout
+      // above; add inert spacing only to stress portrait overlap at every viewport.
+      const portraits=[...document.querySelectorAll('#heroes .pc-head')];
+      const center=button.getBoundingClientRect().top+button.getBoundingClientRect().height/2;
+      if(!portraits.some(p=>p.getBoundingClientRect().top+p.getBoundingClientRect().height/2>center)){
+        const heroes=document.getElementById('heroes');
+        heroes.style.paddingTop=innerHeight+'px';
+      }
+    });
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const scrollBy = await start.evaluate(button => {
       const rect = button.getBoundingClientRect();
       const y = rect.top + rect.height / 2;

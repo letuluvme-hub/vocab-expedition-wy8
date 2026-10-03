@@ -19,6 +19,7 @@ jobs:
       - run: npm ci
       - run: npm run check:data
       - run: npm test
+      - run: node --test android/test/tts-shim.test.mjs
       - run: npm run build
       - run: npm run test:build
       - run: npx playwright install --with-deps chromium
