@@ -8,10 +8,11 @@ const quality = page => page.evaluate(() => ({ q: window.__gameTest.B.wordQ, s: 
 
 test('P0: listen action counts once even for double playback, denied actions do not', async ({ game, page }) => {
   await game.open({ speechStub: true }); await game.start(); await game.fight();
+  const hintsBefore = (await game.state()).B.hints;
   expect((await quality(page)).q).toEqual(zeroQ);
   expect(await page.evaluate(() => window.__gameTest.sayCurrentWord(2))).toBe(true);
   expect((await quality(page)).q).toEqual({ ...zeroQ, listen: 1 });
-  expect((await game.state()).B.hints).toBe(2);
+  expect((await game.state()).B.hints).toBe(hintsBefore - 1);
   await page.evaluate(() => { window.__gameTest.B.hints = 0; });
   expect(await page.evaluate(() => window.__gameTest.sayCurrentWord(1))).toBe(false);
   expect((await quality(page)).q.listen).toBe(1);
@@ -57,9 +58,9 @@ test('P0: pause and real refresh preserve help and totals without recounting', a
   expect(saved.activeRun.battle.wordQ).toEqual(before.q);
   expect(saved.activeRun.run.qStats).toEqual(before.s);
   await game.reload(); await page.locator('#continueRun').click();
-  await expect(page.locator('#s-pause')).toBeVisible();
+  await expect(page.locator('#s-fight')).toBeVisible();
   expect(await quality(page)).toEqual(before);
-  await page.locator('#pzResume').click(); await page.keyboard.type('itre');
+  await page.keyboard.type('itre');
   const after = await quality(page);
   expect(after.q).toEqual(zeroQ);
   expect(after.s).toEqual({ ...zeroStats, words: 1, good: 1, hintsUsed: 1, listenUsed: 1 });
@@ -74,7 +75,7 @@ test('P0: legacy snapshot completes as good, never as a fabricated perfect', asy
   const db = await game.saved(); delete db.activeRun.battle.wordQ; delete db.activeRun.run.qStats;
   await game.writeSaved(db); await game.reload(); await page.locator('#continueRun').click();
   expect((await quality(page)).q).toEqual({ ...zeroQ, wrong: 1 });
-  await page.locator('#pzResume').click(); await page.keyboard.type('itre');
+  await expect(page.locator('#s-fight')).toBeVisible(); await page.keyboard.type('itre');
   expect((await quality(page)).s).toEqual({ ...zeroStats, words: 1, good: 1, wrongLetters: 1 });
 });
 

@@ -7,6 +7,7 @@ import { generateMap } from './map.js';
 import { createWordStreakState } from './word-streak.js';
 import { roundCompletion } from './campaign.js';
 import { floorHealBonus } from './relic-rules.js';
+import { createQStats } from './word-quality.js';
 
 /* ★ 轮次身份（docs/feature-rounds.md）。
  * roundId 是**持久化**的轮次身份，必须和进程内自增的 run.id（'R1'、'R2'…）区分开：
@@ -126,6 +127,7 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     //   0 与「缺失」同义，落盘时两者都不写这个键。
     whetBuys: 0,
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,
+    qStats: createQStats(),
     // ★ 完整词连胜（docs/feature-word-streak.md）：**run 级**的计数与事件序号。
     //   它必须跨战斗存在 —— 连胜要跨战斗/跨单元保持，所以既不能放 B.wordStreak
     //   （那是每场战斗重建的大招档位计数），也不能用 B.wordsDone 当事件 id

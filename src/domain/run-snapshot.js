@@ -16,6 +16,7 @@
 import { norm } from './text.js';
 import { ADV_LOCK_MS } from './run.js';
 import { encodeFoeAttack, decodeFoeAttack } from './foe-attack.js';
+import { encodeWordQ, decodeWordQ, encodeQStats, decodeQStats } from './word-quality.js';
 import { normalizeWordStreakState, STREAK_STAGE_LIMIT } from './word-streak.js';
 /* 逐轮难度（清单 10）：难度事实**可选**，编解码规则全在 domain/round-difficulty.js。
    ★ 编解码绝不剥字段洗白：脏形状是 undefined（=整份 fail closed），不是「修正」过的对象。 */
@@ -306,6 +307,8 @@ function encodeRun(run) {
   if (prophecyUsed) out.prophecyUsed = prophecyUsed;
   const whetBuys = encodeWhetBuys(run.whetBuys);
   if (whetBuys !== undefined) out.whetBuys = whetBuys;
+  const qStats = encodeQStats(run.qStats);
+  if (qStats) out.qStats = qStats;
   return out;
 }
 function encodeBattle(b) {
@@ -332,6 +335,8 @@ function encodeBattle(b) {
   //   绝不把「认不出来」伪装成「没有攻击状态」。 */
   const foeAttack = encodeFoeAttack(b.foeAttack);
   if (foeAttack) out.foeAttack = foeAttack;
+  const wordQ = encodeWordQ(b.wordQ);
+  if (wordQ) out.wordQ = wordQ;
   return out;
 }
 function encodeEncounter(e) {
@@ -386,6 +391,9 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   //   玩家会发现刷新后攻击时机凭空变了，这比明确存不下更糟。
   if (env.battle && env.battle.foeAttack !== undefined && env.battle.foeAttack !== null
     && encodeFoeAttack(env.battle.foeAttack) === undefined) return null;
+  // Optional P0 facts follow foeAttack: dirty present values reject the whole snapshot.
+  if (run.qStats != null && encodeQStats(run.qStats) === undefined) return null;
+  if (env.battle && env.battle.wordQ != null && encodeWordQ(env.battle.wordQ) === undefined) return null;
   // 完整词连胜同样**按原值** fail closed（与 growth / foeAttack 同一口径）：
   //   绝不 normalize 掩坏 —— {count:99} 被夹成 {count:8} 会让存档看起来正常，
   //   却凭空记了一个满级连胜；1e21 这类不安全序号会让 ++ 之后身份永久重复。
@@ -477,6 +485,7 @@ function validRun(r) {
   // prophecyUsed / whetBuys 同样可选：缺失合法（旧快照），出现就必须合法形状。
   if (r.prophecyUsed !== undefined && r.prophecyUsed !== null && !validProphecyUsed(r.prophecyUsed)) return false;
   if (r.whetBuys !== undefined && r.whetBuys !== null && !validWhetBuys(r.whetBuys)) return false;
+  if (r.qStats != null && encodeQStats(r.qStats) === undefined) return false;
   if (!Array.isArray(r.pool) || !r.pool.length) return false;
   // th：教材词都有，自定义词允许缺失（undefined）；出现对象/数字是损坏。
   if (r.pool.some(w => !isObj(w) || !isStr(w.w) || !isInt(w.u) || !isInt(w.d) || !isStr(w.z)
@@ -528,6 +537,7 @@ function decodeRun(r, byId) {
 // 旧快照缺这两个字段 → 规范回落（0 / 空身份），绝不从当前 DB 现算。
     wordStreak: decodeWordStreak(r.wordStreak),
     wordEventSeq: validWordEventSeq(r.wordEventSeq) ? r.wordEventSeq : 0,
+    qStats: decodeQStats(r.qStats),
     // difficulty（清单 10）：同样**绝不**由当前 DB.runs 或 r.roundNumber 现算补填 ——
     //   缺键就是旧存档，按基线跑完全程，绝不因为刷新一次就凭空升一档。
     difficulty: decodeDifficulty(r.difficulty),
@@ -616,6 +626,7 @@ function validBattle(b, run, byId) {
   //   脏值整份 fail closed，绝不静默丢成 undefined：那会让一个「蓄力还剩多久」
   //   已经不可信的存档看起来能恢复，而玩家会发现攻击时机凭空变了。
   if (b.foeAttack !== undefined && b.foeAttack !== null && decodeFoeAttack(b.foeAttack) === undefined) return false;
+  if (b.wordQ != null && encodeWordQ(b.wordQ) === undefined) return false;
   if (b.node === null || b.node === undefined || !byId.has(b.node)) return false;   // 战斗必须有真实节点
   return true;
 }
@@ -626,6 +637,7 @@ function decodeBattle(b, run, byId) {
     myHp: b.myHp, enHp: b.enHp, enMax: b.enMax, shield: b.shield,
     input: b.input.slice(), sel: b.sel,
     hints: b.hints, hintUsed: b.hintUsed, hintTotal: b.hintTotal,
+    wordQ: decodeWordQ(b.wordQ),
     combo: b.combo, maxCombo: b.maxCombo, dmgBonus: b.dmgBonus,
     firstWrong: b.firstWrong, lethUsed: b.lethUsed,
     wordsDone: b.wordsDone, over: b.over, won: b.won,
