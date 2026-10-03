@@ -24,9 +24,9 @@ import { encodeSnapshot, decodeSnapshot, PHASE } from '../../src/domain/run-snap
 
 const HERO = { id: 'ranger', mod: { hp: 10, shield: 0, gold: 0, hint: 0, noise: 0, combo: 1, regen: 0, leech: 0 } };
 const wordsFor = u => (u === 0 ? [] : WORDS.filter(w => w.u === u));
-const mkDb = (db = {}) => Object.assign({ runs: 0, wins: 0, mastered: [], best: 0, custom: [], rewards: [] }, db);
+const mkDb = (db = {}) => Object.assign({ runs: 0, wins: 0, dictationMastered: [], best: 0, custom: [], rewards: [] }, db);
 const view = (db, units = [1, 2, 3, 4, 5, 6, 0]) => unlockProgress({
-  units, wordsFor, mastered: db.mastered, unitProgress: db.unitProgress,
+  units, wordsFor, dictationMastered: db.dictationMastered, unitProgress: db.unitProgress,
 });
 
 /* 一次真实 BOSS 战对象（不是同一个对象复用：正是它考验 run 级守卫）。 */
@@ -50,7 +50,7 @@ test('one learning run walks unit 1 through 6: every hop keeps resources and bum
     const u = from + 1;
     // 玩家把本单元的词全部完整拼对（唯一解锁凭据）。
     for (const w of WORDS.filter(x => x.u === from)) {
-      if (db.mastered.indexOf(w.w) < 0) db.mastered.push(w.w);
+      if (db.dictationMastered.indexOf(w.w) < 0) db.dictationMastered.push(w.w);
     }
     const p = view(db);
     const facts = transitionNextUnit({ run, progress: p });
@@ -92,7 +92,7 @@ test('one learning run walks unit 1 through 6: every hop keeps resources and bum
 /* ================= B. 过期事实 ================= */
 
 test('replaying stale transition facts changes nothing at all', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const run = createRun(1, HERO, wordsFor(1));
   const facts = transitionNextUnit({ run, progress: view(db) });
   applyUnitTransition(run, facts, { words: wordsFor(2) });
@@ -114,7 +114,7 @@ test('replaying stale transition facts changes nothing at all', () => {
 });
 
 test('applyUnitTransition refuses facts whose target is not a legal next unit', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const run = createRun(1, HERO, wordsFor(1));
   // progress 给的是 Unit 1 全部学完的视图：合法的下一单元只有 Unit 2。
   const p = view(db);
@@ -138,7 +138,7 @@ test('applyUnitTransition refuses facts whose target is not a legal next unit', 
 test('transitionNextUnit reports the real next unit instead of a permanent already guard', () => {
   // startedUnit 曾经被当成「已经过渡过」的永久守卫，那让 Unit 3→4 永远接不上。
   const db = mkDb({
-    mastered: WORDS.filter(w => w.u <= 3).map(w => w.w),
+    dictationMastered: WORDS.filter(w => w.u <= 3).map(w => w.w),
   });
   const run = createRun(1, HERO, wordsFor(1));
   run.campaign.startedUnit = 1;                     // 早已跨过单元
@@ -152,7 +152,7 @@ test('transitionNextUnit reports the real next unit instead of a permanent alrea
 });
 
 test('a stale progress view still blocks the hop (locked), startedUnit never grants passage', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const run = createRun(1, HERO, wordsFor(1));
   run.campaign.startedUnit = 9;   // 诊断字段被污染
   const stale = {
@@ -237,7 +237,7 @@ const roundTrip = (env) => {
 };
 
 test('a fresh segment survives a snapshot round trip as clearedSegment:false', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const run = createRun(1, HERO, wordsFor(1));
   run.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
   applyUnitTransition(run, transitionNextUnit({ run, progress: view(db) }), { words: wordsFor(2) });
@@ -354,7 +354,7 @@ test('an old snapshot with no rewardId keeps exactly one card per run', () => {
 /* ================= E. unlockProgress：排序去重 + 自定义词 ================= */
 
 test('unordered and duplicated unit numbers produce the same unlock state', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const shuffled = view(db, [3, 1, 0, 1, 2, 0, 4, 5, 6]);
   const ordered = view(db, [0, 1, 2, 3, 4, 5, 6]);
   assert.deepEqual(Object.keys(shuffled.byUnit).sort(), Object.keys(ordered.byUnit).sort());
@@ -371,10 +371,10 @@ test('the custom unit reports real learned words without ever unlocking a textbo
     { u: 0, d: 1, w: 'dog', z: '狗' },
     { u: 0, d: 1, w: 'Bird', z: '鸟' },
   ];
-  const mastered = ['cat', 'dog'];
+  const dictationMastered = ['cat', 'dog'];
   const p = unlockProgress({
     units: [1, 2, 0], wordsFor: u => (u === 0 ? custom : wordsFor(u)),
-    mastered, unitProgress: {},
+    dictationMastered, unitProgress: {},
   });
   const c = p.byUnit[CUSTOM_UNIT];
   assert.equal(c.total, 3, '★ 自定义单元不许伪报 total 0');
@@ -388,7 +388,7 @@ test('the custom unit reports real learned words without ever unlocking a textbo
 
   const p2 = unlockProgress({
     units: [1, 2, 0], wordsFor: u => (u === 0 ? custom : wordsFor(u)),
-    mastered: ['cat', 'dog', 'BIRD '], unitProgress: {},
+    dictationMastered: ['cat', 'dog', 'BIRD '], unitProgress: {},
   });
   assert.equal(p2.byUnit[CUSTOM_UNIT].complete, true, '学完可按词判定完成');
   assert.equal(p2.isUnlocked(2), false, '但完成也不参与教材解锁');
@@ -401,7 +401,7 @@ test('a fully learned custom unit still leaves every textbook unit locked', () =
   const custom = [{ u: 0, d: 1, w: 'cat', z: '猫' }];
   const p = unlockProgress({
     units: [1, 2, 0], wordsFor: u => (u === 0 ? custom : wordsFor(u)),
-    mastered: ['cat'], unitProgress: {},
+    dictationMastered: ['cat'], unitProgress: {},
   });
   assert.equal(p.byUnit[0].complete, true);
   assert.equal(p.isUnlocked(2), false);
@@ -409,10 +409,10 @@ test('a fully learned custom unit still leaves every textbook unit locked', () =
 });
 
 test('recordUnitComplete writes no counter of any kind', () => {
-  const db = mkDb({ mastered: ['cat'] });
-  const before = JSON.stringify({ runs: db.runs, wins: db.wins, best: db.best, rewards: db.rewards, mastered: db.mastered });
+  const db = mkDb({ dictationMastered: ['cat'] });
+  const before = JSON.stringify({ runs: db.runs, wins: db.wins, best: db.best, rewards: db.rewards, dictationMastered: db.dictationMastered });
   assert.equal(recordUnitComplete(db, 1, { now: 1000 }), true);
   assert.equal(recordUnitComplete(db, 1, { now: 2000 }), false, '幂等');
-  const after = JSON.stringify({ runs: db.runs, wins: db.wins, best: db.best, rewards: db.rewards, mastered: db.mastered });
+  const after = JSON.stringify({ runs: db.runs, wins: db.wins, best: db.best, rewards: db.rewards, dictationMastered: db.dictationMastered });
   assert.equal(after, before, '完成凭据不许顺手加任何计数');
 });

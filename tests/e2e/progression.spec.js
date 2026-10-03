@@ -97,7 +97,7 @@ test('BOSS victory collects one reward card and next unit starts without stale b
 test('last unit victory hides next-unit action in computed layout', async ({ game, page }, testInfo) => {
   // Unit 6 默认锁着：先按旧存档迁移口径把 Unit 1..6 的词都记为已掌握，
   // Unit 6 因此解锁；打完它就是本册最后一个单元。
-  await game.open({ saved: { mastered: unlockAll(6) } });
+  await game.open({ saved: { mastered: unlockAll(6), dictationMastered: unlockAll(6) } });
   await game.start(6);
   await defeatBoss(game, page, testInfo);
   await page.locator('#pPicks .pick').first().click();

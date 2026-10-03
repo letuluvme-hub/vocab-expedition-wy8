@@ -138,6 +138,7 @@ test('★ 同轮跨单元/续段走真实路径：unit 真变，轮号/次数/�
     const t = window.__gameTest;
     const words = t.WORDS.filter(w => w.u === 1);
     t.DB.mastered = words.slice(0, -1).map(w => w.w);
+    t.DB.dictationMastered = words.map(w => w.w); // positive transition: verified formal evidence
     t.G.pool = words.slice();
     t.G.done = new Set(words.slice(0, -1).map(w => w.w));
     return { last: words[words.length - 1].w };

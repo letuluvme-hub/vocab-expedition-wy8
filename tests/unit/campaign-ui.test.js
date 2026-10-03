@@ -18,8 +18,8 @@ import { renderOver } from '../../src/ui/screens/over.js';
 const HERO = { id: 'ranger', mod: { hp: 0, shield: 0, gold: 0, hint: 0, noise: 0, combo: 1, regen: 0, leech: 0 } };
 const wordsFor = u => (u === 0 ? [] : WORDS.filter(w => w.u === u));
 const NOS = [1, 2, 3, 4, 5, 6, 0];
-const mkDb = (db = {}) => Object.assign({ runs: 0, wins: 0, mastered: [], best: 0, custom: [], rewards: [] }, db);
-const view = db => unlockProgress({ units: NOS, wordsFor, mastered: db.mastered, unitProgress: db.unitProgress });
+const mkDb = (db = {}) => Object.assign({ runs: 0, wins: 0, dictationMastered: [], best: 0, custom: [], rewards: [] }, db);
+const view = db => unlockProgress({ units: NOS, wordsFor, dictationMastered: db.dictationMastered, unitProgress: db.unitProgress });
 
 /* ---------------- 最小 DOM 桩（不是 game logic 的 mock） ---------------- */
 class El {
@@ -132,24 +132,19 @@ test('every unit button carries data-unit so locators never depend on the label 
   assert.match(String(buttons[1].innerHTML), /完成 Unit 1 全部词汇后解锁/);
 });
 
-test('a historical completion with fewer currently mastered words says both, without contradicting itself', () => {
-  // 真实存档形态：unitProgress 里的完成凭据是永久成就，而 mastered 少了 1 个词
-  // （旧词退役/换版）。这里绝不允许「已全部完成」与「剩 1」同屏并存。
+test('stale historical completion cannot contradict current formal evidence or unlock the next unit', () => {
   const all = WORDS.filter(w => w.u === 1).map(w => w.w);
-  const db = mkDb({ mastered: all.slice(0, -1), unitProgress: { 1: { complete: true, completedAt: 'now' } } });
+  const db = mkDb({ dictationMastered: all.slice(0, -1), unitProgress: { 1: { complete: true, completedAt: 'now' } } });
   const { buttons } = renderTitleUnits(db, wordsFor);
-  const u1 = buttons.filter(b => b.getAttribute('data-unit') === '1')[0];
-  const line = u1.textContent;
-  assert.match(line, /44\/45/, '如实显示当前掌握量：' + line);
-  assert.match(line, /已完成过|可复习/, '历史完成必须说出来：' + line);
-  assert.doesNotMatch(line, /已全部完成|还剩|剩余/, '不许出现与「已完成」打架的话：' + line);
-  // 完成凭据仍然解锁下一单元（历史成就算数），单元 2 因此可玩。
-  const u2 = buttons.filter(b => b.getAttribute('data-unit') === '2')[0];
-  assert.ok(!u2.className.split(' ').includes('locked'));
+  const u1 = buttons.find(b => b.getAttribute('data-unit') === '1');
+  assert.match(u1.textContent, /44\/45/);
+  assert.doesNotMatch(u1.textContent, /已完成过|已全部完成/);
+  const u2 = buttons.find(b => b.getAttribute('data-unit') === '2');
+  assert.equal(u2.disabled, true);
 });
 
 test('completing unit 1 makes unit 2 playable and shows real progress', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const { buttons } = renderTitleUnits(db, wordsFor);
   const u2 = buttons.filter(b => b.textContent.includes('Unit 2'))[0];
   assert.ok(!u2.className.split(' ').includes('locked'), 'Unit 2 已解锁');
@@ -161,7 +156,7 @@ test('completing unit 1 makes unit 2 playable and shows real progress', () => {
 });
 
 test('a legacy save with only partial mastery keeps the next unit locked', () => {
-  const db = mkDb({ mastered: ['water', 'river'], wins: 30, best: 9 });
+  const db = mkDb({ dictationMastered: ['water', 'river'], wins: 30, best: 9 });
   const { buttons } = renderTitleUnits(db, wordsFor);
   const u2 = buttons.filter(b => b.textContent.includes('Unit 2'))[0];
   assert.ok(u2.className.split(' ').includes('locked'));
@@ -169,7 +164,7 @@ test('a legacy save with only partial mastery keeps the next unit locked', () =>
 
 /* ---------------- 词汇完成检查点：继续下一单元 ---------------- */
 test('learning-complete offers the next unit when this unit is fully complete', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const G = createRun(1, HERO, wordsFor(1));
   G.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
   let next = 0;
@@ -201,7 +196,7 @@ test('learning-complete hides the next-unit action while words remain', () => {
 });
 
 test('the last unit reports the book vocabulary as finished without claiming a boss kill', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u >= 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u >= 1).map(w => w.w) });
   const G = createRun(6, HERO, wordsFor(6));
   G.done = new Set(WORDS.filter(w => w.u === 6).map(w => w.w));
   const els = renderLc({ db, run: G, battle: { enHp: 30, enMax: 90, boss: true } });
@@ -213,7 +208,7 @@ test('the last unit reports the book vocabulary as finished without claiming a b
 
 /* ---------------- BOSS 结算屏 ---------------- */
 test('boss-first with words remaining keeps a continue-this-unit entry', () => {
-  const db = mkDb({ mastered: ['water'] });
+  const db = mkDb({ dictationMastered: ['water'] });
   const G = wonRun(1, db);
   G.done = new Set(['water']);
   const acts = [];
@@ -231,7 +226,7 @@ test('boss-first with words remaining keeps a continue-this-unit entry', () => {
 });
 
 test('boss screen switches to the next unit only when this unit vocabulary is complete', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) });
   const G = wonRun(1, db);
   G.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
   const acts = [];
@@ -245,7 +240,7 @@ test('boss screen switches to the next unit only when this unit vocabulary is co
 });
 
 test('the final unit victory keeps no next-unit entry but explains the book is done', () => {
-  const db = mkDb({ mastered: WORDS.filter(w => w.u >= 1).map(w => w.w) });
+  const db = mkDb({ dictationMastered: WORDS.filter(w => w.u >= 1).map(w => w.w) });
   const G = wonRun(6, db);
   G.done = new Set(WORDS.filter(w => w.u === 6).map(w => w.w));
   const els = renderOverInto({ run: G, db, win: true, campaign: view(db),
@@ -255,7 +250,7 @@ test('the final unit victory keeps no next-unit entry but explains the book is d
 });
 
 test('a lost run offers neither continuation', () => {
-  const db = mkDb({ mastered: ['water'] });
+  const db = mkDb({ dictationMastered: ['water'] });
   const G = createRun(1, HERO, wordsFor(1));
   const acts = [];
   const els = renderOverInto({ run: G, db, win: false, campaign: view(db),
@@ -272,11 +267,11 @@ test('a lost run offers neither continuation', () => {
 const CUSTOM = [{ u: 0, d: 1, w: 'cat', z: '猫' }, { u: 0, d: 1, w: 'dog', z: '狗' }];
 const customView = db => unlockProgress({
   units: NOS, wordsFor: u => (u === 0 ? CUSTOM : wordsFor(u)),
-  mastered: db.mastered, unitProgress: db.unitProgress,
+  dictationMastered: db.dictationMastered, unitProgress: db.unitProgress,
 });
 
 test('the custom unit shows its real progress on the title and never offers a textbook unit', () => {
-  const db = mkDb({ mastered: ['cat'] });
+  const db = mkDb({ dictationMastered: ['cat'] });
   const els = elMap(TITLE_IDS);
   const screen = createTitleScreen({
     getDB: () => db, getUnit: () => 1, allWords: u => (u === 0 ? CUSTOM : wordsFor(u)),
@@ -293,7 +288,7 @@ test('the custom unit shows its real progress on the title and never offers a te
 });
 
 test('learning-complete on the custom unit reports progress but offers no next unit', () => {
-  const db = mkDb({ mastered: ['cat', 'dog'] });
+  const db = mkDb({ dictationMastered: ['cat', 'dog'] });
   const G = createRun(0, HERO, CUSTOM);
   G.done = new Set(['cat', 'dog']);
   const els = renderLc({ db, run: G, battle: null,
@@ -304,7 +299,7 @@ test('learning-complete on the custom unit reports progress but offers no next u
 });
 
 test('boss-first on the custom unit keeps a same-run continuation instead of dead-ending', () => {
-  const db = mkDb({ mastered: ['cat'] });
+  const db = mkDb({ dictationMastered: ['cat'] });
   const G = createRun(0, HERO, CUSTOM);
   G.done = new Set(['cat']);
   G.reward = { id: 'WR-c', unit: 0, heroId: 'ranger', accuracy: 70, kills: 4, floor: 9, earnedAt: 'now' };

@@ -716,10 +716,10 @@ test('map.renderMap stays silent when the available set did not change', async (
 const TITLE_IDS = ['heroes', 'heroDesc', 'units', 'sRun', 'sWin', 'sMaster', 'sFloor',
   'rewardSummary', 'rewardCards'];
 
-test('title screen renders heroes and units exactly like legacy', async () => {
+test('title screen preserves legacy presentation for matching formal progress', async () => {
   const { createTitleScreen } = await import('../../src/ui/screens/title.js');
   const { renderRewardCard } = await import('../../src/ui/components/reward-card.js');
-  const DB = { hero: 'ranger', mastered: ['book', 'pen', 'inborn'], runs: 7, wins: 2, best: 9, rewards: [REWARD] };
+  const DB = { hero: 'ranger', mastered: ['book', 'pen', 'inborn'], dictationMastered: ['book', 'pen', 'inborn'], runs: 7, wins: 2, best: 9, rewards: [REWARD] };
   const heroPicks = [], unitPicks = [];
 
   const mineDoc = withDom(TITLE_IDS, doc => {

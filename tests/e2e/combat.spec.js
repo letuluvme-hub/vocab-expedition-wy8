@@ -76,7 +76,7 @@ test('a partial word no longer ends the fight in the current build', async ({ ga
 test('complete phrase with repeated letters credits exactly one mastered word on killing blow', async ({ game, page }) => {
   // 任务 7 之后 Unit 2 默认锁着：这里显式按「Unit 1 词汇已全部掌握」解锁它，
   // 这本身就是保守迁移口径的一次真实浏览器验证。
-  await game.open({ saved: { mastered: WORDS.filter(w => w.u === 1).map(w => w.w) } });
+  await game.open({ saved: { mastered: WORDS.filter(w => w.u === 1).map(w => w.w), dictationMastered: WORDS.filter(w => w.u === 1).map(w => w.w) } });
   await game.start(2);
   await game.fight({ word: 'keep an eye on' });
   await expect(page.locator('#fSlots .slot')).toHaveCount(11);

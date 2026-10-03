@@ -20,6 +20,8 @@ async function prepareFinalWords(page, unit, masteredCount, leave = 2) {
     const t = window.__gameTest;
     const words = t.WORDS.filter(w => w.u === unit);
     // 学习记录：除了最后 leave 个，其余全部记为已掌握（跨局口径）。
+    // 过渡测试预置已通过的正式默写证据；自由远征本身不授予它。
+    t.DB.dictationMastered = [...new Set([...(t.DB.dictationMastered || []), ...words.map(w=>w.w)])];
     t.DB.mastered = [];
     for (const w of words.slice(0, words.length - leave)) t.DB.mastered.push(w.w);
     // 本局退休集合：同样只留最后 leave 个，让抽词只能抽到它们。
@@ -266,7 +268,7 @@ test('a historically all-mastered save cannot skip units through a triple click'
   test.setTimeout(60_000);
   // ★ 最危险的存档形态：259 个词**全部**记为已掌握，于是每一跳在领域层都合法。
   //   旧实现（只靠 run.campaign.startedUnit 判重）在这里连点三次就能 1→2→3→4。
-  await game.open({ saved: { mastered: masteredAll() } });
+  await game.open({ saved: { dictationMastered: masteredAll() } });
   await game.start();
   await finishUnitByTyping(game, page, 1);
   const id = await page.evaluate(() => window.__gameTest.G.id);
@@ -452,6 +454,7 @@ test('the custom list shows real progress and stays continuable in the same run'
     return t.G.pool.filter(w => !t.G.done.has(w.w)).map(w => w.w);
   });
   expect(pending).toEqual(['dog']);
+  await page.evaluate(()=>{window.__gameTest.DB.dictationMastered=['cat','dog'];});
   await game.fight({ word: 'dog', enemyHp: 10_000 });
   await typeWholeWord(page, 'dog');
   await expect(page.locator('#s-learning-complete')).toBeVisible();

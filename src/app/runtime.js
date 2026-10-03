@@ -321,11 +321,10 @@ const {burst,ring,floatTxt,flash,centerOf,heroPoint,animHero,wordFinisher}=creat
 
 const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
 
-/* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.mastered +
-   DB.unitProgress，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
+/* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.dictationMastered，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
    所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
 const campaignState = () => unlockProgress({ units: UNITS.map(u=>u.n), wordsFor: allWords,
-  mastered: DB.mastered, unitProgress: ensureProgress(DB) });
+  dictationMastered: DB.dictationMastered });
 
 /* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
    设计原则：每个道具都有明确代价，不能无脑全带。
@@ -463,11 +462,11 @@ function newRun(){
   if(!pool.length){alert('这个单元还没有词，去「导入词表」添加吧');return false}
   lifecycle.resetRun();TTS.stop();B=null;
   OUTCOME=null;
-  // ★ 知识成长（docs/feature-mastery-growth.md）：**只在这里**读一次 DB.mastered，
+  // ★ 知识成长（docs/feature-mastery-growth.md）：**只在这里**读一次 DB.dictationMastered，
   //   把成长事实交给 createRun 加进 maxhp。读一次就够 —— 本局内达到 20 词、
   //   跨单元、续段都不再重算（所以「中途退出重进」不会白赚一次上限）。
   //   恢复存档的路径根本不经过 newRun，所以也绝不会被当前 DB 重算。
-  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.mastered,WORDS,curHero()));
+  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.dictationMastered,WORDS,curHero()));
   // ★ 轮次身份（docs/feature-rounds.md）：这里注入一个持久 roundId。
   //   它必须不同于进程内自增的 run.id（R1/R2…，刷新后会重复）。
   //   轮次**编号**不在这儿取：registerRunStart 在真正 +1 之后从 DB.runs 取，
@@ -968,11 +967,11 @@ audioCompatibility=createAudioCompatibility({
 });
 audioCompatibility.mount($('audioCompatibility'));
 // ★ 知识成长只读区（docs/feature-mastery-growth.md）：挂在主页的 #masteryGrowthHost 里。
-//   getSummary 每次 paint 都重新按**当前** DB.mastered 现算，所以本局学到新词、
+//   getSummary 每次 paint 都重新按**当前** DB.dictationMastered 现算，所以本局学到新词、
 //   导入自定义词表、切换单元之后回到主页，数字都是当下的事实（不缓存第二套状态）。
 //   mount 幂等：renderTitle 被反复调用（继续远征 / 回主页 / 切后台）都复用同一个盒子。
 const masteryGrowthView=createMasteryGrowth({
-  getSummary:()=>growthSummary(DB.mastered,WORDS),
+  getSummary:()=>growthSummary(DB.dictationMastered,WORDS),
 });
 // ★ mount() 的返回值是**挂好的 DOM 盒子**，不是组件本身（与 audioSettings 同口径）：
 //   把组件另存一份，renderTitle 里要调的是它的 paint()。
@@ -1240,7 +1239,7 @@ $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){
 function renderHeroes(){return titleScreen.renderHeroes()}
 function renderTitle(){
   titleScreen.renderTitle();
-  // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.mastered
+  // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.dictationMastered
   // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
   try{ masteryGrowthView.paint() }catch(e){}
   try{ keyboardTipView.paint() }catch(e){}
@@ -1584,7 +1583,7 @@ $('toReset').onclick=()=>{
   const keepHero=DB.hero;   // 清档不该让人重选角色
   // 字母盘显示偏好也留着：清档清的是进度，不是界面口味（与 keepHero 同理）
   const keepKb={kbMode:DB.kbMode,kbUpper:DB.kbUpper};
-  DB={runs:0,wins:0,mastered:[],best:0,custom:[],rewards:[],unitProgress:{},
+  DB={runs:0,wins:0,mastered:[],dictationMastered:[],reviewQueue:[],best:0,custom:[],rewards:[],unitProgress:{},
       hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
   // 清档必须连未结束的远征快照一起删，否则刷新会把「已清空」的存档复活成一局死局。
   // 走 progress.resetProgress：删快照与写新的 DB 在**同一次** storage.save 里完成。

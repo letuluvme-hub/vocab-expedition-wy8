@@ -1,0 +1,88 @@
+import { test, expect } from './game-harness.js';
+import { WORDS } from '../../src/data/words.js';
+
+const newOnly = info => test.skip(info.project.metadata.target === 'legacy', 'Formal dictation is a new feature');
+async function mountFormal(page, word) {
+  await page.evaluate(async word => {
+    const base = location.pathname;
+    const rules = await import(base + 'src/domain/dictation.js');
+    const { createDictationKeyboard } = await import(base + 'src/ui/components/dictation-keyboard.js');
+    await import(base + 'src/styles/dictation.css');
+    const host = document.createElement('section'); host.className = 'daily-dictation';
+    host.style.cssText = 'width:100%;max-width:640px;margin:auto;padding:8px;box-sizing:border-box';
+    const prompt = document.createElement('p'); prompt.textContent = '按中文意思默写';
+    const input = document.createElement('p'); input.id = 'formalInput'; input.setAttribute('aria-live', 'polite');
+    const feedback = document.createElement('p'); feedback.id = 'formalFeedback';
+    const keys = document.createElement('div'); keys.id = 'formalKeys';
+    host.append(prompt, input, feedback, keys);
+    for(const child of document.body.children) child.style.display='none';
+    document.body.appendChild(host);
+    const attempt = rules.createDictationAttempt(word);
+    const keyboard = createDictationKeyboard({ onInput: key => {
+      rules.applyDictationInput(attempt, key);
+      input.textContent = attempt.input; feedback.textContent = attempt.feedback;
+      if (attempt.completed) rules.creditDictation(window.__gameTest.DB, attempt);
+    }});
+    keyboard.render(keys, word);
+    document.addEventListener('keydown', event => keyboard.handleKey(event));
+    window.formalTestAttempt = attempt;
+  }, word);
+}
+
+for (const width of [320, 390]) {
+  test(`formal reusable QWERTY keyboard fits ${width}px and click/typing both complete repeated letters`, async ({ game, page }, info) => {
+    newOnly(info); await game.open(); await page.setViewportSize({ width, height: 720 });
+    await mountFormal(page, 'letter');
+    await expect(page.locator('#formalKeys button')).toHaveCount(27);
+    await page.locator('#formalKeys [data-key="l"]').click();
+    await page.keyboard.type('e');
+    await page.locator('#formalKeys [data-key="t"]').click();
+    await page.locator('#formalKeys [data-key="t"]').click();
+    await page.keyboard.type('er');
+    await expect(page.locator('#formalInput')).toHaveText('letter');
+    const facts = await page.evaluate(() => ({
+      mastered: window.__gameTest.DB.dictationMastered,
+      pageWidth: document.documentElement.scrollWidth, viewport: innerWidth,
+      keys: [...document.querySelectorAll('#formalKeys button')].map(b => {
+        const r = b.getBoundingClientRect(); return { left: r.left, right: r.right, height: r.height, disabled: b.disabled };
+      }),
+      input: document.getElementById('formalInput').getBoundingClientRect().bottom,
+      keyboard: document.getElementById('formalKeys').getBoundingClientRect().top,
+    }));
+    expect(facts.mastered).toEqual(['letter']);
+    expect(facts.pageWidth).toBeLessThanOrEqual(facts.viewport + 1);
+    for (const key of facts.keys) { expect(key.left).toBeGreaterThanOrEqual(0); expect(key.right).toBeLessThanOrEqual(width); expect(key.height).toBeGreaterThanOrEqual(44); expect(key.disabled).toBe(false); }
+    expect(facts.keyboard).toBeGreaterThanOrEqual(facts.input);
+  });
+}
+
+test('formal wrong-order feedback only says 不对 and corrected word is still review-only', async ({ game, page }, info) => {
+  newOnly(info); await game.open(); await mountFormal(page, 'cat');
+  await page.keyboard.type('a'); await expect(page.locator('#formalFeedback')).toHaveText('不对');
+  await page.keyboard.type('cat'); await expect(page.locator('#formalInput')).toHaveText('cat');
+  expect(await page.evaluate(() => window.__gameTest.DB.dictationMastered)).toEqual([]);
+  expect(await page.evaluate(() => window.__gameTest.DB.reviewQueue)).toEqual(['cat']);
+});
+
+test('a legacy all-practiced save with completion stamps gains no formal growth or unlock', async ({ game, page }, info) => {
+  newOnly(info); const original = WORDS.map(w => w.w);
+  await game.open({ saved: { mastered: original, unitProgress: { 1: { complete: true } }, future: { keep: 1 } } });
+  await expect(page.locator('#units [data-unit="2"]')).toBeDisabled();
+  await expect(page.locator('#sMaster')).toHaveText('0');
+  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/259');
+  await game.start(); expect((await game.state()).G.maxhp).toBe(60);
+  const saved = await game.saved(); expect(saved.mastered).toEqual(original);
+  expect(saved.dictationMastered).toEqual([]); expect(saved.future).toEqual({ keep: 1 });
+});
+
+test('free wrong-order practice retains historical records, queues review and never grants formal mastery', async ({ game, page }, info) => {
+  newOnly(info); await game.open({ saved: { mastered: ['litre'] } });
+  await game.start(); await game.fight({ word: 'litre' });
+  await page.keyboard.type('i');
+  let state = await game.state(); expect(state.G.wrong).toEqual(['litre']);
+  expect(state.DB.reviewQueue).toEqual(['litre']); expect(state.DB.mastered).toEqual(['litre']);
+  await page.keyboard.type('litre');
+  state = await game.state(); expect(state.DB.mastered).toEqual(['litre']);
+  expect(state.G.wrong).toEqual(['litre']); expect(state.DB.reviewQueue).toEqual(['litre']);
+  expect(state.DB.dictationMastered).toEqual([]);
+});
