@@ -1,3 +1,6 @@
+import { createDailyCollection } from './daily-collection.js';
+import { createDailyCollectionView } from '../ui/components/daily-collection.js';
+import '../styles/daily-collection.css';
 import { createDailyLearning } from './daily-learning.js';
 import { createDailyReportView } from '../ui/components/daily-report.js';
 import '../styles/daily-report.css';
@@ -233,6 +236,7 @@ const saveDB=()=>{ dbDirty=true };
 let dailyView=null;
 let dailyController=null;
 let dailyReportView=null;
+let dailyCollectionView=null;
 let progressCtl=null;   // progress 在本文件后面才创建；用可变引用避免 TDZ。
 /* ★ 真正的提交点。
  *   force=true（受闸门动作的事务末尾）：**无条件**把当前快照写下去。
@@ -1252,6 +1256,7 @@ function renderTitle(){
   titleScreen.renderTitle();
   dailyView?.paintEntry();
   dailyReportView?.paint();
+  dailyCollectionView?.paint();
   // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.dictationMastered
   // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
   try{ masteryGrowthView.paint() }catch(e){}
@@ -1517,11 +1522,19 @@ progressCtl=progress;
 
 // Daily sessions own a separate checkpoint, never a replacement for G/B/activeRun.
 const dailyLearning=createDailyLearning({getDB:()=>DB,getWords:()=>WORDS});
+const dailyCollection=createDailyCollection({getDB:()=>DB,getWords:()=>WORDS,
+  persist:()=>{saveDB();return commit(false)},
+  onChange:()=>{dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
+});
+const dailyPorts={...dailyLearning.ports};
+for(const [name,port] of Object.entries(dailyCollection.ports)){
+  const learningPort=dailyPorts[name];dailyPorts[name]=payload=>{learningPort?.(payload);port(payload)};
+}
 dailyController=createDailyDictationController({
   getDB:()=>DB, getWords:unit=>allWords(unit),
   persist:()=>{saveDB();return commit(false)},
-  ...dailyLearning.ports,
-  onChange:()=>{dailyView?.render();dailyReportView?.paint()},
+  ...dailyPorts,
+  onChange:()=>{dailyView?.render();dailyReportView?.paint();dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
 });
 dailyView=createDailyDictationScreen({controller:dailyController,show,
   onEnter:()=>{if(G&&!progress.isFinished())progress.returnToTitle();TTS.stop()},
@@ -1532,12 +1545,16 @@ dailyReportView=createDailyReportView({host:$('dailyHomeReport'),getReport:()=>d
   copy:text=>navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(new Error('Clipboard unavailable')),
 });
 dailyReportView.paint();
+dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),getView:()=>dailyCollection.view(),
+  getCards:unit=>dailyCollection.cards(unit),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
+});
+dailyCollectionView.paint();
 $('startRun').textContent='自由远征';
 const titleSub=$('s-title').querySelector('.sub');
 if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 每日短局练默写，自由远征练拼词';
 // Refresh the clock and accumulate active time through the timing port.
 // Persist at action completion or the single time-budget checkpoint, not each tick.
-setInterval(()=>{dailyView.updateTime();dailyReportView.updateDate()},1000);
+setInterval(()=>{dailyView.updateTime();dailyReportView.updateDate();dailyCollectionView.updateDate()},1000);
 
 
         // 字母光标

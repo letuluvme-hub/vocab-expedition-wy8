@@ -8,7 +8,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   const screen = el('section','screen daily-dictation daily-screen',undefined,'s-daily');
   doc.getElementById('app').appendChild(screen);
   const entry = el('section','daily-dictation daily-entry',undefined,'dailyEntry');
-  const title = doc.getElementById('s-title'); title.insertBefore(entry,title.querySelector('.lbl'));
+  const title = doc.getElementById('s-title'); title.insertBefore(entry,doc.getElementById('keyboardTipHost')||title.querySelector('.lbl'));
   const keyboard = createDictationKeyboard({ document: doc, onInput: key => controller.input(key) });
   let hintAnswer = '', selectionUnit = '1';
   const state = () => controller.state();
@@ -16,7 +16,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   function home() { if(state() && state().phase !== 'completed')controller.pause('home'); keyboard.destroy(); onHome(); }
   function open() { onEnter(); show('s-daily'); if(state()?.phase === 'completed')renderSelection(); else if(state())render(); else renderSelection(); }
   function paintEntry() {
-    const extraHosts = ['dailyHomeReport','dailyCollectionHost'].map(id => entry.querySelector('#'+id) || el('div','',undefined,id));
+    const extraHosts = ['dailyCollectionHost','dailyHomeReport'].map(id => entry.querySelector('#'+id) || el('div','',undefined,id));
     entry.replaceChildren(el('h2','daily-heading','每日默写'),el('p','daily-note','热身 → 正式默写 → 今日完成 · 每次约 10–15 分钟'));
     const s=state();
     entry.append(button(s&&s.phase!=='completed'?'继续今日默写':'开始每日默写','dailyOpen',open));
