@@ -73,7 +73,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
       const encounter=s.encounters.find(e=>s.index>=e.start&&s.index<e.end);
       const panel=el('div','daily-encounter');
       const sprite=el('div','daily-monster');sprite.innerHTML=pixelMonsterSVG(encounter.boss?BOSS:ENEMIES[encounter.index%ENEMIES.length],encounter.boss,false,{anim:false});
-      panel.append(sprite,el('p','daily-note',`${encounter.boss?'首领':'战斗 '+(encounter.index+1)} · ${s.encounters.length} 场中的第 ${encounter.index+1} 场。完成本组词即可前进，无限时攻击。`,'dailyEncounter'));screen.append(panel);
+      panel.append(sprite,el('p','daily-note',`${encounter.boss?'首领':'战斗 '+(encounter.index+1)} · ${s.encounters.length} 场中的第 ${encounter.index+1} 场。练完本组词即可前进，无限时攻击；拼错不扣血。`,'dailyEncounter'));screen.append(panel);
     } else screen.append(el('p','daily-note','从字母盘选字母热身，每个词练一次。'));
     screen.append(el('p','daily-prompt',word.z,'dailyPrompt'));
     const input=el('p','daily-input',s.attempt.input||'…','dailyInput');input.setAttribute('aria-live','polite');input.setAttribute('aria-label','当前拼写');screen.append(input);
@@ -84,6 +84,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
       const keys=el('div','',undefined,'dailyKeys');screen.append(keys);keyboard.render(keys,word);
       const hint=el('p','daily-note','','dailyHintAnswer');hint.setAttribute('aria-live','polite');
       screen.append(button('提示下一个字母（本词会进入复习）','dailyHint',()=>{const ch=controller.hint();if(ch!==false){hintAnswer=ch.toUpperCase();doc.getElementById('dailyHintAnswer').textContent='提示：'+hintAnswer;}},true),hint);
+      if(s.attempt.errors || s.attempt.hints || s.attempt.reveals)screen.append(button('留到复习，下一词','dailyDefer',()=>controller.defer(),true),el('p','daily-note','本词尚未拼完，保留错误记录。已拼对的词照常保留，按复习计划再练。'));
     } else {
       const bank=controller.letters(),keys=el('div','daily-bank',undefined,'dailyWarmupKeys');
       bank.letters.forEach((ch,i)=>{const b=button(ch.toUpperCase(),undefined,()=>controller.input(ch),true);b.disabled=bank.used[i];b.dataset.key=ch;keys.append(b);});screen.append(keys);
@@ -94,7 +95,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   function renderCompleted() {
     header('今日完成'); const s=state(),summary=controller.summary();
     const result=el('div','daily-summary',undefined,'dailySummary');
-    result.append(el('p','',`正式完成 ${summary.completed} / ${summary.planned} 词`),el('p','',`一次拼对 ${summary.firstTry} / ${summary.completed}${summary.completed?`（${Math.round(summary.firstTry/summary.completed*100)}%）`:''}`),el('p','',`热身 ${summary.warmup} 词 · 练习 ${Math.floor(summary.elapsedMs/60000)} 分 ${Math.floor(summary.elapsedMs/1000)%60} 秒`));
+    result.append(el('p','',`正式完成 ${summary.completed} / ${summary.planned} 词`),el('p','',`留到复习 ${summary.deferred} 词（未拼完）`),el('p','',`一次拼对 ${summary.firstTry} / ${summary.assessed}${summary.assessed?`（${Math.round(summary.firstTry/summary.assessed*100)}%）`:''}`),el('p','daily-note','正确率包含正式拼完的词，以及已经出错或使用帮助的未完成尝试；热身不计。'),el('p','',`热身 ${summary.warmup} 词 · 练习 ${Math.floor(summary.elapsedMs/60000)} 分 ${Math.floor(summary.elapsedMs/1000)%60} 秒`));
     if(summary.reason!=='pool-exhausted')result.append(el('p','daily-note',`本次结束，${summary.planned-summary.completed} 个未完成词留到后续练习。`));
     screen.append(result,el('h3','daily-heading','待复习词'));
     const wrong=el('ul','daily-wrong',undefined,'dailyWrong');if(!summary.wrong.length)wrong.append(el('li','','本次没有错词'));

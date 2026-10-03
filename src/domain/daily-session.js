@@ -59,12 +59,22 @@ export function restoreDailySession(raw) {
   if (!raw || typeof raw !== 'object' || raw.schemaVersion !== DAILY_SESSION_VERSION || !phases.has(raw.phase)) return null;
   if (typeof raw.id !== 'string' || !raw.id || !Array.isArray(raw.words) || !raw.words.length || raw.words.length > DAILY_WORD_LIMIT || unique(raw.words).length !== raw.words.length) return null;
   if (!Number.isInteger(raw.index) || raw.index < 0 || raw.index > raw.words.length || !Array.isArray(raw.warmupDone) || !Array.isArray(raw.results) || !Number.isFinite(raw.elapsedMs) || raw.elapsedMs < 0) return null;
+  if ((raw.phase === 'warmup' || raw.phase === 'formal-ready') && raw.results.length) return null;
   if (!Array.isArray(raw.encounters) || !Number.isFinite(raw.nextCheckpointMs) || raw.nextCheckpointMs < 0) return null;
   const wordKeys = new Set(raw.words.map(dictationWordKey));
   if (raw.warmupDone.some(w => !wordKeys.has(dictationWordKey(w))) || new Set(raw.warmupDone).size !== raw.warmupDone.length) return null;
   const resultKeys = new Set();
-  for (const r of raw.results) {
-    if (!r || typeof r.key !== 'string' || !wordKeys.has(r.key) || resultKeys.has(r.key) || typeof r.eligible !== 'boolean') return null;
+  for (const [index, r] of raw.results.entries()) {
+    if (!r || typeof r.key !== 'string' || r.key !== dictationWordKey(raw.words[index]) || !wordKeys.has(r.key) || resultKeys.has(r.key) || typeof r.eligible !== 'boolean') return null;
+    if ((r.completed !== undefined && typeof r.completed !== 'boolean') || (r.deferred !== undefined && typeof r.deferred !== 'boolean')) return null;
+    // Older schema-1 results always represented a complete word. New deferrals
+    // preserve the incomplete input and failure evidence, never a clean credit.
+    if (r.completed === false || r.deferred === true) {
+      if (r.completed !== false || r.deferred !== true || r.eligible || dictationWordKey(r.word) !== r.key ||
+        ![r.errors,r.hints,r.reveals].every(n => Number.isInteger(n) && n >= 0) || !(r.errors || r.hints || r.reveals) ||
+        !Array.isArray(r.assistance) || typeof r.input !== 'string' || !r.key.startsWith(r.input) || r.input === r.key ||
+        !Number.isFinite(r.deferredAt)) return null;
+    }
     resultKeys.add(r.key);
   }
   if (raw.phase === 'warmup' || raw.phase === 'formal') {
@@ -72,7 +82,8 @@ export function restoreDailySession(raw) {
     const target = raw.phase === 'warmup' ? raw.words[raw.index].w.toLowerCase().replace(/[^a-z]/g, '') : dictationWordKey(raw.words[raw.index]);
     const a = raw.attempt;
     if (!a || a.target !== target || a.phase !== (raw.phase === 'formal' ? 'formal' : 'warmup') || typeof a.input !== 'string' || !target.startsWith(a.input) || ![a.errors, a.hints, a.reveals].every(n => Number.isInteger(n) && n >= 0) || !Array.isArray(a.assistance) || typeof a.completed !== 'boolean' || typeof a.credited !== 'boolean' || a.completed !== (a.input === target)) return null;
-    if (a.phase === 'formal' && a.credited && !resultKeys.has(target)) return null;
+    if (a.phase === 'formal' && raw.results.length !== raw.index + (a.completed && a.credited ? 1 : 0)) return null;
+    if (a.phase === 'formal' && a.credited && (!a.completed || !raw.results.some(r => r.key === target && r.completed !== false))) return null;
   }
   const session = JSON.parse(JSON.stringify(raw));
   session.activeSince = null;
@@ -84,13 +95,17 @@ export function dailySummary(session, now) {
   const active = !session.paused && session.activeSince !== null ? Math.max(0, now - session.activeSince) : 0;
   const wrong = session.results.filter(r => !r.eligible).map(r => ({ ...r.word }));
   const a = session.attempt;
+  let partialFailed = 0;
   if (a?.phase === 'formal' && (a.errors || a.hints || a.reveals)) {
     const word = session.words[session.index];
     if (word && !wrong.some(w => dictationWordKey(w) === dictationWordKey(word))) wrong.push({ ...word });
+    if (word && !session.results.some(r => r.key === dictationWordKey(word))) partialFailed = 1;
   }
   return { id: session.id, unit: session.unit, createdAt: session.createdAt,
     elapsedMs: session.elapsedMs + active, planned: session.words.length,
-    completed: session.results.length, warmup: session.warmupDone.length,
+    completed: session.results.filter(r => r.completed !== false).length,
+    deferred: session.results.filter(r => r.deferred === true).length,
+    assessed: session.results.length + partialFailed, warmup: session.warmupDone.length,
     firstTry: session.results.filter(r => r.eligible).length,
     wrong,
     reason: session.reason, finished: session.phase === 'completed' };

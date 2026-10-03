@@ -69,6 +69,7 @@ for (const [kind, url] of [
     if(kind==='built website'){
       await expect(page.locator('#dailyReportCopyStatus')).toHaveText('已复制');const text=await page.evaluate(()=>navigator.clipboard.readText());expect(text).toContain('50%（1/2）');expect(text).toContain('cat · 猫');
     }else{
+      await expect(page.locator('#dailyReportCopyStatus')).toHaveText(/已复制|手动复制/);
       const status=await page.locator('#dailyReportCopyStatus').innerText();
       if(status==='已复制'){expect(await page.evaluate(()=>navigator.clipboard.readText())).toContain('cat · 猫')}
       else{await expect(page.locator('#dailyReportFallback')).toBeVisible();await expect(page.locator('#dailyReportFallback')).toHaveValue(/cat · 猫/)}
