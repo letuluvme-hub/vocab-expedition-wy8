@@ -18,7 +18,7 @@
  *  8) mount 幂等：复用同一个节点，不重建（父层重复调用 renderTitle 时不会堆叠）。
  *     没有宿主元素时安静返回 null，不抛 —— 父层没接线不该弄崩整个主页。
  */
-import { GROWTH_MAX_BONUS } from '../../domain/mastery-growth.js';
+import { GROWTH_MAX_BONUS, ATTACK_GROWTH_MAX } from '../../domain/mastery-growth.js';
 
 export const MASTERY_GROWTH_ID = 'masteryGrowth';
 export const MASTERY_GROWTH_TITLE = '知识成长';
@@ -49,6 +49,8 @@ export function createMasteryGrowth({ getSummary, document: doc } = {}) {
     box.appendChild(el('h4', 'mgrowth-h')).textContent = MASTERY_GROWTH_TITLE;
     box.appendChild(el('p', 'mgrowth-count'));
     box.appendChild(el('p', 'mgrowth-next'));
+    box.appendChild(el('p', 'mgrowth-attack'));
+    box.appendChild(el('p', 'mgrowth-attack-next'));
     box.appendChild(el('p', 'mgrowth-note')).textContent = NOTE;
     parent.appendChild(box);
     return box;
@@ -85,6 +87,9 @@ export function createMasteryGrowth({ getSummary, document: doc } = {}) {
         ? '已达上限 +' + hp + '（封顶），继续学教材词不再提升生命上限'
         : '再学 ' + toNext + ' 个教材词，下轮生命上限 +' + (hp + 1);
     }
+    const attack = Math.min(ATTACK_GROWTH_MAX,num(s.bonusAttackPct));
+    byClass(host,'mgrowth-attack').textContent = '下轮攻击 +' + attack + '%（最多+' + ATTACK_GROWTH_MAX + '%）';
+    byClass(host,'mgrowth-attack-next').textContent = attack >= ATTACK_GROWTH_MAX ? '攻击成长已封顶，继续学习仍会积累掌握记录' : '每默写掌握 10 个教材词，攻击 +4%；再掌握 ' + num(s.attackToNext) + ' 词升级';
     return host;
   }
 

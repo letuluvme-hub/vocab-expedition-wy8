@@ -1,3 +1,5 @@
+import { growthAttackPct } from '../../domain/mastery-growth.js';
+import { heroFinisherMultiplier } from '../../domain/hero-rules.js';
 /* 战斗页「装备与能力」折叠面板：把本局**已持有**的全部装备摊开给玩家看。
  *
  * 契约（这几条是这个模块存在的全部理由，改动时逐条核对）：
@@ -114,6 +116,7 @@ export function equipmentModel(G, B) {
   if (bat && hero.id === 'ranger') heroStatus = '本场已回血 ' + (bat.heroHealed || 0) + '/' + HERO_BALANCE.rangerBattleHealCap;
   if (bat && hero.id === 'warrior') heroStatus = '本场已获得守势护盾 ' + (bat.heroShieldGained || 0) + '/' + HERO_BALANCE.warriorBattleShieldCap;
   if (bat && hero.id === 'scout') heroStatus = (bat.wordsDone || 0) === 0 ? '先手大招待触发' : '本场先手大招已用';
+  if (bat && ['scholar','warrior','lucky','berserker','pyromancer','assassin'].includes(hero.id)) heroStatus += (heroStatus ? ' · ' : '') + '本词当前大招加成 +' + Math.round((heroFinisherMultiplier(run,bat) - 1) * 100) + '%';
   if (saved) heroLines.push('基础属性沿用本轮开局记录');
   return { hero, heroLines, heroStatus, relics, synergies, items, ghost, shield, count: 1 + relics.length + items.length };
 }
@@ -178,6 +181,8 @@ export function createEquipmentPanel({ getRun, getBattle }) {
     const hs = m.heroLines.length ? ' · ' + m.heroLines.join(' · ') : '';
     line(body, 'eq-hero', m.hero.n + ' · ' + m.hero.tag,
       '新局能力：' + m.hero.d + hs + (m.heroStatus ? ' · ' + m.heroStatus : ''));
+
+    if (getRun()?.growth?.version === 2) line(body,'eq-growth','本轮知识成长','攻击 +' + growthAttackPct(getRun()) + '% · 生命上限 +' + getRun().growth.bonusHp + '（沿用开局记录）');
 
     /* 护盾：战斗中与地图上是两个来源，文案要写清楚现在看的是哪一个 */
     line(body, 'eq-shield', '当前护盾', m.shield.value + ' 点' + (m.shield.inFight ? '（本场实时剩余）' : '（未进入战斗）'));

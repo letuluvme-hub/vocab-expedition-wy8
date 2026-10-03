@@ -18,7 +18,7 @@
   image-rendering: pixelated;
 }
 
-/* 眨眼：8s 周期里 84%–98% 闭眼 ⇒ 约 1.1s 可见。
+/* 眨眼：4.8s 周期里短促连眨两次；负延迟让新怪物很快有动作。
    初版是 5.5s 周期的 4%（0.22s），在 64px 的战斗尺寸下玩家只会觉得「闪了一下」。
    错开 1/3 与 2/3 相位，多个精灵并排时不会整齐划一地眨。
    ★ 动画只挂在 .pxmon.anim 下：不带 anim 的精灵（静态场景）连图层都没有，
@@ -28,21 +28,20 @@
   transform: scaleY(0);
 }
 .pxmon.anim .pm-lid {
-  animation: pxBlink 8s steps(1, end) infinite;
+  animation: pxBlink 4.8s steps(1, end) infinite;
 }
 .pxmon.anim .pm-breathe {
   transform-origin: center;
   animation: pxBreathe 2.6s ease-in-out infinite;
 }
 /* 相位错开由兄弟序驱动：.foe-cartoon 在战斗页只有一份，但图鉴/预览里会并排多个。 */
-.pxmon.anim:nth-of-type(3n + 1) .pm-lid { animation-delay: 1.4s; }
-.pxmon.anim:nth-of-type(3n + 2) .pm-lid { animation-delay: 3.2s; }
+.pxmon.anim:nth-of-type(3n + 1) .pm-lid { animation-delay: -1.4s; }
+.pxmon.anim:nth-of-type(3n + 2) .pm-lid { animation-delay: -3.2s; }
 
 /* steps(1,end) 保证只有「睁」「闭」两个状态，不产生缩放的模糊中间帧。 */
 @keyframes pxBlink {
-  0%, 82%   { transform: scaleY(0); }
-  84%, 98%  { transform: scaleY(1); }
-  100%      { transform: scaleY(0); }
+  0%, 58%, 63%, 68%, 100% { transform: scaleY(0); }
+  60%, 62%, 66%, 67% { transform: scaleY(1); }
 }
 /* 幅度刻意压到 1px：16×16 网格上再大就会脱出格子。 */
 @keyframes pxBreathe {

@@ -33,6 +33,12 @@ export function heroStatLines(H) {
   if (H.id === 'lucky') out.push('金币收益 +' + Math.round(HERO_BALANCE.luckyGoldBonus * 100) + '%');
   if (H.id === 'healer') out.push('溢出转盾最多 ' + HERO_BALANCE.healerOverflowShieldCap);
   if (H.id === 'ranger') out.push('回血每战最多 ' + HERO_BALANCE.rangerBattleHealCap);
+  if (H.id === 'scholar') out.push('无帮助整词大招 +15%');
+  if (H.id === 'warrior') out.push('有盾整词大招 +20%');
+  if (H.id === 'lucky') out.push('金币蓄力大招最多 +20%');
+  if (H.id === 'berserker') out.push('整词大招 +25% / 半血 +45%');
+  if (H.id === 'pyromancer') out.push('7 字母起大招 +40%');
+  if (H.id === 'assassin') out.push('准确大招 +35% / 收割 +60%');
   return out;
 }
 

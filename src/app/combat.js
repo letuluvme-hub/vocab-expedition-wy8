@@ -615,7 +615,7 @@ export function createCombatController({ state, ports }) {
   //   玩家可以反复撤退而不真正承担风险，跳过就变成了比打完更优的策略。
   function skipFight() {
     const B = state.B, G = state.G;
-    if (!B || B.over) return false;
+    if (!B || B.over || B.finished || !G) return false;
     // 额度判据只看 run 上的 G.ghostUsed —— 不看 B，所以换战斗、重复拿到影分身都不重置。
     // 缺字段（老存档/旧快照）按 falsy 处理，即仍可用一次。
     if (G && hasR('ghost') && !G.ghostUsed) {
@@ -626,6 +626,11 @@ export function createCombatController({ state, ports }) {
       toast('👻 影分身：免费撤退（本轮唯一一次），不计失败');
       finishNode();
       return true;
+    }
+    if (B.myHp <= SKIP_HP_COST) {
+      const message = '当前只有 ' + B.myHp + ' 生命，跳过会扣除 ' + SKIP_HP_COST + ' 生命，导致本次远征立即结束。仍要跳过吗？';
+      if (typeof ports.confirm !== 'function' || !ports.confirm(message)) return false;
+      if (state.B !== B || state.G !== G || B.over || B.finished) return false;
     }
     B.myHp -= SKIP_HP_COST;
     if (B.myHp <= 0) {

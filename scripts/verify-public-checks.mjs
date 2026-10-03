@@ -25,7 +25,7 @@ export async function verifyPublishedFiles({request,url,directory,expectedVersio
 }
 
 export async function verifyLegacyPlay(page) {
-  await expect(page.locator('#heroes .hcard')).toHaveCount(6);
+  await expect(page.locator('#heroes .hcard')).toHaveCount(9);
   await expect(page.locator('#sRun')).toHaveText('7');
   // Legacy mastered remains practice history; it cannot grant formal mastery.
   await expect(page.locator('#sMaster')).toHaveText('0');

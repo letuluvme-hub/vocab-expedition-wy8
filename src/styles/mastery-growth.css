@@ -51,3 +51,5 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+#masteryGrowth .mgrowth-attack { color:#ffc967;font-weight:700; }

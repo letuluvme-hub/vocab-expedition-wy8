@@ -1,0 +1,45 @@
+/* Opponents and HP stay outside the independently scrolling word/equipment area. */
+#s-fight.on { display:flex;flex-direction:column;height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px));max-height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px)); }
+#s-fight #fBattleStage { flex:none;position:relative;z-index:auto;background:#0a0a14;border-bottom:1px solid #ffffff16; }
+#s-fight #fBattleStage .hud { position:relative;padding-bottom:3px; }
+#s-fight #fBattleStage .vsrow { margin:0;padding:4px 4px 7px;min-height:96px; }
+#s-fight #fBattleStage .finfo { min-width:0; }
+#s-fight #fBattleStage .fname { margin-bottom:3px;font-size:13px; }
+#s-fight #fBattleStage .myname { margin-top:3px;font-size:12px; }
+#s-fight .fmid { flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scroll-padding-top:6px; }
+#s-fight .fmid .q { margin-top:8px; }
+#s-fight .q .tagsm { margin:3px 0;justify-content:center; }
+#s-fight .bankbar,#s-fight .bank,#s-fight .tools,#s-fight #fHintShared { flex:none; }
+@media(max-height:620px) {
+ #s-fight #fBattleStage { --pcw:50px;--pch:62px;--msw:54px; }
+ #s-fight #fBattleStage .vsrow { min-height:68px;padding-bottom:3px; }
+ #s-fight #fBattleStage #fAv { --avatar:43px; }
+ #s-fight #fBattleStage .hudmsg { min-height:14px;margin-top:2px; }
+ #s-fight .bankbar { margin-top:4px;gap:4px; }
+ #s-fight .tools { margin-top:5px; }
+}
+@media(max-height:480px) {
+ #s-fight #fBattleStage { --pcw:38px;--pch:47px;--msw:44px; }
+ #s-fight #fBattleStage .vsrow { min-height:52px;padding:0 4px 2px; }
+ #s-fight #fBattleStage #fAv { --avatar:35px; }
+ #s-fight #fBattleStage .hudmsg { display:none; }
+}
+
+@media(min-width:640px) and (max-height:480px) {
+ #s-fight.on { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto auto minmax(0,1fr) auto;column-gap:12px; }
+ #s-fight #fBattleStage { grid-column:1 / -1;grid-row:1; }
+ #s-fight .fmid { grid-column:1;grid-row:2 / 6; }
+ #s-fight #fBattleStage .hud { margin:0;padding:3px 0; }
+ #s-fight .bankbar { grid-column:2;grid-row:2;flex-wrap:nowrap;margin:2px 0;gap:4px; }
+ #s-fight .bankbar .bkbtn { padding:4px 5px;font-size:10px; }
+ #s-fight .keyShortcutHint { display:none; }
+ #s-fight #fHintShared { grid-column:2;grid-row:3; }
+ #s-fight .bank { grid-column:2;grid-row:4;align-self:center;max-width:100%; }
+ #s-fight .bank.kb { --kbw:34px!important;gap:4px;margin:2px auto; }
+ #s-fight .bank.kb .key { height:var(--kbw);min-height:0; }
+ #s-fight .bank.grid .key { height:34px;min-height:34px;aspect-ratio:auto; }
+ #s-fight .tools { grid-column:2;grid-row:5; }
+ #s-fight .tools .tool { padding:4px 2px;font-size:10px; }
+ #s-fight .tools .tool small { font-size:8px;line-height:1.15; }
+ #s-fight #fBattleStage .bar { height:16px; }
+}

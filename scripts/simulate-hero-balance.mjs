@@ -1,3 +1,4 @@
+import {growthSummary,GROWTH_VERSION} from '../src/domain/mastery-growth.js';
 /**
  * Controlled combat comparison, NOT a full-map/player completion-rate model.
  * Run: node scripts/simulate-hero-balance.mjs --seeds=256 --write-report
@@ -28,14 +29,16 @@ import { createCombatController } from '../src/app/combat.js';
 import { createEncounterController } from '../src/app/encounters.js';
 
 const args = new Set(process.argv.slice(2));
-const numericArg = (key, fallback) => {
+const numericArg = (key, fallback, minimum = 1) => {
   const arg = [...args].find(value => value.startsWith(`--${key}=`));
   const value = arg ? Number(arg.split('=')[1]) : fallback;
-  assert(Number.isSafeInteger(value) && value > 0, `${key} must be a positive integer`);
+  assert(Number.isSafeInteger(value) && value >= minimum, `${key} must be an integer >= ${minimum}`);
   return value;
 };
 const seedCount = numericArg('seeds', 256);
 const round = numericArg('round', 1);
+const masteredCount = Math.min(259,numericArg('mastered',0,0));
+const knowledge = growthSummary(WORDS.slice(0,masteredCount).map(w=>w.w),WORDS);
 const profiles = [
   { id: 'accurate', name: '准确', uncertainWordRate: 0, secondClusterRate: 0,
     recallMinMs: 1500, recallSpanMs: 8000, letterMs: 600 },
@@ -112,7 +115,7 @@ function simulate(hero, profile, loadout, seed) {
   // Each encounter starts at the same fixed slice for every hero. We do not
   // advance future encounter decks by a hero-specific number of kill words.
   const decks = encounters.map((_, i) => deck.filter((_, n) => n % encounters.length === i));
-  const G = createRun(0, hero, WORDS, rng(mix(seed, 0, 0, 3)));
+  const G = createRun(0, hero, WORDS, rng(mix(seed, 0, 0, 3)),{version:GROWTH_VERSION,masteredAtStart:masteredCount,bonusHp:knowledge.bonusHp,bonusAttackPct:knowledge.bonusAttackPct});
   G.difficulty = deriveRoundDifficulty({ roundNumber: round, unit: 0, segments: 1 });
   if (loadout.id === 'bare') G.bag = {};
   const DB = { mastered: [], reviewQueue: [] };
@@ -324,19 +327,19 @@ function simulate(hero, profile, loadout, seed) {
   m.survived = m.wins === encounters.length ? 1 : 0;
   m.netDamage = m.hpLost - m.healed;
   m.finalHp = G.hp; m.finalShield = G.shield; m.finalGold = G.gold;
-  assert.equal(70 + (hero.mod.hp || 0) + m.maxhpAdded + m.healed - m.hpLost, G.hp,
+  assert.equal(70 + (hero.mod.hp || 0) + knowledge.bonusHp + m.maxhpAdded + m.healed - m.hpLost, G.hp,
     'health accounting must reconcile including max-health purchases');
   assert.equal((hero.mod.gold || 0) + m.earnedGold - m.spentGold, G.gold, 'gold accounting');
   return m;
 }
 
 assert.equal(WORDS.length, 259, 'must use the unmodified 259-entry textbook');
-assert.equal(HEROES.length, 6, 'report assumes six heroes');
+assert.equal(HEROES.length, 9, 'report assumes nine heroes');
 const sourceFiles = ['src/app/combat.js', 'src/app/encounters.js', 'src/app/runtime.js',
   'src/data/heroes.js', 'src/data/hero-balance.js', 'src/data/items.js', 'src/domain/hero-rules.js',
   'src/domain/damage.js', 'src/domain/foe-stats.js', 'src/domain/foe-attack.js',
   'src/domain/round-difficulty.js', 'src/domain/run.js', 'src/domain/letter-bank.js',
-  'src/data/balance.js', 'scripts/simulate-hero-balance.mjs'];
+  'src/data/balance.js', 'src/domain/mastery-growth.js', 'scripts/simulate-hero-balance.mjs'];
 async function fingerprint() {
   const hash = createHash('sha256');
   for (const path of sourceFiles) hash.update(path).update(await readFile(new URL(`../${path}`, import.meta.url)));
@@ -361,14 +364,14 @@ for (const loadout of loadouts) for (const profile of profiles) for (const hero 
 }
 assert.equal(await fingerprint(), sourceFingerprint, 'source changed during the simulation; rerun to get a valid report');
 const report = { simulation: 'controlled-five-fight-survival-not-full-map-clear-rate', seedCount,
-  seedRange: [0, seedCount - 1], round, textbookEntries: WORDS.length,
+  seedRange: [0, seedCount - 1], round, masteredCount, knowledge, textbookEntries: WORDS.length,
   sourceFingerprint, profiles, encounters, rows };
 const f = value => value.toFixed(1);
 function markdown() {
   const lines = [
     '# 角色平衡：同种子连续战模拟', '',
     `运行：\`node scripts/simulate-hero-balance.mjs --seeds=${seedCount} --round=${round} --write-report\``, '',
-    `每角色、每档、每套补给 ${seedCount} 个种子（0–${seedCount - 1}），共 ${rows.length * seedCount} 轮；第 ${round} 轮难度，知识成长 +0。源码 SHA-256：\`${report.sourceFingerprint}\`。`, '',
+    `每角色、每档、每套补给 ${seedCount} 个种子（0–${seedCount - 1}），共 ${rows.length * seedCount} 轮；第 ${round} 轮难度，知识成长生命 +${knowledge.bonusHp}、攻击 +${knowledge.bonusAttackPct}%。源码 SHA-256：\`${report.sourceFingerprint}\`。`, '',
     '本报告衡量固定五战的生存比例，不是随机完整地图通关率，更不是实际学生胜率。没有模拟休息节点、随机战利品选择、逃跑、跨单元或玩家主动选词。', '',
     '## 控制条件', '',
     '- 使用仓库全部 259 条真实词库，只洗牌，不改词条。每个种子给五战分配互不重叠的固定词序；同战中不同角色若更早击杀，后续战斗仍从相同词开始。已完整完成的同英文词不会再发放。',
@@ -399,7 +402,7 @@ function markdown() {
     `- 战士每战职业盾不超过6；观测最大 ${Math.max(...warriorRows.map(row => row.capChecks.maxWarriorShield))}，${warriorRows.reduce((sum, row) => sum + row.capChecks.warriorCapBattles, 0)} 场达到6。`, '',
     '## 如何读这些数字', '',
     '提示策略是“遇到预定易错位置就先请求帮助”，所以学者会少付部分错误代价；这只证明其定位在该策略下有效，不能推断玩家都会这样使用。探险家的干扰字母减少没有被额外转换成更低错误概率，因而主要量到首词爆发、少打几个词的收益。', '',
-    '幸运儿在裸装组只有额外金币无法兑换，必须连同补给组看；两次固定商店是受控情境，真实地图是否及时出现商店会改变收益。补给组采用相同购买策略，并未针对各职业寻找最优路线。', '',
+    '幸运儿在裸装组金币可以强化大招，但补给无法兑换，必须连同补给组看；两次固定商店是受控情境，真实地图是否及时出现商店会改变收益。补给组采用相同购买策略，并未针对各职业寻找最优路线。', '',
     '游侠上限更低，受到连续错误或长时间停顿时可能在回血前死亡；其回血严格依赖真实无主动帮助的新字母。战士更高生命与整词护盾、治愈师开场治疗/溢出盾属于不同的承伤节奏。不能仅凭一个平均数让所有角色强度完全相同。', '',
     '本脚本不检验 UI、音效、暂停恢复或完整随机地图；旧存档兼容由仓库相应测试承担。角色长期选择率、真实学生通关率和学习效果仍需使用数据或实玩验证。', '',
   );

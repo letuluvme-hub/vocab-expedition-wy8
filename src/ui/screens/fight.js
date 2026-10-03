@@ -127,6 +127,7 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     try { paintSayBtn(); } catch (e) { }     // 语音按钮状态跟着战斗渲染一起刷新
   }
 
+  let portraitHost = null, portraitMarkup = null;
   function renderFight() {
     const G = getRun(), B = getBattle(), DB = getDB();
     const enPct = clamp(B.enHp / B.enMax * 100, 0, 100);
@@ -137,7 +138,10 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     const H = heroById(G.heroId || HERO_DEFAULT), pc = $('fPc');
     if (pc) pc.dataset.h = H.id;
     const nm = $('fMyName'); if (nm) nm.textContent = H.n;
-    $('fAv').innerHTML = pixelMonsterSVG(B.foe, B.boss, B.elite);
+    const avatar = $('fAv'), art = pixelMonsterSVG(B.foe, B.boss, B.elite);
+    if (avatar !== portraitHost || art !== portraitMarkup) {
+      avatar.innerHTML = art; portraitHost = avatar; portraitMarkup = art;
+    }
     paintFoeScale();
     // 蓄力条：数据由 app/foe-attacks.js 挂在 B.foeAttack 上（可能还没有 → 组件隐藏自己）。
     const attackFact = getFoeAttackFact ? getFoeAttackFact() : B.foeAttack;

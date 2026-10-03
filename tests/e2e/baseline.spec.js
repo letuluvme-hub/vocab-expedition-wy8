@@ -62,10 +62,12 @@ test('start builds connected map without early shops and locks nonadjacent nodes
   expect((await game.state()).G.floor).toBe(2);
 });
 
-test('title preserves six heroes and all six units plus custom range', async ({ game, page }) => {
+test('title preserves legacy heroes and adds three distinct roles in the new app', async ({ game, page }, testInfo) => {
   await game.open();
   await expect(page).toHaveTitle('词汇远征 · 外研版八上');
-  await expect(page.locator('#heroes .hcard b')).toHaveText(['学者', '战士', '探险家', '幸运儿', '治愈师', '游侠']);
+  const expected=['学者', '战士', '探险家', '幸运儿', '治愈师', '游侠'];
+  if(testInfo.project.metadata.target==='new')expected.push('狂战士','焰术师','影刃');
+  await expect(page.locator('#heroes .hcard b')).toHaveText(expected);
   await expect(page.locator('#units .unit b')).toHaveText([
     'Unit 1 水与资源', 'Unit 2 数字生活', 'Unit 3 成长与发现',
     'Unit 4 记忆与学习', 'Unit 5 团队与舞台', 'Unit 6 外星来客', '我的词表',

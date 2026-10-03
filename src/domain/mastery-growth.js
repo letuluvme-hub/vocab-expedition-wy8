@@ -1,8 +1,8 @@
-/* 知识成长：真实教材掌握词 → 新一轮远征的生命上限成长。**纯规则**。
+/* 知识成长：真实教材掌握词 → 新一轮远征的生命与攻击成长。**纯规则**。
  *
  * 契约（docs/feature-mastery-growth.md，逐条核对）：
  *  1) **只认真实教材词**。canonicalMasteryKeys(mastered, canonicalWords) 取交集：
- *     DB.mastered 里的自定义词表词（单元 0）再多也不参与成长。理由：自定义词是
+ *     DB.dictationMastered 里的自定义词表词（单元 0）再多也不参与成长。理由：自定义词是
  *     玩家自己造的，500 个自定义词也算「学得多」就是自欺欺人 —— 成长必须锚定在
  *     真实教材的 259 词上。
  *  2) **身份只做 trim + lowerCase**，空格 / 连字符 / 撇号是拼写的一部分，绝不剥掉
@@ -16,15 +16,28 @@
  *  5) **非法入参不产生 NaN**：null / 非数组 / 对象 / 数字 / 空串一律退化成 0，
  *     绝不让 NaN 渗进文案（「NaN 个词」是玩家会截图发群里的那种话）。
  *  6) **只读**：不修改 mastered，不碰 canonicalWords（词库）、DB、run 与存储。
- *     旧存档的 mastered 一个字节都不改。
+ *     旧存档的学习记录一个字节都不改。
  *
- * 范围：只回答「新开一轮时生命上限是多少」。正在远征中、或从存档恢复时，
+ * 范围：只回答「新开一轮时生命和攻击加成是多少」。正在远征中、或从存档恢复时，
  * 不补回生命、不提高本轮生命上限、跨单元不再额外增加 —— 那些是接线层的责任，
- * 本模块不提供任何函数去改 HP（低风险：只抬生命上限值，不动当前血量）。
+ * 攻击每 10 词 +4%，最高 +60%；伤害结算由 damage.js 读取冻结事实。
  */
 
 /* 固定规则常数。要改数值就改这里，并同步 docs 与单测的边界断言。 */
-export const GROWTH_VERSION = 1;
+export const GROWTH_VERSION = 2;
+export const ATTACK_GROWTH_INTERVAL = 10;
+export const ATTACK_GROWTH_STEP = 4;
+export const ATTACK_GROWTH_MAX = 60;
+export const attackGrowthFor = count => Math.min(ATTACK_GROWTH_MAX, Math.floor(Math.max(0, count) / ATTACK_GROWTH_INTERVAL) * ATTACK_GROWTH_STEP);
+
+// Version 1 keeps its HP-only semantics; new runs record version 2 explicitly.
+export function validGrowthFact(g) {
+  if (!g || typeof g !== "object" || Array.isArray(g) || ![1,2].includes(g.version)) return false;
+  if (!Number.isInteger(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > 259) return false;
+  if (g.bonusHp !== Math.min(12, Math.floor(g.masteredAtStart / 20))) return false;
+  return g.version === 1 || g.bonusAttackPct === attackGrowthFor(g.masteredAtStart);
+}
+export const growthAttackPct = run => validGrowthFact(run?.growth) && run.growth.version === 2 ? run.growth.bonusAttackPct : 0;
 export const GROWTH_INTERVAL = 20;        // 20 个真实教材词 = +1
 export const GROWTH_MAX_BONUS = 12;       // 封顶 +12（259 词用不完这个额度）
 export const GROWTH_TOTALS_FLOOR = GROWTH_INTERVAL * GROWTH_MAX_BONUS; // 240 = 封顶点
@@ -82,7 +95,7 @@ export function tierOf(bonusHp) {
   return name;
 }
 
-/* 成长摘要。唯一对外的规则入口：UI 只读它，runtime 只取 bonusHp。
+/* 成长摘要。UI 与 runtime 共用的规则入口，攻击与生命门槛分别返回。
  * nextThreshold / toNext 只回答「离下一个台阶还差几词」；封顶后为 null / 0。 */
 export function growthSummary(mastered, canonicalWords) {
   const canon = canonicalSet(canonicalWords);
@@ -98,7 +111,11 @@ export function growthSummary(mastered, canonicalWords) {
     ? Math.min(1, Math.round((masteredCount / totalCount) * 1e4) / 1e4)
     : 0;
 
+  const bonusAttackPct = attackGrowthFor(masteredCount);
+  const attackCapped = bonusAttackPct >= ATTACK_GROWTH_MAX;
+  const attackNextThreshold = attackCapped ? null : (Math.floor(masteredCount / ATTACK_GROWTH_INTERVAL) + 1) * ATTACK_GROWTH_INTERVAL;
   return {
+    bonusAttackPct, maxBonusAttackPct: ATTACK_GROWTH_MAX, attackInterval: ATTACK_GROWTH_INTERVAL, attackStep: ATTACK_GROWTH_STEP, attackCapped, attackNextThreshold, attackToNext: attackCapped ? 0 : attackNextThreshold - masteredCount,
     version: GROWTH_VERSION,
     masteredCount, totalCount,
     tier: tierOf(bonusHp),
