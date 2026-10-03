@@ -40,12 +40,12 @@ export function createWordOffer({ $ }) {
       b.innerHTML = '<span class="wcZh">' + esc(w.z) + '</span>'
         + '<span class="wcMeta">' + (c.letters | 0) + '字母 · '
         + (c.lethal ? '<b class="wcKill">可斩杀</b>' : '⚔' + (c.total | 0)) + '</span>';
-      if (view.canSwitch && !on) b.onclick = () => view.onPick(i);
+      if (view.canSwitch) b.onclick = () => view.onPick(i);
       box.appendChild(b);
     });
     const tip = document.createElement('div');
     tip.className = 'wcTip';
-    tip.textContent = view.canSwitch ? '选一个词出招 · 词越长打得越疼（电脑键盘按 Tab 换）' : '已出招，拼完这个词';
+    tip.textContent = view.canSwitch ? '选一个词出招 · 词越长打得越疼' : '已出招，拼完这个词';
     box.appendChild(tip);
     return box;
   }

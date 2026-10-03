@@ -143,15 +143,19 @@ export function createEquipmentPanel({ getRun, getBattle }) {
   function line(body, cls, head, text, icon) {
     const row = document.createElement('div');
     row.className = 'eq-row ' + (cls || '');
+    const h = document.createElement('span');
+    h.className = 'eq-h';
     if (icon) {
       const ic = document.createElement('span');
       ic.className = 'eq-ic';
       ic.innerHTML = icon;
-      row.appendChild(ic);
+      // The two grid cells are heading and effect. Keep decorative art inside
+      // the heading so it cannot push the effect into a new, narrow grid row.
+      h.appendChild(ic);
     }
-    const h = document.createElement('span');
-    h.className = 'eq-h';
-    h.textContent = head;
+    const name = document.createElement('span');
+    name.textContent = head;
+    h.appendChild(name);
     const d = document.createElement('span');
     d.className = 'eq-d';
     d.textContent = text;
