@@ -1,3 +1,7 @@
+import { createDailyDictationController } from './daily-dictation.js';
+import { createDailyDictationScreen } from '../ui/screens/daily-dictation.js';
+import '../styles/dictation.css';
+import '../styles/daily-session.css';
 import { parseCustomWords } from '../domain/custom-words.js';
 import { createCombatController } from './combat.js';
 import { createEncounterController } from './encounters.js';
@@ -223,6 +227,8 @@ let DB=initializeDB(storage.load());
    于是「学习记录 + 当前快照」是同一次 commit，永远读不到旧奖励 / 旧相位。 */
 let dbDirty=false;
 const saveDB=()=>{ dbDirty=true };
+let dailyView=null;
+let dailyController=null;
 let progressCtl=null;   // progress 在本文件后面才创建；用可变引用避免 TDZ。
 /* ★ 真正的提交点。
  *   force=true（受闸门动作的事务末尾）：**无条件**把当前快照写下去。
@@ -1139,6 +1145,7 @@ $('tSkip').onclick=()=>progress.skipFight();
 $('tFlee').onclick=()=>progress.fleeFight();
 document.addEventListener('keydown',e=>{
   // 暂停屏优先：暂停期间任何键都不得改状态（闸门在 progress 里，这里只是不抢键）。
+  if(dailyView?.active()){ dailyView.handleKey(e); return; }
   if(progress.isPaused()) return;
   if($('s-fight').classList.contains('on') && B && !B.over){
     // 焦点在输入框里时一律不抢键（自定义词表导入框、存档文本框等）
@@ -1239,6 +1246,7 @@ $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){
 function renderHeroes(){return titleScreen.renderHeroes()}
 function renderTitle(){
   titleScreen.renderTitle();
+  dailyView?.paintEntry();
   // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.dictationMastered
   // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
   try{ masteryGrowthView.paint() }catch(e){}
@@ -1502,6 +1510,24 @@ const progress=createProgressController({state,api:{
 },store:progressStore});
 progressCtl=progress;
 
+// Daily sessions own a separate checkpoint, never a replacement for G/B/activeRun.
+dailyController=createDailyDictationController({
+  getDB:()=>DB, getWords:unit=>allWords(unit),
+  persist:()=>{saveDB();return commit(false)},
+  onChange:()=>dailyView?.render(),
+});
+dailyView=createDailyDictationScreen({controller:dailyController,show,
+  onEnter:()=>{if(G&&!progress.isFinished())progress.returnToTitle();TTS.stop()},
+  onHome:()=>{renderTitle();show('s-title')},
+});
+$('startRun').textContent='自由远征';
+const titleSub=$('s-title').querySelector('.sub');
+if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 每日短局练默写，自由远征练拼词';
+// Refresh the clock and accumulate active time through the timing port.
+// Persist at action completion or the single time-budget checkpoint, not each tick.
+setInterval(()=>dailyView.updateTime(),1000);
+
+
         // 字母光标
 
 /* 切后台 / 关闭页面：安全保存一次并进入暂停屏。
@@ -1510,6 +1536,7 @@ progressCtl=progress;
 if(typeof document!=='undefined' && document.addEventListener){
   document.addEventListener('visibilitychange',()=>{
     try{ if(document.hidden) TTS.stop() }catch(e){}
+    if(document.hidden&&dailyView?.active()){dailyController.pause('background');return;}
     try{
       // 已结算的一局（结算屏上）不参与：切后台既不重存也不抢界面。
       if(document.hidden){ if(G && !progress.isPaused() && !progress.isFinished()) pauseNow({fromReload:true}) }
@@ -1519,6 +1546,7 @@ if(typeof document!=='undefined' && document.addEventListener){
 }
 if(typeof addEventListener==='function'){
   addEventListener('pagehide',()=>{
+    if(dailyView?.active()){dailyController.pause('background');return;}
     try{ if(G && !progress.isPaused() && !progress.isFinished()) pauseNow({fromReload:true}) }catch(e){}
   });
 }
@@ -1610,6 +1638,7 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     sayCurrentWord,useItem,show,TTS,AU,WORDS,UNITS,HEROES,ITEMS,RELICS,
     // 暂停/恢复测试面：只暴露动作，不暴露内部实现
     progress, pauseNow, resumeFromPause, chooseEncounter, takeReward,
+    dailyController,
     // 蓄力自主攻击（清单 13）：只暴露动作与事实，不暴露定时器内部。
     foeAttack:foeAttackCtl, enemyHit:d=>combat.enemyHit(d),
     get phase(){return PHASE_STATE}, get encounter(){return ENCOUNTER},

@@ -1,0 +1,29 @@
+/* This feature owns its container; frozen original CSS and cascade are intact. */
+.daily-dictation .daily-heading { margin: 8px 0; font-size: 21px; line-height: 1.4; }
+.daily-dictation.daily-entry { margin: 14px 0 22px; padding: 14px; border: 1px solid #647cc2; border-radius: 18px; background: linear-gradient(135deg,#283361,#152839); }
+.daily-dictation .daily-note { color: #bfcde6; font-size: 14px; line-height: 1.65; margin: 7px 0; overflow-wrap: anywhere; }
+.daily-dictation .daily-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.daily-dictation .daily-header .daily-button { width: auto; margin: 0; padding: 8px 12px; }
+.daily-dictation .daily-button { display: block; width: 100%; min-height: 44px; border: 1px solid #8093c0; border-radius: 12px; padding: 12px; margin-top: 10px; color: #fff; background: #5568bf; font-size: 16px; font-weight: 700; line-height: 1.4; font-family: inherit; cursor: pointer; touch-action: manipulation; }
+.daily-dictation .daily-button.secondary { background: #1e304b; color: #e0eaff; font-size: 14px; font-weight: 500; }
+.daily-dictation .daily-button:disabled { opacity: .3; cursor: default; }
+.daily-dictation .daily-label { display: block; font-size: 16px; margin: 14px 0 7px; }
+.daily-dictation .daily-select, .daily-dictation .daily-text { width: 100%; min-height: 48px; border: 1px solid #728bad; border-radius: 10px; background: #142338; color: #fff; padding: 10px; font-size: 16px; font-family: inherit; user-select: text; }
+.daily-dictation .daily-text { resize: vertical; }
+.daily-dictation .daily-prompt { font-size: 22px; line-height: 1.5; margin: 10px 0; overflow-wrap: anywhere; }
+.daily-dictation .daily-input { font: 700 25px/1.45 monospace; min-height: 42px; margin: 7px 0; padding: 4px 8px; background: #162c3d; border: 1px solid #597e9f; border-radius: 9px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.daily-dictation .daily-feedback { color: #ffb0b8; font-size: 16px; min-height: 23px; margin: 4px 0; }
+.daily-dictation .daily-encounter { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.daily-dictation .daily-monster { flex: 0 0 56px; width: 56px; height: 56px; }
+.daily-dictation .daily-monster svg { display: block; width: 56px; height: 56px; }
+.daily-dictation .daily-bank { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 5px; }
+.daily-dictation .daily-bank .daily-button { padding: 8px 0; margin: 0; font-size: 18px; }
+.daily-dictation .daily-summary { padding: 12px; border: 1px solid #698374; border-radius: 12px; background: #15332f; font-size: 18px; line-height: 1.6; }
+.daily-dictation .daily-summary p { margin: 7px 0; }
+.daily-dictation .daily-wrong { padding-left: 22px; font-size: 16px; line-height: 1.9; overflow-wrap: anywhere; user-select: text; }
+.daily-dictation .daily-warning { color: #ffd191; background: #422b1b; border-radius: 10px; padding: 10px; font-size: 14px; line-height: 1.6; }
+@media (max-width: 350px) {
+  .daily-dictation .daily-note { font-size: 13px; }
+  .daily-dictation .daily-prompt { font-size: 20px; }
+  .daily-dictation .daily-monster, .daily-dictation .daily-monster svg { width: 44px; height: 44px; flex-basis: 44px; }
+}
