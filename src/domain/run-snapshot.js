@@ -337,6 +337,10 @@ function encodeBattle(b) {
   if (foeAttack) out.foeAttack = foeAttack;
   const wordQ = encodeWordQ(b.wordQ);
   if (wordQ) out.wordQ = wordQ;
+  // 选词出招（docs/feature-word-choice.md）：候选与开场自动揭示数都是**可选**事实。
+  //   没有候选（旧战斗 / 词池只剩一个词）时整个键不出现，与 foeAttack 同一口径。
+  if (Array.isArray(b.offer) && b.offer.length) out.offer = b.offer.map(encodeWord);
+  if (Number.isInteger(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
   return out;
 }
 function encodeEncounter(e) {
@@ -627,6 +631,19 @@ function validBattle(b, run, byId) {
   //   已经不可信的存档看起来能恢复，而玩家会发现攻击时机凭空变了。
   if (b.foeAttack !== undefined && b.foeAttack !== null && decodeFoeAttack(b.foeAttack) === undefined) return false;
   if (b.wordQ != null && encodeWordQ(b.wordQ) === undefined) return false;
+  // offer 可选：一旦出现，每一条都必须与词池里第一条同名词条逐字段一致（与 b.word 同一判据），
+  //   且当前战斗词必须是候选之一 —— 否则恢复后「当前词」和「可换的词」会对不上。
+  if (b.offer !== undefined && b.offer !== null) {
+    if (!Array.isArray(b.offer) || !b.offer.length || b.offer.length > 5) return false;
+    for (const o of b.offer) {
+      if (!isObj(o) || !isStr(o.w) || !isStr(o.z) || !isInt(o.u) || !isInt(o.d)) return false;
+      const hit = run.pool.filter(w => w.w === o.w)[0];
+      if (!hit || hit.u !== o.u || hit.d !== o.d || hit.z !== o.z) return false;
+      if ((o.th || null) !== (hit.th || null)) return false;
+    }
+    if (!b.offer.some(o => o.w === b.word.w)) return false;
+  }
+  if (b.autoHint !== undefined && b.autoHint !== null && !(isInt(b.autoHint) && b.autoHint >= 0)) return false;
   if (b.node === null || b.node === undefined || !byId.has(b.node)) return false;   // 战斗必须有真实节点
   return true;
 }
@@ -653,6 +670,11 @@ function decodeBattle(b, run, byId) {
   // 由运行时按该怪的固定配置起一个干净的 idle —— 绝不默认「立刻攻击」。
   const foeAttack = decodeFoeAttack(b.foeAttack);
   if (foeAttack) out.foeAttack = foeAttack;
+  // 候选解回**词池里的同一批对象**（与 run.pool 同引用），当前词也指向其中那一条。
+  if (Array.isArray(b.offer) && b.offer.length) {
+    out.offer = b.offer.map(o => run.pool.filter(w => w.w === o.w)[0]);
+  }
+  if (isInt(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
   return out;
 }
 function validEncounter(e, byId, needChoice) {

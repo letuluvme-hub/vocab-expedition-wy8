@@ -90,8 +90,10 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
   return { renderHeroes, renderTitle };
 }
 
-/* 进度只反映当前正式默写证据；旧远征完成凭据不授予解锁。 */
-function unitProgressLine({ done, total }) {
+/* 进度行：远征整词完成过本单元时先说这件事（它解锁了下一单元），默写进度照实附在后面。 */
+function unitProgressLine({ c, done, total }) {
+  const expedition = !!(c && c.passed && !c.complete);
+  if (expedition) return '远征已通关' + (done ? ' · 默写 ' + done + '/' + total : '');
   if (!done) return '未开始';
   if (total > 0 && done >= total) return '已完成 ' + done + '/' + total;
   return '已掌握 ' + done + '/' + total;

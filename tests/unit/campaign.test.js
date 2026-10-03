@@ -75,14 +75,14 @@ test('unlocking is contiguous: finishing unit 3 does not unlock unit 4 without u
   assert.equal(p.isUnlocked(4), false);
 });
 
-test('legacy recordUnitComplete is idempotent but never substitutes formal evidence', () => {
+test('recordUnitComplete is idempotent and counts as expedition evidence, not as formal dictation', () => {
   const db = mkDb();
   assert.equal(recordUnitComplete(db, 1, { now: 1000 }), true, '第一次记录返回 true');
   assert.equal(recordUnitComplete(db, 1, { now: 2000 }), false, '重复记录返回 false');
   assert.equal(db.unitProgress['1'].completedAt, new Date(1000).toISOString(), '第一次的时间戳不许被覆盖');
   const p = view(db);
-  assert.equal(p.byUnit[1].complete, false);
-  assert.equal(p.isUnlocked(2), false);
+  assert.equal(p.byUnit[1].complete, false, '远征完成不冒充正式默写');
+  assert.equal(p.isUnlocked(2), true, '远征里整词拼完本单元 → 下一单元解锁（2026-10 起）');
   assert.equal(p.isUnlocked(3), false);
 });
 
@@ -277,4 +277,39 @@ test('campaign segment counter starts at one and only counts real segments', () 
   assert.equal(run.campaign.segments, 3);
   assert.equal(run.campaign.startedUnit, 1, '整轮从 Unit 1 开始');
   assert.equal(run.unit, 2);
+});
+/* ---------------- 远征整词完成也是解锁证据（docs/feature-word-choice.md 第四节） ----------------
+ * 每日默写曾是唯一解锁路径，于是只玩远征的学生把 Unit 1 每个词都拼完、打完首领，
+ * Unit 2 仍然锁着，主页「已掌握」恒为 0 —— 远征与进度完全脱节。
+ * 现在 recordUnitComplete 写下的完成凭据（带 completedAt，只在本轮词池抽干时写）同样解锁下一单元。
+ * 连续口径不变；没有时间戳的旧/脏凭据不算；counts().complete 仍只表示正式默写覆盖。 */
+test('an expedition completion record unlocks the next unit, contiguously', () => {
+  const db = mkDb();
+  recordUnitComplete(db, 1, { now: 5 });
+  const p = view(db);
+  assert.equal(p.isUnlocked(2), true, '远征里把 Unit 1 全部拼完 → Unit 2 解锁');
+  assert.equal(p.isUnlocked(3), false, '只解下一个单元');
+  assert.equal(p.byUnit[1].expedition, true);
+  assert.equal(p.counts(1).complete, false, 'complete 仍只代表正式默写覆盖');
+  assert.equal(p.counts(1).passed, true);
+  // 跳着完成不算：Unit 3 有凭据但 Unit 2 没有 → Unit 4 仍锁
+  recordUnitComplete(db, 3, { now: 6 });
+  assert.equal(view(db).isUnlocked(4), false);
+  recordUnitComplete(db, 2, { now: 7 });
+  assert.equal(view(db).isUnlocked(4), true);
+});
+
+test('stale or malformed completion records never unlock', () => {
+  for (const rec of [{ complete: true }, { complete: 'yes', completedAt: 'x' }, { completedAt: 'x' }, true, null]) {
+    const p = view(mkDb({ unitProgress: { 1: rec } }));
+    assert.equal(p.isUnlocked(2), false, JSON.stringify(rec));
+  }
+});
+
+test('transitionNextUnit accepts expedition completion as the source unit being done', () => {
+  const db = mkDb();
+  const run = createRun(1, HERO, wordsFor(1));
+  assert.equal(transitionNextUnit({ run, progress: view(db) }).reason, 'incomplete');
+  recordUnitComplete(db, 1, { now: 5 });
+  assert.deepEqual(transitionNextUnit({ run, progress: view(db) }), { ok: true, from: 1, to: 2 });
 });

@@ -82,7 +82,7 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css'];
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
@@ -124,6 +124,8 @@ const PAUSE_ONLY_NEW = [
   // 战意·连击里程碑条容器：纯新增（归档里没有对应物），挂在战斗页词卡里 #fCombo 下方。
   // 连同上面的注释整块挖掉 —— 注释也是本次新增，留在骨架里会让「逐字相同」恒假。
   /    <!-- 战意·连击里程碑（docs\/feature-combo-milestones\.md）：[\s\S]*?<div class="comboMs" id="fComboMs"><\/div>\n/,
+  // 选词出招的候选卡容器：纯新增，挂在战斗词卡顶部 #fZh 之前。连同注释整块挖掉。
+  /    <!-- 选词出招（docs\/feature-word-choice\.md）：[\s\S]*?<div id="fOffer" hidden><\/div>\n/,
 ];
 // 包裹了既有控件的改动 → 还原成归档里的原始写法（放弃远征按钮被包进了一行 .row）。
 const PAUSE_BACK_TO_LEGACY = [

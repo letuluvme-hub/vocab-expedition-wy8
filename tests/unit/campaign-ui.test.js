@@ -132,15 +132,19 @@ test('every unit button carries data-unit so locators never depend on the label 
   assert.match(String(buttons[1].innerHTML), /完成 Unit 1 全部词汇后解锁/);
 });
 
-test('stale historical completion cannot contradict current formal evidence or unlock the next unit', () => {
+test('expedition completion unlocks the next unit without claiming formal dictation mastery', () => {
   const all = WORDS.filter(w => w.u === 1).map(w => w.w);
   const db = mkDb({ dictationMastered: all.slice(0, -1), unitProgress: { 1: { complete: true, completedAt: 'now' } } });
   const { buttons } = renderTitleUnits(db, wordsFor);
   const u1 = buttons.find(b => b.getAttribute('data-unit') === '1');
-  assert.match(u1.textContent, /44\/45/);
-  assert.doesNotMatch(u1.textContent, /已完成过|已全部完成/);
+  assert.match(u1.textContent, /远征已通关/);
+  assert.match(u1.textContent, /44\/45/, '默写进度仍如实显示');
+  assert.doesNotMatch(u1.textContent, /已全部完成|本册/);
   const u2 = buttons.find(b => b.getAttribute('data-unit') === '2');
-  assert.equal(u2.disabled, true);
+  assert.equal(u2.disabled, false, '远征完成凭据（带时间戳）解锁下一单元');
+  // 没有时间戳的旧凭据仍然不算
+  const stale = renderTitleUnits(mkDb({ dictationMastered: all.slice(0, -1), unitProgress: { 1: { complete: true } } }), wordsFor);
+  assert.equal(stale.buttons.find(b => b.getAttribute('data-unit') === '2').disabled, true);
 });
 
 test('completing unit 1 makes unit 2 playable and shows real progress', () => {

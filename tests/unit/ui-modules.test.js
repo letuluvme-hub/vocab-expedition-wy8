@@ -675,7 +675,13 @@ test('map.renderMap paints the same DOM as legacy and routes clicks to callbacks
     MAP_D_BOSS: 70, mapMetrics: () => helper.mapMetrics(), paintHpBar, relicById,
     enterNode: () => {}, toast: () => {}, sfx: { node: () => {} } })());
   // 遗物格换成像素图标，先归一化再逐元素对照（见 stripArt）。
-  assert.equal(stripArt(snapDoc(mineDoc, MAP_IDS)), stripArt(snapDoc(docOld, MAP_IDS)));
+  // 未来路线的连线提亮（docs/feature-word-choice.md 第三节）是有意漂移：只归一化非活跃线的
+  // 颜色 / 线宽 / 透明度三项，其余 DOM 仍要求逐字一致。
+  const DIM_NEW = 'stroke="#c7d2fe" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 5" opacity="0.42"';
+  const DIM_OLD = 'stroke="#ffffff22" stroke-width="1.4" stroke-linecap="round" stroke-dasharray="4 5" opacity="0.34"';
+  const mineSnap = snapDoc(mineDoc, MAP_IDS);
+  assert.ok(mineSnap.includes(DIM_NEW), '非活跃路线必须使用提亮后的样式');
+  assert.equal(stripArt(mineSnap.split(DIM_NEW).join(DIM_OLD)), stripArt(snapDoc(docOld, MAP_IDS)));
   assert.match(snap(mineDoc.getElementById('mRelics').children[0]),
     /<svg[^>]*class="pxicon"/, '地图遗物格应当画像素图标');
   assert.deepEqual(sounds, [1], 'node breath sound fires once per avail-set change');

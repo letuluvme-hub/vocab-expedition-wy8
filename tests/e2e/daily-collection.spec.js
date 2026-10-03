@@ -18,7 +18,8 @@ for(const width of [320,390])test(`original partner and all atlas cards fit ${wi
 });
 test('custom snapshot text is rendered safely and original collection is separate from report',async({game,page},info)=>{
  newOnly(info);await clock(page);await game.open({saved:{wordExposure:{unsafe:{word:{w:'<img src=x onerror=alert(1)>',z:'<script>window.bad=1</script>'},seen:true,practiced:true}}}});await openPracticePanel(page);await page.locator('#dailyAtlasToggle').click();await page.locator('#dailyAtlasUnit').selectOption('0');await expect(page.locator('#dailyAtlasCards')).toContainText('<img src=x onerror=alert(1)>');await expect(page.locator('#dailyAtlasCards img')).toHaveCount(0);await expect(page.locator('#dailyAtlasCards script')).toHaveCount(0);expect(await page.evaluate(()=>window.bad)).toBeUndefined();
- const order=await page.evaluate(()=>[...document.querySelector('#dailyEntry').children].filter(n=>n.id).map(n=>n.id));expect(order.indexOf('dailyCollectionHost')).toBeLessThan(order.indexOf('dailyHomeReport'));expect(await page.evaluate(()=>document.querySelector('#dailyAtlasHost').compareDocumentPosition(document.querySelector('#keyboardTipHost'))&Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+ const order=await page.evaluate(()=>[...document.querySelector('#dailyEntry').children].filter(n=>n.id).map(n=>n.id));expect(order.indexOf('dailyCollectionHost')).toBeLessThan(order.indexOf('dailyHomeReport'));// 2026-10：图鉴排在「开始远征」之后（docs/feature-word-choice.md 第五节）。
+  expect(await page.evaluate(()=>document.querySelector('#startRun').compareDocumentPosition(document.querySelector('#dailyAtlasHost'))&Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
 });
 test('owned partner decorations are selectable and a guaranteed new frame visibly decorates cards',async({game,page},info)=>{
  newOnly(info);await clock(page);await game.open({saved:{dailyCollection:{cosmetics:['leaf-ribbon','sky-scarf','star-pin'],unknown:'keep'}}});await openPracticePanel(page);

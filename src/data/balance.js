@@ -141,3 +141,16 @@ export const BASE_PURSE_GOLD = 25;
 //   就能把这轮买满之后重新变回 0 次，和影分身当初的漏洞是同一个形状。
 export const WHET_MAX_PER_RUN = 2;
 
+
+// ============ 战斗奖励经济（docs/feature-word-choice.md 第二节）============
+// 旧规则每场普通战都摆 3 张遗物卡：13 件遗物几场就拿完，「拿到遗物」不再是一件事。
+// 现在遗物主要来自精英 / 首领 / 商店 / 营火冥想 / 事件；普通战以道具为主。
+//   normalRelicChance —— 普通战掉 1 张遗物卡的概率（加权抽样，最多 1 张）
+//   normalItemChoices —— 普通战的道具二选一（不同种）
+//   eliteRelics / bossRelics —— 精英、首领的遗物候选张数（选 1）
+export const REWARD_ECONOMY = {
+  normalRelicChance: 0.2,
+  normalItemChoices: 2,
+  eliteRelics: 2,
+  bossRelics: 3,
+};

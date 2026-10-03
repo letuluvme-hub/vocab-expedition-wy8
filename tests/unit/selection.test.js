@@ -142,10 +142,29 @@ const HERO = { id: 'heroine', mod: { hp: 10, shield: 0, gold: 5, hint: 1, noise:
 const mkDb = () => ({ runs: 1, wins: 0, mastered: [], best: 0, custom: [], rewards: [] });
 
 /* ================= 地图 ================= */
-test('generateMap matches legacy buildMap node-for-node across many seeds', () => {
+// 2026-10 节点分布改版（docs/feature-word-choice.md 第三节）是**有意漂移**：只改了类型阈值，
+// 随机调用次数与顺序不变 —— 所以几何（行宽、x、连线）仍与旧版逐点一致，只有 type 会变。
+const shape = rows => rows.map(row => row.map(n => ({ x: n.x, row: n.row, done: n.done,
+  links: n.links.map(m => m.row + ':' + m.x) })));
+test('generateMap matches legacy buildMap geometry node-for-node across many seeds', () => {
   for (let s = 1; s <= 40; s++) {
-    assert.deepEqual(generateMap(seeded(s)), legacyGenerateMap(seeded(s)), 'seed ' + s);
+    assert.deepEqual(shape(generateMap(seeded(s))), shape(legacyGenerateMap(seeded(s))), 'seed ' + s);
   }
+});
+
+test('generateMap: row 0 never has a campfire and campfires are rarer than before', () => {
+  let rest = 0, all = 0, oldRest = 0, oldAll = 0, battles = 0, oldBattles = 0;
+  for (let s = 1; s <= 3000; s++) {
+    const rows = generateMap(seeded(s));
+    assert.equal(rows[0].some(n => n.type === 'rest'), false, 'seed ' + s + ' row 0 has rest');
+    for (const row of rows) for (const n of row) { all++; if (n.type === 'rest') rest++; if (n.type === 'battle') battles++; }
+    for (const row of legacyGenerateMap(seeded(s))) for (const n of row) {
+      oldAll++; if (n.type === 'rest') oldRest++; if (n.type === 'battle') oldBattles++;
+    }
+  }
+  assert.ok(rest / all < 0.14, 'rest share ' + (rest / all).toFixed(3));
+  assert.ok(rest / all < oldRest / oldAll - 0.05, '营火必须明显少于旧版');
+  assert.ok(battles / all > oldBattles / oldAll, '普通战斗占比上升');
 });
 
 test('generateMap keeps the row skeleton, boss row and pre-boss supply row', () => {

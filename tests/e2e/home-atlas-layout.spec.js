@@ -1,7 +1,7 @@
 import { test, expect } from './game-harness.js';
 const newOnly = info => test.skip(info.project.metadata.target === 'legacy', 'Home layout is new');
 
-for (const width of [320, 390, 1024]) test(`atlas is first, practice is closed at bottom on ${width}px home`, async ({ game, page }, info) => {
+for (const width of [320, 390, 1024]) test(`expedition CTA leads, atlas follows it, practice is closed at bottom on ${width}px home`, async ({ game, page }, info) => {
   newOnly(info);
   await page.setViewportSize({ width, height: 844 });
   await game.open();
@@ -16,7 +16,8 @@ for (const width of [320, 390, 1024]) test(`atlas is first, practice is closed a
   expect(await page.locator('#s-title').innerText()).not.toMatch(/每日默写|每日短局/);
   const bounds = await page.evaluate(() => {
     const before = (a, b) => !!(document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & Node.DOCUMENT_POSITION_FOLLOWING);
-    return { atlasFirst: before('homeAtlas', 'keyboardTipHost'), practiceLast: before('rewardCollection', 'dailyEntry'),
+    // 2026-10：远征是主玩法，「开始远征」与遗物/导入行在图鉴之前（docs/feature-word-choice.md 第五节）。
+    return { atlasFirst: before('startRun', 'homeAtlas') && before('toRelics', 'homeAtlas'), practiceLast: before('rewardCollection', 'dailyEntry'),
       separate: !document.getElementById('dailyEntry').contains(document.getElementById('homeAtlas')),
       width: document.documentElement.scrollWidth, atlasHeight: document.getElementById('homeAtlas').getBoundingClientRect().height };
   });

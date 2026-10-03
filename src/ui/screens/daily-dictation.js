@@ -12,7 +12,11 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   const entrySummary = el('summary','home-practice-summary','练习与收藏');
   const title = doc.getElementById('s-title'); title.append(entry);
   const atlasHost = el('div','',undefined,'dailyAtlasHost');
-  title.insertBefore(atlasHost,doc.getElementById('keyboardTipHost')||title.querySelector('.lbl'));
+  // 远征是主玩法：图鉴放在「开始远征 / 遗物图鉴」那两行之后，而不是压在主操作上面
+  // （手机上旧排法把「开始远征」挤到第二屏以下）。找不到锚点时退回旧位置。
+  const relicRow = doc.getElementById('toRelics') && doc.getElementById('toRelics').parentElement;
+  if (relicRow && relicRow.parentElement === title) title.insertBefore(atlasHost, relicRow.nextSibling);
+  else title.insertBefore(atlasHost,doc.getElementById('keyboardTipHost')||title.querySelector('.lbl'));
   const keyboard = createDictationKeyboard({ document: doc, onInput: key => controller.input(key) });
   let hintAnswer = '', selectionUnit = '1';
   const state = () => controller.state();

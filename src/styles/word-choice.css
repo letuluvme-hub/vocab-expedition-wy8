@@ -1,0 +1,35 @@
+/* ---- word-choice（选词出招）----
+   只作用于战斗词框里的 #fOffer 容器及其后代。不改任何既有选择器。 */
+#fOffer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 9px}
+#fOffer[hidden]{display:none}
+#fOffer .wcCard{appearance:none;font:inherit;color:var(--fg);text-align:left;cursor:pointer;
+  display:flex;flex-direction:column;gap:2px;min-width:0;padding:6px 8px;border-radius:var(--r1);
+  background:#ffffff08;border:1px solid var(--line);transition:transform .12s var(--ease),border-color .12s}
+#fOffer .wcCard:hover:not(:disabled){border-color:var(--acc2);transform:translateY(-1px)}
+#fOffer .wcCard.on{border-color:var(--acc2);background:#22d3ee1a;box-shadow:0 0 0 1px #22d3ee55 inset}
+#fOffer .wcCard.kill{border-color:#ffce4d88}
+#fOffer .wcCard.on.kill{border-color:var(--gold);background:#ffce4d1a;box-shadow:0 0 0 1px #ffce4d66 inset}
+#fOffer .wcCard:disabled{cursor:default;opacity:.38}
+#fOffer .wcZh{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#fOffer .wcMeta{font-size:10.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#fOffer .wcKill{color:var(--gold);font-weight:900}
+#fOffer .wcTip{grid-column:1/-1;font-size:10.5px;color:var(--dim);text-align:center;line-height:1.2}
+#fOffer.locked .wcTip{color:var(--mut)}
+/* 只有两张候选时也铺满一行。 */
+#fOffer:has(.wcCard:nth-child(2):last-of-type){grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (prefers-reduced-motion:reduce){
+  #fOffer .wcCard{transition:none}
+}
+/* 有候选时，「Unit · N 字符」那一行与卡面重复（字母数已写在卡上），收起它把高度让给候选卡。
+   用兄弟选择器从 #fOffer 出发，不改 .cat 的既有规则。 */
+#fOffer:not([hidden]) ~ .cat{display:none}
+#fOffer:not([hidden]) ~ .zh{margin-bottom:8px}
+/* 中矮屏（iPhone SE / 8 一类）：卡片压紧、去掉说明行，保证字母槽仍在首屏。 */
+@media (max-height:760px){
+  #fOffer{gap:5px;margin:0 0 6px}
+  #fOffer .wcCard{padding:4px 6px;gap:0}
+  #fOffer .wcZh{font-size:11.5px}
+  #fOffer .wcMeta{font-size:10px}
+  #fOffer .wcTip{display:none}
+  #fOffer:not([hidden]) ~ .zh{margin-bottom:6px}
+}

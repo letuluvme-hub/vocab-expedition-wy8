@@ -29,14 +29,19 @@ export function generateMap(random = Math.random) {
     for (let c = 0; c < cnt; c++) {
       let type;
       if (isBoss) type = 'boss';
-      else if (r === 0) type = rnd(2) ? 'battle' : pick(['event', 'rest']);
+      // 第 0 行：开局先打一场或遇一个事件，不给营火（满血时休息没有意义）。
+      // ★ 仍然调用 pick()：随机调用次数与顺序不变，地图几何与旧版逐点一致。
+      else if (r === 0) type = rnd(2) ? 'battle' : pick(['event', 'event']);
       else if (isPreBoss) type = plan[c];
       else if (r <= MAP_EARLY_MAX) {
         const roll = random();
-        type = roll < 0.52 ? 'battle' : roll < 0.68 ? 'event' : roll < 0.92 ? 'rest' : 'elite';
+        // 前期：战斗 60% / 事件 18% / 营火 12% / 精英 10%（旧版营火 24%）
+        type = roll < 0.60 ? 'battle' : roll < 0.78 ? 'event' : roll < 0.90 ? 'rest' : 'elite';
       } else {
         const roll = random();
-        type = roll < 0.50 ? 'battle' : roll < 0.66 ? 'event' : roll < 0.80 ? 'rest' : roll < 0.92 ? 'shop' : 'elite';
+        // 后期：战斗 52% / 事件 14% / 营火 12% / 商店 10% / 精英 12%
+        // （遗物改为主要从精英/首领来，精英略增；旧版营火 14%、商店 12%）
+        type = roll < 0.52 ? 'battle' : roll < 0.66 ? 'event' : roll < 0.78 ? 'rest' : roll < 0.88 ? 'shop' : 'elite';
       }
       row.push({ type, x: (c + 0.5) / cnt, row: r, done: false, links: [] });
     }

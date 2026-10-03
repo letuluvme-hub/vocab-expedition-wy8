@@ -56,8 +56,10 @@ export function createMapScreen({ getRun, onEnter, onToast, onNodeSound }) {
           const x1 = n.x * W, y1 = yOf[r - 1], x2 = m.x * W, y2 = yOf[r];
           const act = G.avail.indexOf(n) >= 0 || (G.node === n);
           svg += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" vector-effect="non-scaling-stroke" stroke="' +
-            (act ? '#22d3ee' : '#ffffff22') + '" stroke-width="' + (act ? 2.2 : 1.4) +
-            '" stroke-linecap="round" stroke-dasharray="' + (act ? '' : '4 5') + '" opacity="' + (act ? .65 : .34) + '"/>';
+            (act ? '#22d3ee' : '#c7d2fe') + '" stroke-width="' + (act ? 2.2 : 1.5) +
+            '" stroke-linecap="round" stroke-dasharray="' + (act ? '' : '4 5') + '" opacity="' + (act ? .65 : .42) + '"/>';
+          // ★ 未来路线必须看得见：规划路线是地图存在的意义。旧版 #ffffff22 × 0.34 的虚线
+          //   在深色背景上几乎消失，玩家只能一层一层盲选。
         });
       });
     });

@@ -18,6 +18,7 @@ import { newRoundId, noteRoundUnitComplete } from './rounds.js';
 import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
 import { drawWord as selectWord, isPoolComplete } from '../domain/word-selection.js';
+import { offerWords, canSwitchWord } from '../domain/word-choice.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
 import { createTitleScreen } from '../ui/screens/title.js';
 import { createMapScreen } from '../ui/screens/map.js';
@@ -340,7 +341,7 @@ const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'
 /* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.dictationMastered，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
    所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
 const campaignState = () => unlockProgress({ units: UNITS.map(u=>u.n), wordsFor: allWords,
-  dictationMastered: DB.dictationMastered });
+  dictationMastered: DB.dictationMastered, unitProgress: DB.unitProgress });
 
 /* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
    设计原则：每个道具都有明确代价，不能无脑全带。
@@ -657,6 +658,9 @@ function startFight(n){
   //   改成只描述**发生了什么**，不猜来源 —— 玩家自己知道刚才拿了哪张卡。
   if(G.nextHint){ B.wordQ.hint++; B.wordQ.revealed++; toast('🔮 开场奖励：本场已自动揭示首字母') }
   G.nextHint=0;
+  // 选词出招：抽到的词旁边再给 2 个未完成的备选（不消耗随机数，见 domain/word-choice.js）。
+  // autoHint = 开场自动揭示的次数：不算「玩家动过这个词」，换词时随之带走。
+  B.offer=offerWords(G,qword,null); B.autoHint=B.hintTotal;
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
   if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
@@ -845,13 +849,30 @@ function nextWord(){
   //   kills / gold / wins 一律不动，怪物血与 run 状态如实保留。
   if(!nw) return showLearningComplete();
   const nl=drawLetters(nw);
+  const prevWord=B.word;
   B.word=nw; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);
   B.freezeWord=false;   // 寒冰护符只保护一个词
   B.input=[]; B.sel=0; B.hintUsed=0; B.hintTotal=0;
   B.wordQ=createWordQ();
   if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1; B.wordQ.hint++; B.wordQ.revealed++ }   // 学者之书：揭示首字母
+  B.offer=offerWords(G,nw,prevWord); B.autoHint=B.hintTotal;
   renderFight();
+}
+/* 选词出招：在这个词还没被动过时，换成候选里的另一个词（docs/feature-word-choice.md）。
+ * 只换「出哪个词」：血量、连击、提示额度、蓄力一概不动；开场自动揭示随之带到新词上。
+ * 新词重新生成字母盘 —— 换词本身不是一次作答，所以不打断蓄力、不记任何学习事实。 */
+function chooseWord(idx){
+  if(!B||!canSwitchWord(B)) return false;
+  const w=B.offer[idx];
+  if(!w||w.w===B.word.w) return false;
+  const nl=drawLetters(w);
+  B.word=w; B.letters=nl.letters; B.used=nl.used;
+  B.bad=new Array(nl.letters.length).fill(false);
+  B.input=[]; B.sel=0;
+  sfx.key();
+  renderFight();
+  return true;
 }
 // 字母盘列数：唯一来源，渲染与键盘导航共用，避免两处算法漂移
 // 仅「字母盘模式」用；键盘模式下 gridTemplateColumns 不生效，改由 bankRows() 给行列
@@ -1175,6 +1196,14 @@ document.addEventListener('keydown',e=>{
       if(id) progress.useItem(id);
       e.preventDefault();
     }
+    else if(e.key==='Tab'){
+      // 选词出招：Tab 依次切到下一个候选（这个词已经动过就不再响应，交还浏览器默认行为）。
+      if(canSwitchWord(B)){
+        const i=B.offer.findIndex(w=>w.w===B.word.w);
+        progress.chooseWord((i+1)%B.offer.length);
+        e.preventDefault();
+      }
+    }
     else if(e.key==='Backspace'){
       progress.undoLetter();
       e.preventDefault();
@@ -1303,7 +1332,8 @@ const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
   // Render live remaining time, never the last checkpoint's old full window.
   getFoeAttackFact:()=>foeAttackCtl.captureFact(),
   onPress:i=>{ if(progress.isPaused())return; B.sel=i;progress.pressLetter(i)},
-  onUseItem:id=>progress.useItem(id),paintSayBtn});
+  onUseItem:id=>progress.useItem(id),paintSayBtn,
+  onChooseWord:i=>progress.chooseWord(i)});
 const pauseScreen=createPauseScreen({getRun:()=>G,
   onResume:()=>{ resumeFromPause() },
   // ★ 返回主页**不放弃**远征：只把这一局留在内存里继续暂停，快照照旧留着。
@@ -1509,6 +1539,7 @@ const progress=createProgressController({state,api:{
   undoLetter:()=>combat.undoLetter(), useItem:id=>combat.useItem(id),
   requestHint:()=>combat.requestHint(), skipFight:()=>combat.skipFight(),
   fleeFight:()=>combat.fleeFight(),
+  chooseWord:i=>chooseWord(i),
   enterNode:n=>enterNode(n),
   chooseEncounter:id=>chooseEncounter(id),
   takeReward:id=>takeReward(id),
@@ -1557,7 +1588,9 @@ dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),atl
   getCards:unit=>dailyCollection.cards(unit),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
 });
 dailyCollectionView.paint();
-$('startRun').textContent='自由远征';
+$('startRun').textContent='开始远征';
+// 主操作常驻视口底部（styles/home-cta.css）：给它所在那一行一个宿主 id，不改 index.html 骨架。
+if($('startRun').parentElement) $('startRun').parentElement.id='startRow';
 const titleSub=$('s-title').querySelector('.sub');
 if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 收集单词卡，开启你的词汇远征';
 // Refresh the clock and accumulate active time through the timing port.
@@ -1667,7 +1700,7 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     get G(){return G}, set G(value){G=value},
     get B(){return B}, set B(value){B=value},
     get curUnit(){return curUnit}, set curUnit(value){curUnit=value},
-    newRun,startFight,pressKey,endRun:endRunNow,renderFight,renderTitle,renderMap,
+    newRun,startFight,pressKey,chooseWord:i=>progress.chooseWord(i),endRun:endRunNow,renderFight,renderTitle,renderMap,
     enterNode,showEvent,showRest,showShop,finishNode,advance,winFight,
     nextUnit,continueUnit,campaignState,
     loseFight,drawLetters,norm,hitDmg,wordDmg,wordComplete,typeLetter,
