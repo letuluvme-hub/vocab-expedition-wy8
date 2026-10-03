@@ -157,15 +157,18 @@ PR1 不宣称完整每日短局 e2e 已通过；日期到期回退属于 PR3，�
 
 浏览器首次实现运行 16 个全因日报宿主挂载顺序失败；修复为先创建宿主再挂部件。第二轮 15 通过、1 失败是测试时钟未冻结造成的毫秒期待漂移；改用真实页面 `clock.pauseAt` 固定操作起点后 16 个全部通过（7 个新日报、9 个原每日流程）。剪贴板回读是真实 Chromium API；拒绝用例仅替换平台能力，游戏报告逻辑未替换。新增手选计算样式断言在原通用 textarea 规则下已通过，日报仍补自身 Safari 手选规则。
 
+交接前补历史汇总展示验证：现有 `todayReport` 已提供 `summary` 的纯读副本 `archive`，新单测首跑 40 个全部通过，真实浏览器 seed 历史汇总用例首跑 1 个通过，没有制造实现前失败。临时移除 `archive` 端口后该目标测试 0 通过、1 失败；恢复后 40 个通过。纸卡显示「10词次」，当天词数仍为 0；修改返回汇总副本不会改存档。此补充只改测试和证据，没有变更生产实现。
+
 旧音频存档白名单真实运行 1 个失败，仅因本 PR 新增 `reviewSchedule/wordExposure/dailyReports` 不在旧清单；经整合者授权，只增加这三个合法字段，保留音频层不得自行写盘的断言。
 
 | 命令 | 实现者结果（整合者仍须独立复跑） |
 | --- | --- |
-| `node --test --test-reporter=tap tests/unit/daily-learning.test.js` | 0；39 通过、0 失败。 |
+| `node --test --test-reporter=tap tests/unit/daily-learning.test.js` | 0；40 通过、0 失败。 |
 | `npm run check:data` | 0；259 条，45/55/29/50/41/39，无数据修改。 |
-| `npm test` | 0；1105 通过、0 失败。 |
+| `npm test` | 0；1106 通过、0 失败。 |
 | `npm run build`、`npm run test:build` | 0；站点及离线单文件构建成功，3 个构建测试通过、0 失败，生产无状态探针。 |
 | `npx playwright test tests/e2e/daily-report.spec.js tests/e2e/daily-session.spec.js tests/e2e/audio-compatibility-game.spec.js --project=new` | 0；23 通过、0 失败、0 跳过（7 日报＋9 每日＋7 音频）。 |
+| `npx playwright test tests/e2e/daily-report.spec.js --project=new --grep "older summary"` | 0；新增历史汇总展示 1 通过、0 失败，显示 10 词次且今日为 0 词。 |
 | `git diff --check`、冻结词库/既有 CSS 对照 | 0；全部既有词库与样式逐字节未变，只新增自身前缀日报样式。 |
 
 未验证：iOS/Android/微信实机剪贴板权限与工具栏、安全区、中文字体、真实声音及真实学习效果；本测试环境中文缺字形，DOM 中文内容与结构坐标通过，截图未冒充真实设备排版。不同设备之间不会自动同步，纯静态站点日报只存在当前浏览器存档；没有云账户或服务器。

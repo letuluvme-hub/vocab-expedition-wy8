@@ -40,3 +40,8 @@ for(const width of [320,390])test(`parent report mobile ${width}px readable card
  newOnly(info);await page.setViewportSize({width,height:720});await game.open();await page.locator('#dailyHomeReport').scrollIntoViewIfNeeded();await page.screenshot({path:`/tmp/pr3-home-${width}.png`});
  const bounds=await page.locator('#dailyHomeReport').evaluate(el=>({box:el.getBoundingClientRect().toJSON(),color:getComputedStyle(el).color,background:getComputedStyle(el).backgroundColor,width:document.documentElement.scrollWidth}));expect(bounds.width).toBeLessThanOrEqual(width);expect(bounds.box.left).toBeGreaterThanOrEqual(0);expect(bounds.box.right).toBeLessThanOrEqual(width);expect(bounds.background).toBe('rgb(251, 253, 246)');
 });
+
+test('older summary displays ten word-times while today stays zero unique practice words',async({game,page},info)=>{
+ newOnly(info);await clockAt(page,'2026-10-02T04:00:00Z');await game.open({saved:{dailyReports:{schemaVersion:1,days:{},summary:{days:2,practicedWords:10,formalAttempts:12,firstTry:9,failedAttempts:3,activeMs:120000,sessionsCompleted:2,throughDate:'2026-09-01'}}}});
+ await expect(page.locator('#dailyReportArchive')).toContainText('10词次');await expect(page.locator('#dailyReportArchive')).toContainText('正式一次拼对 9/12');await expect(page.locator('#dailyReportArchive')).not.toContainText('10词数');await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：0');
+});

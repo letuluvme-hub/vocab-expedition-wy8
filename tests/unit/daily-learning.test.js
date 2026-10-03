@@ -124,3 +124,7 @@ test('replayed earlier clean attempt after a later word does not increase report
  const f=await fixture();f.start();f.warm();for(const k of f.ctl.state().attempt.target)f.ctl.input(k);const earlier=structuredClone(f.ctl.state().results[0]);f.ctl.next();for(const k of f.ctl.state().attempt.target)f.ctl.input(k);f.ctl.next();const before=structuredClone(f.db.dailyReports);
  f.learning.ports.onAttempt({session:f.ctl.state(),result:earlier,db:f.db,at:stamp('2026-10-02')});assert.deepEqual(f.db.dailyReports,before);
 });
+test('archive summary is a read-only report copy and ten daily unique words remain ten word-times',async()=>{
+ const {createDailyLearning}=await app(),db=fresh();db.dailyReports={schemaVersion:1,days:{},summary:{days:2,practicedWords:10,formalAttempts:12,firstTry:9,failedAttempts:3,activeMs:120000,sessionsCompleted:2,throughDate:'2026-09-01'}};
+ const learning=createDailyLearning({getDB:()=>db,getWords:()=>[cat,dog],now:()=>stamp('2026-10-02')});const report=learning.report();assert.equal(report.archive.practicedWords,10);assert.equal(report.archive.days,2);assert.equal(report.practicedWords,0);report.archive.practicedWords=999;assert.equal(db.dailyReports.summary.practicedWords,10);assert.equal(learning.report().archive.practicedWords,10);
+});
