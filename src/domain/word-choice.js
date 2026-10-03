@@ -15,6 +15,7 @@
 import { pendingWords } from './word-selection.js';
 import { hitDmg, wordDmg } from './damage.js';
 import { norm } from './text.js';
+import { newlyReached, milestoneGrant } from './combo-milestones.js';
 
 export const OFFER_SIZE = 3;
 
@@ -65,15 +66,18 @@ export function offerWords(run, main, prevWord, size = OFFER_SIZE) {
 /* 拼完这个词大约能打多少：逐字母模拟连击增长（与 combat.pressKey 同序：
  * 先 combo++，再按 hitDmg 结算），最后一击按 wordDmg。只读战斗、不改战斗。 */
 export function estimateWordDamage(run, battle, word) {
+  const current = battle.word && keyOf(battle.word.w) === keyOf(word.w);
   const sim = {
+    word, wordQ: battle.wordQ,
+    myHp: battle.myHp, shield: battle.shield, enHp: battle.enHp, enMax: battle.enMax,
     combo: battle.combo | 0, dmgBonus: battle.dmgBonus | 0, rageLeft: battle.rageLeft | 0,
     freezeWord: !!battle.freezeWord, wordStreak: battle.wordStreak | 0, foe: battle.foe,
     chainNext: !!battle.chainNext, wordsDone: battle.wordsDone | 0,
   };
+  const milestones = run && run.milestones && typeof run.milestones === 'object' && !Array.isArray(run.milestones) ? {...run.milestones} : {};
   const focus = !!(run && run.relics && run.relics.indexOf('focus') >= 0);
   // The selected card estimates damage still to come, including retyped
   // positions that cannot deal damage or increase combo a second time.
-  const current = battle.word && keyOf(battle.word.w) === keyOf(word.w);
   const start = current ? (battle.input || []).length : 0;
   const rewarded = current ? (battle.letterProgress ?? start) : 0;
   let letters = 0;
@@ -81,11 +85,21 @@ export function estimateWordDamage(run, battle, word) {
     if (i < rewarded) continue;
     sim.combo++;
     if (sim.combo > 1 && sim.combo % 5 === 0) sim.dmgBonus += 5 * Math.ceil(sim.combo / 5);
-    letters += hitDmg(run, sim);
+    const hit = hitDmg(run, sim);
+    letters += hit;
+    if(Number.isFinite(sim.enHp))sim.enHp = Math.max(1,sim.enHp - hit);
     // 末字母和它触发的整词大招共用最后一份怒火；大招后才消耗。
     if (sim.rageLeft > 0 && i < n - 1) sim.rageLeft--;
     // 连锁闪电：与 combat.pressKey 同序 —— 命中之后连击 +3、增伤 +8（只触发一次）。
     if (sim.chainNext) { sim.chainNext = false; sim.combo += 3; sim.dmgBonus += 8; }
+    // Grants happen after chain lightning and before the finisher in combat.
+    // Clone the ledger so a card preview never claims real run resources.
+    for (const milestone of newlyReached(sim.combo, milestones)) {
+      const grant = milestoneGrant(milestone, {...sim, maxhp: run && run.maxhp});
+      sim.shield = (sim.shield || 0) + grant.shield;
+      sim.myHp = (sim.myHp || 0) + grant.heal;
+      milestones[milestone.id] = true;
+    }
     if (focus && sim.combo > 0 && sim.combo % 6 === 0) sim.dmgBonus += 5;
   }
   const finisher = wordDmg(run, sim);

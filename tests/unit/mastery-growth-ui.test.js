@@ -223,7 +223,7 @@ test('恶意 / 未知文本只经 textContent 落屏（不会变成元素，也�
     view.mount(host);
     view.paint();              // innerHTML 若被赋值，这里就会抛
     const el = byIdDeep(host, 'masteryGrowth');
-    assert.equal(el.children.length, 4, '只有 4 个子节点，恶意串没有被解析成元素');
+    assert.equal(el.children.length, 6, '只有 6 个子节点，恶意串没有被解析成元素');
     const text = allText(host);
     assert.doesNotMatch(text, /<img|onerror|alert/, '坏值被数值化，绝不进 DOM 也不进文案');
     assert.match(text, /教材词汇 0\/0 · 下轮生命上限 \+0/, '降级成 0 而不是 NaN');

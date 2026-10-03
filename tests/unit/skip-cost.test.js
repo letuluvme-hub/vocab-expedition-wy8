@@ -64,7 +64,7 @@ async function harness({ B: overB = {}, G: overG = {} } = {}) {
   const toasts = [], calls = [], jobs = [];
   const dom = ids();
   const ports = {
-    $: id => dom[id], norm: s => String(s).toLowerCase().replace(/[^a-z]/g, ''),
+    $: id => dom[id], confirm: () => true, norm: s => String(s).toLowerCase().replace(/[^a-z]/g, ''),
     clamp: (v, a, b) => Math.max(a, Math.min(b, v)), rnd: () => 0,
     hasR: id => G.relics.indexOf(id) >= 0,
     itemById: () => undefined, hitDmg: () => 10, wordDmg: () => 40,

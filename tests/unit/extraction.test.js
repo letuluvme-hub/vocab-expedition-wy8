@@ -86,17 +86,18 @@ test('item catalog differs from legacy only in the deliberately re-costed entrie
 });
 
 const HERO_OVERRIDES = {
-  scholar: { d: '每场多 1 次提示，主动提示一次揭示 2 个字母；生命上限 -10。', mod: { hp: -10, hint: 1 } },
-  warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
+  scholar: { d: '每场多 1 次提示，主动提示一次揭示 2 个字母；无错误、无帮助的整词大招 +15%；生命上限 -10。', mod: { hp: -10, hint: 1 } },
+  warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；有护盾时整词大招 +20%；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
   scout: { d: '干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。', mod: { hp: -5, noise: -2 } },
-  lucky: { d: '开局多 15 金币，金币收益 +20%；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
+  lucky: { d: '开局多 15 金币，金币收益 +20%；每携带 50 金币整词大招 +5%（最多 +20%）；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
   healer: { d: '每场开场回复 10 生命，溢出治疗转为最多 4 护盾；生命上限 -5。', mod: { hp: -5, regen: 10 } },
   ranger: { d: '未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。', mod: { hp: -20, leech: 1 } },
 };
 test('hero balance changes only registered descriptions and modifiers; identity and voice stay unchanged', async () => {
   const { HEROES } = await import('../../src/data/heroes.js');
   const old = oldValue('HEROES');
-  assert.deepEqual(HEROES.map(h => h.id), old.map(h => h.id));
+  assert.deepEqual(HEROES.slice(0,6).map(h => h.id), old.map(h => h.id));
+  assert.deepEqual(HEROES.slice(6).map(h=>h.id),['berserker','pyromancer','assassin']);
   for (const h of old) assert.deepEqual(HEROES.find(x => x.id === h.id), { ...h, ...HERO_OVERRIDES[h.id] });
 });
 
@@ -108,7 +109,7 @@ test('unmodified enemy and unit catalogs are byte-for-byte equivalent values', a
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css', './hero-roster.css', './battle-stage.css'];
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
@@ -238,10 +239,29 @@ const backToLegacyHomeProgress = html => {
   return lf.replace(expedition, '').replace(formal, '$1已掌握$2');
 };
 
+// The battle stage now remains above the word/equipment scroller. Normalize
+// only that explicit move before comparing all retained controls with the archive.
+const backToLegacyBattleStage = html => {
+  const opening = '  <div id="fBattleStage" aria-label="双方战况">\n';
+  const end = '  </div><!-- /#fBattleStage -->\n';
+  assert.equal(html.split(opening).length, 2, 'exactly one persistent stage');
+  assert.equal(html.split(end).length, 2, 'stage has its own closing boundary');
+  const start = html.indexOf('  <div class="vsrow">', html.indexOf(opening));
+  const finish = html.indexOf(end, start);
+  const row = html.slice(start, finish);
+  assert.match(row, /id="fAv"/);assert.match(row, /id="fPc"/);
+  assert.doesNotMatch(row, /id="fTags"/);
+  let out = html.slice(0, start) + html.slice(finish);
+  out = out.replace(opening, '').replace(end, '').replace('  <div class="fmid">\n', '  <div class="fmid">\n' + row);
+  const tags = '    <div class="tagsm" id="fTags"></div>\n';
+  assert.equal(out.split(tags).length, 2, 'mechanism tags remain exactly once');
+  return out.replace(tags, '').replace('        <div class="fname" id="fName">词灵</div>\n', '        <div class="fname" id="fName">词灵</div>\n    ' + tags);
+};
+
 test('page skeleton preserves approved character parts and all existing controls', () => {
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
-  const comparable = backToLegacyHomeProgress(html)
+  const comparable = backToLegacyBattleStage(backToLegacyHomeProgress(html))
     .replace('<span class="desktopHelp">','').replace('方向键不做任何事。</span>','方向键不做任何事。')
     .replace('QWERTY / 字母序</b>（字母序按 A–Z 排）','键盘布局</b>（按电脑 QWERTY 排）')
     .replace('A–Z 字母序 ↔ 标准 QWERTY 键盘三行','乱序网格 ↔ 标准 QWERTY 键盘三行')

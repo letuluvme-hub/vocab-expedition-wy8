@@ -95,6 +95,7 @@
 </div>
 
 <div class="screen" id="s-fight">
+  <div id="fBattleStage" aria-label="双方战况">
   <div class="hud">
     <div class="hudrow">
       <span class="hlab l-me">我</span>
@@ -106,13 +107,11 @@
     </div>
     <div class="hudmsg" id="fMsg"></div>
   </div>
-  <div class="fmid">
   <div class="vsrow">
     <div class="foe">
       <div class="avatar" id="fAv">👾</div>
       <div class="finfo">
         <div class="fname" id="fName">词灵</div>
-        <div class="tagsm" id="fTags"></div>
         <!-- 蓄力条（清单 13）：由 ui/components/foe-attack-meter.js 画。
              放在 finfo 里而不是 vsrow 上层，这样怪物变大时它跟着敌人信息块走，
              不会把 .fmid 顶高、把下面的字母盘挤出手机可视区。 -->
@@ -135,11 +134,14 @@
       <div class="myname" id="fMyName">远征者</div>
     </div>
   </div>
+  </div><!-- /#fBattleStage -->
+  <div class="fmid">
   <div class="q card">
     <!-- 选词出招（docs/feature-word-choice.md）：2–3 张候选卡，只写中文与预估伤害。 -->
     <div id="fOffer" hidden></div>
     <div class="zh" id="fZh">词典</div>
     <div class="cat" id="fCat">Unit 1</div>
+    <div class="tagsm" id="fTags"></div>
     <div class="slots" id="fSlots"></div>
     <div class="combo" id="fCombo"></div>
     <!-- 完整词连胜的播报宿主（docs/feature-word-streak.md）：

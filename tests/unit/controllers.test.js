@@ -83,7 +83,7 @@ function combatHarness(over) {
   const state = { DB, G, B };
   const saved = [];
   const ports = {
-    $: id => ids[id], norm: s => String(s).toLowerCase().replace(/[^a-z]/g, ''),
+    $: id => ids[id], confirm: () => true, norm: s => String(s).toLowerCase().replace(/[^a-z]/g, ''),
     clamp: (v, a, b) => Math.max(a, Math.min(b, v)), rnd: n => 0, hasR: id => G.relics.indexOf(id) >= 0,
     itemById: id => ITEM_IDS.indexOf(id) >= 0 ? { id, n: id, max: 6, ic: '🩸' } : undefined,
     hitDmg: () => 10, wordDmg: () => 40, wordComplete: () => state.B.input.length >= 4,
@@ -394,6 +394,37 @@ test('skipFight：影分身首次免费，之后普通跳过固定损失 50 点�
   b.ctrl.skipFight();
   assert.equal(b.state.B.myHp, 30);
   assert.ok(b.fxOrder.includes('finishNode'));
+});
+
+test('致死跳过：取消不扣血、不结束；确认后只战败一次', async () => {
+  const h = await makeCombat({myHp: 50, shield: 99});
+  const messages = [];
+  h.ports.confirm = m => { messages.push(m); return false; };
+  assert.equal(h.ctrl.skipFight(), false);
+  assert.equal(h.state.B.myHp, 50);
+  assert.equal(h.state.B.over, false);
+  assert.deepEqual(h.fxOrder, []);
+  assert.match(messages[0], /50.*生命/);
+  assert.match(messages[0], /远征.*结束/);
+  h.ports.confirm = () => true;
+  assert.equal(h.ctrl.skipFight(), true);
+  assert.equal(h.state.B.myHp, 0);
+  assert.equal(h.ctrl.skipFight(), false);
+  assert.equal(h.fxOrder.filter(x => x === 'loseFight').length, 1);
+});
+
+test('安全跳过与免费影分身不弹确认；确认能力缺失时拒绝致死跳过', async () => {
+  for (const free of [false, true]) {
+    const h = await makeCombat({myHp: free ? 1 : 51});
+    h.ports.confirm = () => { throw new Error('Unexpected confirmation'); };
+    if(free)h.state.G.relics.push('ghost');
+    assert.equal(h.ctrl.skipFight(), true);
+    assert.equal(h.state.B.myHp, 1);
+  }
+  const h = await makeCombat({myHp: 49});
+  delete h.ports.confirm;
+  assert.equal(h.ctrl.skipFight(), false);
+  assert.equal(h.state.B.myHp, 49);
 });
 
 test('skipFight：影分身额度是 run 级 —— 第二场战斗必须付 50 点生命', async () => {

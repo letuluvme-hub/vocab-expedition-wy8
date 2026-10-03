@@ -1,14 +1,20 @@
 export const HEROES=[
- {id:'scholar', n:'学者',   tag:'读万卷书', d:'每场多 1 次提示，主动提示一次揭示 2 个字母；生命上限 -10。',
+ {id:'scholar', n:'学者',   tag:'读万卷书', d:'每场多 1 次提示，主动提示一次揭示 2 个字母；无错误、无帮助的整词大招 +15%；生命上限 -10。',
   mod:{hp:-10, hint:+1}, voice:{rate:0.85, pitch:1.05, prefer:'female'}},
- {id:'warrior', n:'战士',   tag:'一人成军', d:'生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；每场少 1 次提示。',
+ {id:'warrior', n:'战士',   tag:'一人成军', d:'生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；有护盾时整词大招 +20%；每场少 1 次提示。',
   mod:{hp:+15, hint:-1}, voice:{rate:1.0,  pitch:0.6,  prefer:'male'}},
  {id:'scout',   n:'探险家', tag:'不走弯路', d:'干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。',
   mod:{hp:-5, noise:-2}, voice:{rate:1.05, pitch:1.25, prefer:'female'}},
- {id:'lucky',   n:'幸运儿', tag:'随性而为', d:'开局多 15 金币，金币收益 +20%；生命上限 -5，连击加成 -10%。',
+ {id:'lucky',   n:'幸运儿', tag:'随性而为', d:'开局多 15 金币，金币收益 +20%；每携带 50 金币整词大招 +5%（最多 +20%）；生命上限 -5，连击加成 -10%。',
   mod:{hp:-5, gold:+15, combo:0.9}, voice:{rate:1.1,  pitch:1.35, prefer:'female'}},
  {id:'healer',  n:'治愈师', tag:'边打边治', d:'每场开场回复 10 生命，溢出治疗转为最多 4 护盾；生命上限 -5。',
   mod:{hp:-5, regen:10}, voice:{rate:0.8,  pitch:1.15, prefer:'female'}},
  {id:'ranger',  n:'游侠',   tag:'一击脱离', d:'未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。',
-  mod:{hp:-20, leech:1}, voice:{rate:1.15, pitch:0.85, prefer:'male'}}
+  mod:{hp:-20, leech:1}, voice:{rate:1.15, pitch:0.85, prefer:'male'}},
+ {id:'berserker', n:'狂战士', tag:'越险越勇', d:'整词大招 +25%；生命不高于一半时提高到 +45%。生命上限 -10，每场少 1 次提示。',
+  mod:{hp:-10,hint:-1}, voice:{rate:1.05,pitch:0.65,prefer:'male'}},
+ {id:'pyromancer', n:'焰术师', tag:'长词燎原', d:'7 个及以上字母的整词大招 +40%。生命上限 -15，每场少 1 次提示。',
+  mod:{hp:-15,hint:-1}, voice:{rate:0.95,pitch:1.1,prefer:'female'}},
+ {id:'assassin', n:'影刃', tag:'精准收割', d:'无错误、无帮助的整词大招 +35%；敌人生命不高于 35% 时提高到 +60%。生命上限 -15，每场少 1 次提示。',
+  mod:{hp:-15,hint:-1}, voice:{rate:1.1,pitch:0.8,prefer:'male'}}
 ];

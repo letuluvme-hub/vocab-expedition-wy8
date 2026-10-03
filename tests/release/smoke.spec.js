@@ -19,7 +19,7 @@ for (const [kind, url] of [
       await page.route(/^https?:\/\//, route=>route.abort());
     }
     await page.goto(url);
-    await expect(page.locator('#heroes .hcard')).toHaveCount(6);
+    await expect(page.locator('#heroes .hcard')).toHaveCount(9);
     await expect(page.locator('#units .unit')).toHaveCount(7);
     expect(await page.evaluate(()=>typeof window.__gameTest)).toBe('undefined');
     await page.locator('#startRun').click();

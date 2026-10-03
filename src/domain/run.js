@@ -2,6 +2,7 @@
 // 纯规则：不读 window / localStorage / 全局 G·B·DB，也不写任何 UI。
 // 搬自 runtime.js 的 newRun / buildMap 的状态部分 / advance / finishNode / endRun，
 // G/B/DB 换成显式参数，DOM 与存档写入留给调用方。
+import { validGrowthFact } from './mastery-growth.js';
 import { clamp } from './math.js';
 import { generateMap } from './map.js';
 import { createWordStreakState } from './word-streak.js';
@@ -49,18 +50,7 @@ export function isDuplicateRunStart(run) {
 //     否则整体按 +0 开局。存档/探针是外部输入，绝不让 NaN 渗进生命值。
 //   - baseMaxhp 是**角色基础值**（遗物/成长之前），只作诊断留档，不参与任何计算 ——
 //     校验上限不许拿它反推 maxhp，因为进本局后 maxhp 可能被别的合法途径抬高。
-const MAX_BONUS = 12;
-const INTERVAL = 20;
-function readGrowth(g) {
-  if (!g || typeof g !== 'object' || Array.isArray(g)) return null;
-  const { version, masteredAtStart, bonusHp } = g;
-  if (version !== 1) return null;
-  if (!Number.isInteger(masteredAtStart) || masteredAtStart < 0 || masteredAtStart > 259) return null;
-  if (!Number.isInteger(bonusHp) || bonusHp < 0 || bonusHp > MAX_BONUS) return null;
-  // bonusHp 必须真的是 floor(n/20) 的结果，否则这份「事实」是伪造的。
-  if (Math.min(MAX_BONUS, Math.floor(masteredAtStart / INTERVAL)) !== bonusHp) return null;
-  return g;
-}
+function readGrowth(g) { return validGrowthFact(g) ? g : null; }
 
 // 开局：返回与旧 newRun() 等价的 run（含地图与首层可选节点）
 export function createRun(unit, hero, pool, random = Math.random, growth = null) {
@@ -141,8 +131,9 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     bag: { leech: 2 },    // 新手送 2 个吸血獠牙
     // ★ 开局成长事实：合法时才带（脏值一律不写，run.growth 保持 undefined）。
     //   它是**诊断留档**，不是重算入口 —— 恢复路径绝不拿它或当前 DB 重算 maxhp。
-    growth: g ? { version: 1, masteredAtStart: g.masteredAtStart,
-                  bonusHp: g.bonusHp, baseMaxhp } : undefined,
+    growth: g ? { version: g.version, masteredAtStart: g.masteredAtStart,
+                  bonusHp: g.bonusHp, baseMaxhp,
+                  ...(g.version === 2 ? {bonusAttackPct:g.bonusAttackPct} : {}) } : undefined,
   };
   const rows = generateMap(random);
   run.rows = rows; run.cur = null; run.floor = 1; run.maxFloor = 1;

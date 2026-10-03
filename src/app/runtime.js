@@ -83,7 +83,7 @@ const growthFact=(mastered,words,hero)=>{
   const s=growthSummary(mastered,words);
   const m=(hero&&hero.mod)||{};
   return {version:GROWTH_VERSION,masteredAtStart:s.masteredCount,
-    bonusHp:s.bonusHp,baseMaxhp:70+(m.hp||0)};
+    bonusHp:s.bonusHp,bonusAttackPct:s.bonusAttackPct,baseMaxhp:70+(m.hp||0)};
 };
 
 // Transitional coordinator: preserve original event ordering during extraction.
@@ -1510,6 +1510,7 @@ const foeAttackCtl=createFoeAttackController({
       ||(PHASE_STATE!==PHASE.BATTLE)||!B||B.over||B.finished,
 });
 const combat=createCombatController({state,ports:{$,norm,clamp,rnd,hasR,itemById,hitDmg,wordDmg,wordComplete,
+  confirm:message=>confirm(message),
   creditWord,onWordWrong,centerOf,heroPoint,toast,sfx,TTS,burst,floatTxt,flash,ring,animHero,
   wordFinisher,foeCry,renderFight,nextWord,winFight,loseFight,finishNode,saveDB,
   onWholeWordComplete,onSpellingMistake,

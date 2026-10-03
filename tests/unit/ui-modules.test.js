@@ -753,7 +753,7 @@ test('title screen preserves legacy controls while separating matching expeditio
   assert.equal(unitSnap(mineDoc), unitSnap(docOld));
 
   const heroes = mineDoc.getElementById('heroes').children;
-  assert.equal(heroes.length, 6);
+  assert.equal(heroes.length, 9);
   assert.equal(heroes[5].className, 'hcard sel');
   assert.equal(heroes[5].attrs['aria-pressed'], 'true');
   assert.equal(heroes[0].attrs['aria-pressed'], 'false');
