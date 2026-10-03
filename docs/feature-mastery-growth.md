@@ -1,20 +1,20 @@
 # 知识成长
 
-教材掌握词越多，新开一轮的生命上限越高。已接入规则、主页与快照；不改伤害、角色能力、原词库或学习记录。
+教材正式默写掌握词越多，新开一轮的生命上限与攻击越高。2026-10-04 增加攻击成长；不改原词库或正式掌握判定。
 
 ## 规则
 
-只计DB.mastered与259教材词身份交集、去重。身份严格trim+lower，内部空白、连字符原样保留，与出词和解锁一致。每20个教材词增加1点新轮生命上限，最多12点；19→0、20→1、239→11、240→12、259→12，自定义独有词不计。
+只计 DB.dictationMastered 与 259 教材词身份交集、去重。身份严格trim+lower，内部空白、连字符原样保留，与出词和解锁一致。每20个教材词增加1点新轮生命上限，最多12点；19→0、20→1、239→11、240→12、259→12，自定义独有词不计。
 
-新轮按提高后的上限开局；正在远征不会因达到阈值补血或改上限，跨单元、同单元续练不叠加。runtime.newRun唯一求growthSummary，传createRun可选第五参数；其他调用不传则保持旧行为。
+攻击每 10 个词增加 4%，150 词达到 60% 上限。成长与装备百分比相加，字母攻击和整词大招共用，仍受既有伤害上限约束。新轮按提高后的上限开局；正在远征不会因达到阈值补血或改上限，跨单元、同单元续练不叠加。runtime.newRun唯一求growthSummary，传createRun可选第五参数；其他调用不传则保持旧行为。
 
 ## 冻结与存档
 
-run.growth={version:1,masteredAtStart,bonusHp,baseMaxhp}保存开局事实，baseMaxhp为遗物和成长前角色上限。schemaVersion仍1、growth可缺。旧档按原maxhp/hp恢复，不按当前掌握数补填重算。出现字段时校验版本、掌握0..259、加成0..12且档位一致、合法基础上限；损坏内存事实拒编码，不能删除字段悄悄降为旧档；解码同样拒绝损坏成长。遗物合法提高maxhp不要求等于base+bonus，不误拒旧玩法。
+新轮 run.growth={version:2,masteredAtStart,bonusHp,bonusAttackPct,baseMaxhp} 保存开局事实；旧 version:1 仍只加生命，不补攻击。，baseMaxhp为遗物和成长前角色上限。schemaVersion仍1、growth可缺。旧档按原maxhp/hp恢复，不按当前掌握数补填重算。出现字段时校验版本 1/2、掌握 0..259、生命加成 0..12 且档位一致，版本 2 的攻击也必须符合 10 词/4%/60% 的档位、合法基础上限；损坏内存事实拒编码，不能删除字段悄悄降为旧档；解码同样拒绝损坏成长。遗物合法提高maxhp不要求等于base+bonus，不误拒旧玩法。
 
 ## 主页
 
-masteryGrowthHost承载组件自建唯一masteryGrowth，显示当前教材掌握、下轮上限加成、离下档差词及只在新轮生效说明。缺数据为未知，不伪称封顶+0；全部textContent，只读。game.css末尾新增mastery-growth.css，保留音频提示和原七张CSS。
+masteryGrowthHost承载组件自建唯一masteryGrowth，显示当前教材默写掌握、下轮生命与攻击加成、离下档差词及只在新轮生效说明。缺数据为未知，不伪称封顶+0；全部textContent，只读。game.css末尾新增mastery-growth.css，保留音频提示和原七张CSS。
 
 ## 验证
 

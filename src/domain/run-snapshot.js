@@ -1,3 +1,4 @@
+import { validGrowthFact } from './mastery-growth.js';
 /* 版本化进度快照：纯编解码，无 DOM / 无存储 / 无全局。
  *
  * 三个不能破的约束：
@@ -167,12 +168,12 @@ function encodeCampaign(c, unit) {
  *   （遗物等），强行相等会把一份合法存档判成损坏。 */
 const GROWTH_MAX = 12, GROWTH_INTERVAL = 20;
 function encodeGrowth(g) {
-  if (!isObj(g) || g.version !== 1) return undefined;
+  if (!isObj(g) || !validGrowthFact(g)) return undefined;
   if (!isInt(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > 259) return undefined;
   if (!isInt(g.bonusHp) || g.bonusHp < 0 || g.bonusHp > GROWTH_MAX) return undefined;
   if (Math.min(GROWTH_MAX, Math.floor(g.masteredAtStart / GROWTH_INTERVAL)) !== g.bonusHp) return undefined;
   if (!isNum(g.baseMaxhp) || g.baseMaxhp < 1 || g.baseMaxhp > 9999) return undefined;
-  return { version: 1, masteredAtStart: g.masteredAtStart, bonusHp: g.bonusHp, baseMaxhp: g.baseMaxhp };
+  return { version: g.version, masteredAtStart: g.masteredAtStart, bonusHp: g.bonusHp, baseMaxhp: g.baseMaxhp, ...(g.version === 2 ? {bonusAttackPct:g.bonusAttackPct} : {}) };
 }
 function validGrowth(g) {
   return encodeGrowth(g) !== undefined;

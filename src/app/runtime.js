@@ -83,7 +83,7 @@ const growthFact=(mastered,words,hero)=>{
   const s=growthSummary(mastered,words);
   const m=(hero&&hero.mod)||{};
   return {version:GROWTH_VERSION,masteredAtStart:s.masteredCount,
-    bonusHp:s.bonusHp,baseMaxhp:70+(m.hp||0)};
+    bonusHp:s.bonusHp,bonusAttackPct:s.bonusAttackPct,baseMaxhp:70+(m.hp||0)};
 };
 
 // Transitional coordinator: preserve original event ordering during extraction.

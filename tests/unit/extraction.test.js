@@ -86,17 +86,18 @@ test('item catalog differs from legacy only in the deliberately re-costed entrie
 });
 
 const HERO_OVERRIDES = {
-  scholar: { d: '每场多 1 次提示，主动提示一次揭示 2 个字母；生命上限 -10。', mod: { hp: -10, hint: 1 } },
-  warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
+  scholar: { d: '每场多 1 次提示，主动提示一次揭示 2 个字母；无错误、无帮助的整词大招 +15%；生命上限 -10。', mod: { hp: -10, hint: 1 } },
+  warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；有护盾时整词大招 +20%；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
   scout: { d: '干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。', mod: { hp: -5, noise: -2 } },
-  lucky: { d: '开局多 15 金币，金币收益 +20%；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
+  lucky: { d: '开局多 15 金币，金币收益 +20%；每携带 50 金币整词大招 +5%（最多 +20%）；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
   healer: { d: '每场开场回复 10 生命，溢出治疗转为最多 4 护盾；生命上限 -5。', mod: { hp: -5, regen: 10 } },
   ranger: { d: '未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。', mod: { hp: -20, leech: 1 } },
 };
 test('hero balance changes only registered descriptions and modifiers; identity and voice stay unchanged', async () => {
   const { HEROES } = await import('../../src/data/heroes.js');
   const old = oldValue('HEROES');
-  assert.deepEqual(HEROES.map(h => h.id), old.map(h => h.id));
+  assert.deepEqual(HEROES.slice(0,6).map(h => h.id), old.map(h => h.id));
+  assert.deepEqual(HEROES.slice(6).map(h=>h.id),['berserker','pyromancer','assassin']);
   for (const h of old) assert.deepEqual(HEROES.find(x => x.id === h.id), { ...h, ...HERO_OVERRIDES[h.id] });
 });
 
@@ -108,7 +109,7 @@ test('unmodified enemy and unit catalogs are byte-for-byte equivalent values', a
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css', './hero-roster.css'];
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');

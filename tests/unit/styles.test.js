@@ -50,6 +50,7 @@ const ADDED = [
   ['./home-cta.css', /^#startRow/, '主页开始远征常驻'],
   ['./keyboard-shortcuts.css', /^\.keyShortcutHost\b/, '桌面快捷键提示'],
   ['./device-controls.css', /^\.device-|^#fHintShared\b/, '设备专属提示与共用额度'],
+  ['./hero-roster.css', /^#heroes\b|^\.pc\b/, '九角色形象'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

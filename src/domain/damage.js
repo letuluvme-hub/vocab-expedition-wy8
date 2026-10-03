@@ -1,3 +1,4 @@
+import { growthAttackPct } from './mastery-growth.js';
 import { clamp } from './math.js';
 import { WORD_DMG_CAP, WORD_DMG_CAP_ANCHOR_BASE } from '../data/balance.js';
 import { foeLetterMult, foeFinisherMult } from './foe-traits.js';
@@ -42,7 +43,7 @@ export function finTier(battle) {
 export function hitDmg(run, battle) {
   const base = baseDamage(run.floor);
   const mult = 1 + battle.combo * comboRate(run);
-  let d = Math.round(base * mult * (1 + battle.dmgBonus / 100));
+  let d = Math.round(base * mult * (1 + (Number(battle.dmgBonus) + growthAttackPct(run)) / 100));
   if (battle.rageLeft > 0) d = Math.round(d * ITEM_BALANCE.rageMultiplier);
   if (battle.freezeWord) d = Math.round(d * 0.5);
   // 怪种机制（石化词素等）：按 foe.n 解析，没有机制 / 认不出来时恒为 1，
@@ -56,7 +57,7 @@ export function hitDmg(run, battle) {
 export function wordDmg(run, battle) {
   const base = baseDamage(run.floor);
   const mult = 1 + battle.combo * comboRate(run) * WORD_COMBO_BOOST;
-  let d = Math.round(base * WORD_RATIO * mult * finTier(battle) * (1 + battle.dmgBonus / 100));
+  let d = Math.round(base * WORD_RATIO * mult * finTier(battle) * (1 + (Number(battle.dmgBonus) + growthAttackPct(run)) / 100));
   if (battle.rageLeft > 0) d = Math.round(d * ITEM_BALANCE.rageMultiplier);
   if (battle.freezeWord) d = Math.round(d * 0.5);
   d = Math.round(d * foeFinisherMult(battle.foe));
