@@ -186,3 +186,46 @@ PR3 改动文件：
 - `tests/e2e/daily-report.spec.js`
 - `tests/e2e/audio-compatibility-game.spec.js`
 - `docs/feature-daily-dictation.md`
+
+
+## PR4 伙伴、单词图鉴、打卡与每日外观
+
+主页每日入口前移到键盘说明之前；稳定宿主顺序为伙伴／图鉴 `#dailyCollectionHost`，然后日报 `#dailyHomeReport`。部件只重画自己内部的根节点，保留宿主和外来子节点。正式默写仍在独立每日屏幕，伙伴和展开的图鉴不会浮到释义、输入或键盘上。
+
+原创伙伴「墨芽」是由像素矩形绘成的墨水种子与星叶生物，代码原生 SVG，没有复用已有角色、怪物或任何现有游戏 IP。成长只读去重、`trim + lower` 的 `dictationMastered` 数量；旧 `mastered` 不追认成长。阈值是 0／5／20／50／100／200，对应初醒／发芽／结叶／微光／流星／星冠，均为外观形态，不改变战斗数值。已经获得的形态永久保留；复习失败降低当前掌握后，下阶段差词按当前真实数量计算，不删除已收集形态和装饰。
+
+图鉴按 Unit 1–6 浏览原 259 条卡片，原顺序与中英文、难度、主题不变，每个原词条仍有卡。当前自定义词表的全部有效词先列出，未见过的词也显示「未收集」；再并入 `wordExposure.word` 中以前的自定义词快照，英文身份去重，换词表不删除已经见过／练过的旧词卡。所有用户词与释义使用 `textContent`。
+
+| 卡面档位 | 真实证据 |
+| --- | --- |
+| 未收集 | 没有见过、练过或正式掌握事实。 |
+| 见过 | `wordExposure.seen:true`，单纯展示不算练过。 |
+| 练过 | `wordExposure.practiced:true` 或兼容旧 `mastered`；半词输入、热身和辅助完成不能直接成为「默写对」。 |
+| 默写对 | 当前 `dictationMastered` 有此身份。 |
+| 复习稳固 | 当前正式掌握且 `reviewSchedule.stable:true`、没有待纠正失败；通过完整 1／2／4／7／15 天阶梯才达到。正式失败后真实降档。 |
+
+结束每日局时，只有本局当前上海日期实际接受输入或正式帮助的事实才打卡和获得外观。空白开始后直接退出不获奖；仅结束昨天已暂停的练习不伪造今天打卡。热身／半词可以是实际练习，但绝不成为正式掌握。当天多局、重复结束与刷新最多一次签到和一次外观；外观从尚未拥有的六件中随机选择，收齐后诚实显示重复相遇。三件伙伴装饰和三件词卡边框都可在主页选择，结算页可预览和穿戴，效果实际显示在伙伴 SVG 或卡片内框。没有新增遗物、生命、伤害、金币或战斗奖励。
+
+连续天数以今天已签到或昨天为起点计算，断签不清空卡片、伙伴形态或外观。每个上海日历周允许一次补签，以该周周一日期作为额度身份，年末不混用周编号。目标必须是最近 7 天的过去漏签日，且不能早于首次真实签到；不可补今天、未来、已签到或使用前日期。补签只改变签到，不生成日报练习、正确率、词汇掌握或外观奖励。主页跨午夜只重绘日期展示，不每秒写盘。
+
+`dailyCollection` 为追加字段，包含 `schemaVersion:1`、永久 `unlockedStages`、外观 ID 数组 `cosmetics`、独立 `equipped` 槽位、按日期的 `gifts/checkins`、按周一日期的 `makeupWeeks` 和 `firstCheckinDate`；保留未知字段。当前检查点的 `dailySession.collection.practicedDates` 保存本局真实练习日期，便于午夜与恢复判断。旧正式掌握可以解开对应形态，旧实践记录不追认正式成长，旧日报不回放成签到或奖励。旧签到缺首次日期时从已有真实日期保守恢复；导入不完整收藏后，合法穿戴动作补默认槽位而不丢未知内容。外观／补签写盘失败会明确显示「未保存」，当前效果可继续使用；课堂输入继续有效。
+
+纯规则在 `src/domain/daily-collection.js`，`createDailyCollection({getDB,getWords,now,random,persist,onChange})` 组装端口。`onPractice/onFailure` 标记本局练习日期，`onAttempt` 同步永久形态，`onComplete` 结算当日签到和外观；与 PR3 学习端口组合后，都在原每日控制器的同一次保存之前更新。`view/cards` 纯读，只有合法 `equip/makeup` 动作才各保存一次。样式只在新增 `daily-collection.css`，所有选择器以自身 `.daily-collection` 容器为前缀。
+
+PR4 测试先失败提交 `d0455b6`：新单测 26 个全部失败，新浏览器完整流程 1 个失败（尚无伙伴 UI）。追加兼容回归提交 `6738107`：29 个单测中 26 通过、3 失败，对应自定义全量未收集词卡、缺首次日期的旧签到、导入缺 `equipped` 的穿戴；修复后 29 个通过。实际外观存储拒绝回归在 `8364967` 中先失败 1 个（缺未保存提示），随后补真实提示。关键变异临时删除按日防重复领奖规则，29 个中 28 通过、1 失败；恢复源码后再次全绿，变异未提交。
+
+浏览器初次完整实现 4 个中 3 通过、1 失败，原因是测试把随机卡框奖励误当伙伴装饰；修正为按实际槽位验证 SVG 装饰或真实 `box-shadow`。另有补签测试误把尚未保存的启动迁移视为日报变化，改为先比较内存中的完整迁移事实，再确认同次落盘结果。Unit 1 卡数期待笔误从 44 改为真实 45，没有丢卡或修改词库。音频旧白名单真实运行 1 个失败，经整合者授权仅追加 `dailyCollection` 合法字段，保留音频层不得自行写盘断言。
+
+| 命令 | 实现者结果；整合者仍须独立全量复跑 |
+| --- | --- |
+| `node --test --test-reporter=tap tests/unit/daily-collection.test.js` | 0；29 通过、0 失败。 |
+| `npm test` | 0；1135 通过、0 失败。 |
+| `npm run check:data` | 0；259 条，六单元 45／55／29／50／41／39，原词库未修改。 |
+| `npm run build`、`npm run test:build` | 0；站点与离线单文件成功，3 个构建测试通过、0 失败，生产无状态探针。 |
+| `npx playwright test tests/e2e/daily-collection.spec.js tests/e2e/audio-compatibility-game.spec.js tests/e2e/daily-report.spec.js tests/e2e/daily-session.spec.js --project=new` | 0；31 通过、0 失败、0 跳过（7 收藏＋24 既有回归）。 |
+| `npx playwright test tests/e2e/daily-collection.spec.js --project=new` | 0；新增跨午夜只读刷新后 8 通过、0 失败、0 跳过。覆盖全流程奖励、320／390 实际布局、伙伴与词卡两类可见穿戴、自定义文本安全、补签不造日报、实际存储拒绝与断签不清收藏。 |
+| `git diff --check`、冻结词库／既有 CSS 对照 | 0；全部原词库与已存在样式未变，仅新增自身容器前缀样式。 |
+
+PR4 改动文件：`src/domain/daily-collection.js`、`src/app/daily-collection.js`、`src/ui/components/daily-collection.js`、`src/styles/daily-collection.css`、`src/app/runtime.js`、`src/ui/screens/daily-dictation.js`、`tests/unit/daily-collection.test.js`、`tests/e2e/daily-collection.spec.js`、`tests/e2e/audio-compatibility-game.spec.js`、`docs/feature-daily-dictation.md`。
+
+未验证：真实学生的每日主动使用、10–15 分钟完成率、学校默写提升与伙伴阈值偏好；iOS／Android／微信真机字体、工具栏、安全区、触屏和实际声音。自动化环境中文缺字形，DOM 中文与坐标验收不等于真机字形验收。收藏和打卡仍为当前浏览器的本地存档，没有跨设备同步。
