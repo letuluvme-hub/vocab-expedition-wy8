@@ -3,5 +3,5 @@
    把它所在那一行钉在视口底部（sticky，不是 fixed）：滚到它原本的位置时自然归位，
    不浮在别的屏幕上，也不遮挡页底折叠区（sticky 只在主页文档流内生效）。
    只作用于 runtime 给那一行加的 #startRow。 */
-#startRow{position:sticky;bottom:calc(10px + var(--sab));z-index:4}
+#startRow{position:sticky;bottom:calc(10px + var(--sab));z-index:50;background:var(--bg)}
 #startRow #startRun{box-shadow:0 10px 28px #000a,0 0 0 1px #ffffff1a}

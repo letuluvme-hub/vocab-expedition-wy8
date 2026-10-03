@@ -55,7 +55,9 @@ for (const [kind, url] of [
       try{localStorage.setItem('wy8a_rogue_v1',JSON.stringify({runs:0,wins:0,mastered:[],custom:[],voice:false,mute:true,vol:0}))}catch{}
     });
     if(kind==='offline single HTML')await page.route(/^https?:\/\//,route=>route.abort());
-    if(kind==='built website')await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+    // The read-back assertion needs permission even when file:// writing succeeds
+    // from the user's click; otherwise Chromium waits on an unhandled read prompt.
+    await page.context().grantPermissions(['clipboard-read','clipboard-write']);
     await page.goto(url);expect(await page.evaluate(()=>typeof window.__gameTest)).toBe('undefined');expect(await page.evaluate(()=>typeof window.__VOCAB_TEST__)).toBe('undefined');
     await page.locator('#dailyEntry > summary').click();await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill('cat 猫\ndog 狗');await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
     for(const word of ['cat','dog']){await page.keyboard.type(word);await page.locator('#dailyNext').click()}
