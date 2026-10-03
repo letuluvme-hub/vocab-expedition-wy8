@@ -51,10 +51,10 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
       //   原因 —— 靠躲测试而不是靠结构，迟早又会被别的文本命中）。
       //   单元名与编号照常可见，脚本改用 data-unit / <b> 定位。
       b.setAttribute('data-unit', String(u.n));
-      // 进度口径统一来自 campaign（同一份 mastered + 同一份 trim+lower 身份），
+      // 进度口径统一来自 campaign（同一份 dictationMastered + 同一份 trim+lower 身份），
       // 所以主页说的「已掌握 12/45」与解锁判据永远不会是两套算法。
       const c = counts(u.n);
-      const m = c ? c.done : DB.mastered.filter(w => ws.some(x => x.w === w)).length;
+      const m = c ? c.done : (DB.dictationMastered || []).filter(w => ws.some(x => x.w === w)).length;
       const total = c ? c.total : ws.length;
       const head = '<b>' + u.t + '</b><span>' + ws.length + ' 词' + (ws.length ? '' : '（空）') + '</span>';
       if (!open) {
@@ -75,7 +75,7 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
     });
     $('sRun').textContent = DB.runs;
     $('sWin').textContent = DB.wins;
-    $('sMaster').textContent = DB.mastered.length;
+    $('sMaster').textContent = (DB.dictationMastered || []).length;
     $('sFloor').textContent = DB.best;
     $('rewardSummary').textContent = '通关纪念卡 · ' + DB.rewards.length + ' 张（点击查看）';
     const cards = $('rewardCards'); cards.innerHTML = '';
@@ -90,22 +90,9 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
   return { renderHeroes, renderTitle };
 }
 
-/* 一个单元按钮上那一行进度说明。
- *
- * ★ 为什么不能只看 mastered：DB.unitProgress 里的完成凭据是**永久历史成就**，
- *   而 mastered 是当前熟悉度。真实存档里两者会分叉（学过 → 旧词被退役/换版 →
- *   mastered 44/45 但完成凭据仍在）。那时候如果照抄旧写法就会出现
- *   「已全部完成」和「剩 1」同屏并存 —— 两句互相打脸的话。
- *   所以分成三态，各说一句真话：
- *     当前全掌握        → 已完成 m/total
- *     有历史凭据但没全掌握 → 已完成过 · 当前掌握 m/total（可复习）
- *     完全没开始        → 未开始
- *   绝不在同一句里同时说「已全部完成」和「还剩」。 */
-function unitProgressLine({ c, done, total }) {
+/* 进度只反映当前正式默写证据；旧远征完成凭据不授予解锁。 */
+function unitProgressLine({ done, total }) {
   if (!done) return '未开始';
-  const nowComplete = total > 0 && done >= total;
-  if (nowComplete) return '已完成 ' + done + '/' + total;
-  const historyDone = !!(c && c.complete);
-  if (historyDone) return '已完成过 · 当前掌握 ' + done + '/' + total + '（可复习）';
+  if (total > 0 && done >= total) return '已完成 ' + done + '/' + total;
   return '已掌握 ' + done + '/' + total;
 }

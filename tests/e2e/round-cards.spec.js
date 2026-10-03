@@ -151,7 +151,7 @@ test('historical mastery unlocks the next unit but never becomes this round comp
   newOnly(testInfo, 'The round evidence gate is a new regression guard');
   // 一份「259 个词历史全掌握」的存档：从 Unit 1 起手点「继续下一单元」在**解锁口径上**
   // 一直合法（口径不许收紧），可这一轮一个词都没答过 —— 卡上绝不许出现「本轮完成 Unit 1」。
-  await game.open({ saved: { mastered: WORDS.map(w => w.w) } });
+  await game.open({ saved: { dictationMastered: WORDS.map(w => w.w) } });
   await game.start(1);
 
   // 真打一场 BOSS：整词答对 litre → 卡发出（本轮完成范围此刻必然为空）。
@@ -193,7 +193,7 @@ test('an earned card is synced before 结束本轮学习, so abandon keeps the r
   // 真实起点 Unit 6：范围就是 [6] 本身（不猜编号、不借前 5 个单元充数）。
   // Unit 1..5 的真实学习记录放在存档的 mastered 里 —— 那正是 Unit 6 已解锁的依据。
   const u1to5 = WORDS.filter(w => w.u > 0 && w.u < 6).map(w => w.w);
-  await game.open({ saved: { mastered: u1to5 } });
+  await game.open({ saved: { dictationMastered: u1to5 } });
   await game.start(6);
 
   // DEV 只用来把词池准备到「真实只剩 1 个词」：最后一个词是真的一个字一个字敲完的。

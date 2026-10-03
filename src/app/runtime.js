@@ -1,3 +1,13 @@
+import { createDailyCollection } from './daily-collection.js';
+import { createDailyCollectionView } from '../ui/components/daily-collection.js';
+import '../styles/daily-collection.css';
+import { createDailyLearning } from './daily-learning.js';
+import { createDailyReportView } from '../ui/components/daily-report.js';
+import '../styles/daily-report.css';
+import { createDailyDictationController } from './daily-dictation.js';
+import { createDailyDictationScreen } from '../ui/screens/daily-dictation.js';
+import '../styles/dictation.css';
+import '../styles/daily-session.css';
 import { parseCustomWords } from '../domain/custom-words.js';
 import { createCombatController } from './combat.js';
 import { createEncounterController } from './encounters.js';
@@ -223,6 +233,10 @@ let DB=initializeDB(storage.load());
    于是「学习记录 + 当前快照」是同一次 commit，永远读不到旧奖励 / 旧相位。 */
 let dbDirty=false;
 const saveDB=()=>{ dbDirty=true };
+let dailyView=null;
+let dailyController=null;
+let dailyReportView=null;
+let dailyCollectionView=null;
 let progressCtl=null;   // progress 在本文件后面才创建；用可变引用避免 TDZ。
 /* ★ 真正的提交点。
  *   force=true（受闸门动作的事务末尾）：**无条件**把当前快照写下去。
@@ -321,11 +335,10 @@ const {burst,ring,floatTxt,flash,centerOf,heroPoint,animHero,wordFinisher}=creat
 
 const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
 
-/* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.mastered +
-   DB.unitProgress，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
+/* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.dictationMastered，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
    所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
 const campaignState = () => unlockProgress({ units: UNITS.map(u=>u.n), wordsFor: allWords,
-  mastered: DB.mastered, unitProgress: ensureProgress(DB) });
+  dictationMastered: DB.dictationMastered });
 
 /* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
    设计原则：每个道具都有明确代价，不能无脑全带。
@@ -463,11 +476,11 @@ function newRun(){
   if(!pool.length){alert('这个单元还没有词，去「导入词表」添加吧');return false}
   lifecycle.resetRun();TTS.stop();B=null;
   OUTCOME=null;
-  // ★ 知识成长（docs/feature-mastery-growth.md）：**只在这里**读一次 DB.mastered，
+  // ★ 知识成长（docs/feature-mastery-growth.md）：**只在这里**读一次 DB.dictationMastered，
   //   把成长事实交给 createRun 加进 maxhp。读一次就够 —— 本局内达到 20 词、
   //   跨单元、续段都不再重算（所以「中途退出重进」不会白赚一次上限）。
   //   恢复存档的路径根本不经过 newRun，所以也绝不会被当前 DB 重算。
-  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.mastered,WORDS,curHero()));
+  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.dictationMastered,WORDS,curHero()));
   // ★ 轮次身份（docs/feature-rounds.md）：这里注入一个持久 roundId。
   //   它必须不同于进程内自增的 run.id（R1/R2…，刷新后会重复）。
   //   轮次**编号**不在这儿取：registerRunStart 在真正 +1 之后从 DB.runs 取，
@@ -968,11 +981,11 @@ audioCompatibility=createAudioCompatibility({
 });
 audioCompatibility.mount($('audioCompatibility'));
 // ★ 知识成长只读区（docs/feature-mastery-growth.md）：挂在主页的 #masteryGrowthHost 里。
-//   getSummary 每次 paint 都重新按**当前** DB.mastered 现算，所以本局学到新词、
+//   getSummary 每次 paint 都重新按**当前** DB.dictationMastered 现算，所以本局学到新词、
 //   导入自定义词表、切换单元之后回到主页，数字都是当下的事实（不缓存第二套状态）。
 //   mount 幂等：renderTitle 被反复调用（继续远征 / 回主页 / 切后台）都复用同一个盒子。
 const masteryGrowthView=createMasteryGrowth({
-  getSummary:()=>growthSummary(DB.mastered,WORDS),
+  getSummary:()=>growthSummary(DB.dictationMastered,WORDS),
 });
 // ★ mount() 的返回值是**挂好的 DOM 盒子**，不是组件本身（与 audioSettings 同口径）：
 //   把组件另存一份，renderTitle 里要调的是它的 paint()。
@@ -1140,6 +1153,7 @@ $('tSkip').onclick=()=>progress.skipFight();
 $('tFlee').onclick=()=>progress.fleeFight();
 document.addEventListener('keydown',e=>{
   // 暂停屏优先：暂停期间任何键都不得改状态（闸门在 progress 里，这里只是不抢键）。
+  if(dailyView?.active()){ dailyView.handleKey(e); return; }
   if(progress.isPaused()) return;
   if($('s-fight').classList.contains('on') && B && !B.over){
     // 焦点在输入框里时一律不抢键（自定义词表导入框、存档文本框等）
@@ -1240,7 +1254,10 @@ $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){
 function renderHeroes(){return titleScreen.renderHeroes()}
 function renderTitle(){
   titleScreen.renderTitle();
-  // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.mastered
+  dailyView?.paintEntry();
+  dailyReportView?.paint();
+  dailyCollectionView?.paint();
+  // 知识成长区跟着主页一起重画：数字必须反映**此刻**的 DB.dictationMastered
   // （本局学完词、导入自定义词表之后回到主页，+1 必须立刻可见）。
   try{ masteryGrowthView.paint() }catch(e){}
   try{ keyboardTipView.paint() }catch(e){}
@@ -1503,6 +1520,43 @@ const progress=createProgressController({state,api:{
 },store:progressStore});
 progressCtl=progress;
 
+// Daily sessions own a separate checkpoint, never a replacement for G/B/activeRun.
+const dailyLearning=createDailyLearning({getDB:()=>DB,getWords:()=>WORDS});
+const dailyCollection=createDailyCollection({getDB:()=>DB,getWords:()=>WORDS,
+  persist:()=>{saveDB();return commit(false)},
+  onChange:()=>{dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
+});
+const dailyPorts={...dailyLearning.ports};
+for(const [name,port] of Object.entries(dailyCollection.ports)){
+  const learningPort=dailyPorts[name];dailyPorts[name]=payload=>{learningPort?.(payload);port(payload)};
+}
+dailyController=createDailyDictationController({
+  getDB:()=>DB, getWords:unit=>allWords(unit),
+  persist:()=>{saveDB();return commit(false)},
+  ...dailyPorts,
+  onChange:()=>{dailyView?.render();dailyReportView?.paint();dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
+});
+dailyView=createDailyDictationScreen({controller:dailyController,show,
+  onEnter:()=>{if(G&&!progress.isFinished())progress.returnToTitle();TTS.stop()},
+  onHome:()=>{renderTitle();show('s-title')},
+});
+dailyView.paintEntry();
+dailyReportView=createDailyReportView({host:$('dailyHomeReport'),getReport:()=>dailyLearning.report(),
+  copy:text=>navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(new Error('Clipboard unavailable')),
+});
+dailyReportView.paint();
+dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),getView:()=>dailyCollection.view(),
+  getCards:unit=>dailyCollection.cards(unit),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
+});
+dailyCollectionView.paint();
+$('startRun').textContent='自由远征';
+const titleSub=$('s-title').querySelector('.sub');
+if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 每日短局练默写，自由远征练拼词';
+// Refresh the clock and accumulate active time through the timing port.
+// Persist at action completion or the single time-budget checkpoint, not each tick.
+setInterval(()=>{dailyView.updateTime();dailyReportView.updateDate();dailyCollectionView.updateDate()},1000);
+
+
         // 字母光标
 
 /* 切后台 / 关闭页面：安全保存一次并进入暂停屏。
@@ -1511,6 +1565,7 @@ progressCtl=progress;
 if(typeof document!=='undefined' && document.addEventListener){
   document.addEventListener('visibilitychange',()=>{
     try{ if(document.hidden) TTS.stop() }catch(e){}
+    if(document.hidden&&dailyView?.active()){dailyController.pause('background');return;}
     try{
       // 已结算的一局（结算屏上）不参与：切后台既不重存也不抢界面。
       if(document.hidden){ if(G && !progress.isPaused() && !progress.isFinished()) pauseNow({fromReload:true}) }
@@ -1520,6 +1575,7 @@ if(typeof document!=='undefined' && document.addEventListener){
 }
 if(typeof addEventListener==='function'){
   addEventListener('pagehide',()=>{
+    if(dailyView?.active()){dailyController.pause('background');return;}
     try{ if(G && !progress.isPaused() && !progress.isFinished()) pauseNow({fromReload:true}) }catch(e){}
   });
 }
@@ -1584,7 +1640,7 @@ $('toReset').onclick=()=>{
   const keepHero=DB.hero;   // 清档不该让人重选角色
   // 字母盘显示偏好也留着：清档清的是进度，不是界面口味（与 keepHero 同理）
   const keepKb={kbMode:DB.kbMode,kbUpper:DB.kbUpper};
-  DB={runs:0,wins:0,mastered:[],best:0,custom:[],rewards:[],unitProgress:{},
+  DB={runs:0,wins:0,mastered:[],dictationMastered:[],reviewQueue:[],best:0,custom:[],rewards:[],unitProgress:{},
       hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
   // 清档必须连未结束的远征快照一起删，否则刷新会把「已清空」的存档复活成一局死局。
   // 走 progress.resetProgress：删快照与写新的 DB 在**同一次** storage.save 里完成。
@@ -1611,6 +1667,7 @@ if (import.meta.env.DEV && window.__VOCAB_TEST__ === true) {
     sayCurrentWord,useItem,show,TTS,AU,WORDS,UNITS,HEROES,ITEMS,RELICS,
     // 暂停/恢复测试面：只暴露动作，不暴露内部实现
     progress, pauseNow, resumeFromPause, chooseEncounter, takeReward,
+    dailyController,
     // 蓄力自主攻击（清单 13）：只暴露动作与事实，不暴露定时器内部。
     foeAttack:foeAttackCtl, enemyHit:d=>combat.enemyHit(d),
     get phase(){return PHASE_STATE}, get encounter(){return ENCOUNTER},

@@ -1,0 +1,39 @@
+.daily-collection { margin-top: 14px; padding: 12px; border: 1px solid #436573; border-radius: 12px; background: #152632; color: #e8f3ed; min-width: 0; text-align: left; }
+.daily-collection h3, .daily-collection h4 { margin: 0 0 8px; font-size: 16px; line-height: 1.4; }
+.daily-collection p { margin: 6px 0; line-height: 1.5; overflow-wrap: anywhere; }
+.daily-collection .daily-collection-note { font-size: 12px; color: #bdcfcb; }
+.daily-collection .daily-collection-warning { font-size: 13px; color: #f7c696; }
+.daily-collection .daily-partner { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.daily-collection .daily-partner-art { flex: 0 0 88px; width: 88px; height: 88px; }
+.daily-collection svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; shape-rendering: crispEdges; }
+.daily-collection .daily-partner-facts { min-width: 0; font-size: 13px; }
+.daily-collection .daily-partner-facts h3 { font-size: 16px; }
+.daily-collection .daily-wardrobe, .daily-collection .daily-checkin { margin-top: 12px; padding-top: 10px; border-top: 1px solid #385260; }
+.daily-collection label { display: block; margin: 8px 0 4px; font-size: 13px; }
+.daily-collection select { display: block; width: 100%; min-width: 0; min-height: 44px; border: 1px solid #617a83; border-radius: 8px; padding: 8px; background: #223947; color: #f4fbf7; font: inherit; font-size: 16px; }
+.daily-collection button { display: block; width: 100%; min-height: 44px; margin-top: 10px; padding: 9px; border: 1px solid #77998f; border-radius: 8px; background: #294e48; color: #f1fff7; font-family: inherit; font-size: 14px; line-height: 1.4; cursor: pointer; }
+.daily-collection button:focus-visible, .daily-collection select:focus-visible { outline: 2px solid #f5d99b; outline-offset: 2px; }
+.daily-collection .daily-atlas { margin-top: 10px; }
+.daily-collection .daily-atlas-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 8px; }
+.daily-collection .daily-card { min-width: 0; padding: 10px 8px; border: 2px solid #3e4b60; border-radius: 8px; background: #202d3d; overflow-wrap: anywhere; }
+.daily-collection .daily-card strong { display: block; font-size: 14px; line-height: 1.4; }
+.daily-collection .daily-card p { font-size: 12px; }
+.daily-collection .daily-card .daily-card-level { display: inline-block; font-size: 11px; color: #cfdbdf; }
+.daily-collection .daily-card.level-0 { opacity: .65; }
+.daily-collection .daily-card.level-1 { border-color: #62758d; }
+.daily-collection .daily-card.level-2 { border-color: #63ada6; }
+.daily-collection .daily-card.level-3 { border-color: #8ba7e9; }
+.daily-collection .daily-card.level-4 { border-color: #e8ca79; background: #39382d; }
+.daily-collection .daily-card[data-frame="dawn-frame"] { box-shadow: inset 0 0 0 2px #d88da3; }
+.daily-collection .daily-card[data-frame="mint-frame"] { box-shadow: inset 0 0 0 2px #80d4af; }
+.daily-collection .daily-card[data-frame="night-frame"] { box-shadow: inset 0 0 0 2px #aa96dc; }
+.daily-collection .daily-gift-preview { width: 90px; min-height: 90px; margin: 8px auto; }
+.daily-collection .daily-gift-preview svg { height: 90px; }
+@media (max-width: 350px) {
+  .daily-collection { padding: 10px; }
+  .daily-collection .daily-partner { gap: 7px; }
+  .daily-collection .daily-partner-art { flex-basis: 72px; width: 72px; height: 72px; }
+  .daily-collection .daily-partner-facts { font-size: 12px; }
+  .daily-collection .daily-partner-facts h3 { font-size: 14px; }
+  .daily-collection .daily-card strong { font-size: 13px; }
+}

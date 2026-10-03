@@ -239,11 +239,12 @@ test('a wrong word stays reviewable and never blocks the fresh words', async ({ 
   const afterWrong = await words(page);
   expect(afterWrong.wrong).toContain(target);
   expect(afterWrong.done).not.toContain(target);
-  // 完整答完这个错词后它必须从复习队列里消失（creditWord 去掉 wrong）
+  // 本轮完成可继续抽新词，错词事实保留在 run 和跨天复习队列。
   await typeCurrentWord(page);
   const after = await words(page);
   expect(after.done).toContain(target);
-  expect(after.wrong).not.toContain(target);
+  expect(after.wrong).toContain(target);
+  expect((await game.state()).DB.reviewQueue).toContain(target);
 });
 
 test('reloading on the checkpoint keeps the run and does not hand out a repeated word', async ({ game, page }, testInfo) => {

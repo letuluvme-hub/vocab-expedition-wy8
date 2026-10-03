@@ -11,6 +11,7 @@ import { SKIP_HP_COST } from '../data/balance.js';
 import { applyDamage, canFinishFight } from '../domain/battle-rules.js';
 import { newlyReached, milestoneGrant, milestoneToast } from '../domain/combo-milestones.js';
 import { synergyBonuses } from '../domain/relic-rules.js';
+import { dictationWordKey } from '../domain/dictation.js';
 
 export function createCombatController({ state, ports }) {
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
@@ -108,11 +109,20 @@ export function createCombatController({ state, ports }) {
       + ' —— 本轮的这一次已用尽');
     return true;
   }
+  function recordSpellingFailure() {
+    const B = state.B, DB = state.DB;
+    if (!B.mistaken) B.mistaken = [];
+    if (B.mistaken.indexOf(B.word.w) >= 0) return;
+    B.mistaken.push(B.word.w);
+    onWordWrong(B.word.w);
+    if (!Array.isArray(DB.reviewQueue)) DB.reviewQueue = [];
+    const key = dictationWordKey(B.word.w);
+    if (!DB.reviewQueue.some(w => dictationWordKey(w) === key)) DB.reviewQueue.push(key);
+    // Old mastered is historical practice; free practice cannot revoke formal evidence.
+    saveDB();
+  }
   function hurtPlayer(d, wrongCh, rightCh, opt) {
     const B = state.B, G = state.G, DB = state.DB;
-    // opt.soft = 「字母在单词里、只是顺序不对」这类非知识错误：
-    //   照样扣血、照样可能致死，但**不**记错词、不动掌握表、不播「不在这个词里」的文案
-    const soft = !!(opt && opt.soft);
     let dmg = d;
     if (B.lethUsed > 0) { B.lethUsed--; dmg = 0; toast('🍀 幸运草：免于本次惩罚'); }
     else if (B.firstWrong && B.boss) { B.firstWrong = false; dmg = Math.round(dmg / 2); toast('🛡️ 首领首击减半'); }
@@ -162,19 +172,9 @@ export function createCombatController({ state, ports }) {
     //     它买到的只是「信息」，不是「免责」。额度用完就彻底失效，
     //     所以这是有限资源决策，不是白捡的加强版。
     prophecyReveal();
-    // 错词记录：进本局复习队列，下一场优先出现。soft（顺序错）不算。
-    if (!soft) {
-      if (!B.mistaken) B.mistaken = [];
-      if (B.mistaken.indexOf(B.word.w) < 0) {
-        B.mistaken.push(B.word.w);
-        onWordWrong(B.word.w);
-        const i = DB.mastered.indexOf(B.word.w);
-        if (i >= 0) DB.mastered.splice(i, 1);
-        saveDB();
-      }
-    }
-    // ★ 不要在这里报出完整单词或下一个该填的字母 —— 错误提示剧透 = 直接给答案。
-    if (!soft) toast('❌ 「' + wrongCh + '」不在这个词里，再想想');
+    recordSpellingFailure();
+    // Letter membership and order errors have the same non-revealing feedback.
+    toast('不对');
     if (B.myHp <= 0) loseFight();
   }
 
@@ -189,10 +189,10 @@ export function createCombatController({ state, ports }) {
   /* ---------- 自主攻击：怪蓄满了打玩家一下（清单 13） ----------
    *
    * ★ 为什么必须独立于 hurtPlayer：hurtPlayer 是「玩家答错」的惩罚路径 ——
-   *   它会把当前词记成错词、踢进本局复习队列、从 DB.mastered 里删掉，
+   *   它会把当前词记成错词、踢进本局复习队列、保留练习历史，
    *   还要消耗幸运草 / 首领首击减半。自主攻击是**怪自己在打人**，
    *   走那条路径等于凭空把一个玩家根本没答错的词判成错词：直接破坏学习主线，
-   *   而且 mastered / G.att 这类计数会被一只怪物悄悄改掉。
+   *   而且 mastered / G.att 这类记录会被一只怪物悄悄改掉。
    *   所以这里只有「护盾 → 生命 → 判负」三步，别的什么都不碰。
    *   不触发荆棘反弹（那是答错的补偿）、不发假胜利、不动任何计数。
    */
@@ -470,17 +470,16 @@ export function createCombatController({ state, ports }) {
       }
       if (inWord) {
         // 字母在单词里、只是位置不对：扣 ORDER_DMG，但绝不标记 B.bad —— 会造成死局。
-        // soft=true 让 hurtPlayer 跳过「错词记录」。
+        // 顺序错误也记错词，伤害数值保持既有规则。
         G.att++;
-        if (B.freezeWord) toast('❄️ 冰冻中：这次不扣血');
+        if (B.freezeWord) { recordSpellingFailure(); toast('不对'); }
         else hurtPlayer(B.boss ? 8 : 6, ch, tgt[pos], { soft: true });
         B.combo = Math.max(0, B.combo - 1);
         B.wordStreak = 0;   // 同样是一次失手 → 连续整词计数清零
-        toast('「' + ch.toUpperCase() + '」在这个单词里，但位置不对');
       } else {
         B.bad[i] = true;
         G.att++;
-        if (B.freezeWord) toast('❄️ 冰冻中：这次不扣血');
+        if (B.freezeWord) { recordSpellingFailure(); toast('不对'); }
         else hurtPlayer(B.boss ? 16 : 12, ch, tgt[pos]);
         // 专注头环：连击中断时保留一半，而不是清零
         B.combo = hasR('focus') ? Math.floor(B.combo / 2) : 0;

@@ -1,0 +1,10 @@
+/* New feature styles are scoped; existing frozen CSS stays byte-for-byte intact. */
+.daily-dictation .dictation-keyboard { width: 100%; max-width: 640px; margin: 10px auto 0; }
+.daily-dictation .dictation-keyboard-row { display: flex; justify-content: center; gap: 3px; margin: 4px 0; }
+.daily-dictation .dictation-key { min-width: 0; min-height: 46px; flex: 1 1 0; max-width: 58px; padding: 8px 0; font-size: 17px; font-weight: 700; touch-action: manipulation; border: 1px solid #607ca4; border-radius: 8px; color: #f6faff; background: #243d61; }
+.daily-dictation .dictation-key:focus-visible { outline: 3px solid #f8d574; outline-offset: 1px; }
+.daily-dictation .dictation-key[data-key="Backspace"], .daily-dictation .dictation-key[data-key=" "] { flex: 1.5 1 0; max-width: 112px; }
+@media (max-width: 350px) {
+  .daily-dictation .dictation-keyboard-row { gap: 2px; }
+  .daily-dictation .dictation-key { font-size: 15px; min-height: 44px; }
+}

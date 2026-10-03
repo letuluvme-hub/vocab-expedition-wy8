@@ -44,6 +44,20 @@ domain -> explicit parameters / pure math
 - 现有字符串模板/innerHTML 不在本阶段整体重写。怪物 SVG 和输入释义的关键路径分别保持可信常量和 textContent；未来改模板必须单独测试输入安全。
 - 当前支持远征跨刷新恢复：`wy8a_rogue_v1` 的 `activeRun` 存版本化快照（`schemaVersion: 1`），G.done 的 Set 落盘成数组、地图节点 links 落盘成 nodeID 并在恢复时重新接回同一批对象。恢复不是新建：不加次数、不重跑遗物初始化、不重复发奖。损坏或版本不支持的快照 fail closed 并保留存档原文。详见 `docs/feature-pause.md`。
 
+## 每日默写边界
+
+每日默写由独立控制器持有 `dailySession`，不会替换自由远征 `G/B/activeRun`，没有独立的敌人攻击计时器或扣血入口。runtime 只装配端口、转交输入和生命周期事件；进入每日流程复用旧远征暂停闸门。日期与时长由注入的 `now` 提供，上海日期计算在纯 domain 中进行。
+
+| 模块 | 职责与提交边界 |
+| --- | --- |
+| `domain/dictation`、`ui/components/dictation-keyboard` | 严格正式证据与完整 26 字母输入，点击和实体键盘同一回调。 |
+| `domain/daily-session`、`app/daily-dictation` | 最多 16 词与半数复习配额、热身／正式／终点、15 分钟预算、暂停恢复和失败词延后；同一次保存前发出业务端口。 |
+| `domain/daily-learning`、`app/daily-learning` | 上海日期、1／2／4／7／15 天复习、正式评估幂等和 30 天日报；不独立保存。 |
+| `domain/daily-collection`、`app/daily-collection` | 原创伙伴形态、词卡、签到／补签与纯外观奖励；课堂业务端口同次保存，合法独立穿戴／补签各保存一次。 |
+| `ui/screens/daily-dictation`、`ui/components/daily-report`、`ui/components/daily-collection` | 只读事实与转交动作；日报调用真实剪贴板，拒绝时提供手选文本；自身容器样式，不改冻结 CSS。 |
+
+`onAttempt` 代表一个正式词已经处理完：可以是完整词，也可以是保留失败证据的未完成延后。只有完整词调用 `creditDictation`；延后结果明确为 `completed:false/deferred:true/eligible:false`。PR3 的 token 防止昨天错误今天仅点延后时重复评估或伪造今天的练习，PR4 不据此发签到奖励。旧 schema-1 完整结果缺 `completed` 仍按完整解释；相位和顺序矛盾、无错误延后、延后伪造掌握等快照拒绝恢复并保留原文。
+
 ## 后续产品演进
 
 页面、地图/抽词、战斗与奖励控制器、远征结转和生命周期边界已提取。**暂停快照（清单 5）已实施**：`domain/run-snapshot` 纯编解码、`services/progress` 单次提交、`app/progress` 暂停闸门与恢复检查点，见 `docs/feature-pause.md`。当前仍保留原地状态与旧调用顺序，不宣称所有函数纯化或玩法状态机已重新设计。后续攻击状态机、轮次主线和角色平衡按 `docs/product-backlog.md` 逐项实施，每功能独立Agent、先失败测试、整合者独立验收；共享状态协议串行变更。暂停闸门与 `lifecycle.pause()` 是清单 13（蓄力攻击）应当复用的冻结基础设施。稳定后可渐进TypeScript，多教材ID与教学策略另立任务。

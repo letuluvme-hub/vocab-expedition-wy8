@@ -9,8 +9,7 @@ export function creditWordProgress(db, run, word) {
   const added = db.mastered.indexOf(word) < 0;
   if (added) db.mastered.push(word);
   run.done.add(word);
-  const i = run.wrong.indexOf(word);
-  if (i >= 0) run.wrong.splice(i, 1);
+  // A corrected practice word keeps its failure evidence for later review.
   return added;
 }
 
