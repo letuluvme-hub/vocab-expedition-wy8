@@ -437,15 +437,26 @@ test('pressKey：整词拼完后连击清零，伤害不跨词叠加', async () 
   assert.equal(h.state.B.maxCombo, 4, '最高连击仍然记录');
 });
 
-test('fleeFight：金币不足不动，够则扣 10 金币结束节点', async () => {
-  const h = await makeCombat();
-  h.state.G.gold = 5;
-  h.ctrl.fleeFight();
-  assert.equal(h.fxOrder.length, 0);
-  h.state.G.gold = 20;
-  h.ctrl.fleeFight();
-  assert.equal(h.state.G.gold, 10);
-  assert.ok(h.fxOrder.includes('finishNode'));
+test('fleeFight：扣一半金币，最低 50；余额不足不允许逃跑', async () => {
+  for (const [gold, after] of [[50, 0], [80, 30], [100, 50], [101, 50], [300, 150]]) {
+    const h = await makeCombat(); h.state.G.gold = gold;
+    assert.equal(h.ctrl.fleeFight(), true);
+    assert.equal(h.state.G.gold, after, '起始金币 ' + gold);
+    assert.equal(h.state.B.won, false);
+    assert.equal(h.fxOrder.filter(x => x === 'finishNode').length, 1);
+    h.ctrl.fleeFight(); h.tm.fire();
+    assert.equal(h.state.G.gold, after, '连点与迟到回调不能重复扣款或发奖');
+    assert.equal(h.state.G.kills, 0);
+    assert.equal(h.state.DB.wins, 0);
+    assert.deepEqual(h.state.DB.rewards, []);
+    assert.ok(!h.fxOrder.includes('winFight'));
+  }
+  for (const gold of [0, 5, 49]) {
+    const h = await makeCombat(); h.state.G.gold = gold;
+    assert.equal(h.ctrl.fleeFight(), false);
+    assert.equal(h.state.G.gold, gold); assert.equal(h.state.B.over, false);
+    assert.equal(h.fxOrder.length, 0);
+  }
 });
 
 /* ---------------- 战斗：快照隔离 ---------------- */

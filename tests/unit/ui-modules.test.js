@@ -429,7 +429,7 @@ test('fight.renderFight paints the same DOM as the legacy function', async () =>
     // 其余每个 id 仍要求与旧版真实输出逐字一致。
     // 清单 13 有两处有意偏离旧版：tSkip 的代价文案、#fAv 的放大 inline style。
     // 其余每个 id 仍要求与旧版真实输出逐字一致。
-    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip' && id !== 'fAv');
+    const COMPARE_IDS = FIGHT_IDS.filter(id => id !== 'tSkip' && id !== 'tFlee' && id !== 'fAv');
     const normalizeFoeScale = s => s
       .replace(/\{width:\d+px\}/, '')            // 只抹掉放大写进去的尺寸
       .replace(/;?height:\d+px;font-size:\d+px/, '');
@@ -519,10 +519,10 @@ test('fight.renderFight labels the skip button by the run-level ghost charge, st
   assert.deepEqual(paint({ relics: ['ghost', 'ghost'], ghostUsed: true }),
     { skip: costly, title: '影分身本轮已用完：撤退需要损失 ' + SKIP_HP_COST + ' 点生命', flee: false, hint: false, hintN: '3 次' },
     '重复持有不恢复额度');
-  assert.deepEqual(paint({ relics: ['shield'], gold: 9 }),
-    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: true, hint: false, hintN: '3 次' }, '金币不足 10 禁逃跑');
-  assert.deepEqual(paint({ relics: ['shield'], gold: 10 }),
-    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: false, hint: false, hintN: '3 次' }, '刚好 10 金币仍可逃跑');
+  assert.deepEqual(paint({ relics: ['shield'], gold: 49 }),
+    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: true, hint: false, hintN: '3 次' }, '金币不足 50 禁逃跑');
+  assert.deepEqual(paint({ relics: ['shield'], gold: 50 }),
+    { skip: costly, title: '撤退：损失 ' + SKIP_HP_COST + ' 点生命（生命不足即战败）', flee: false, hint: false, hintN: '3 次' }, '刚好 50 金币仍可逃跑');
 });
 
 test('fight.renderFight sizes keyboard keys to the container in kb mode', async () => {

@@ -1,3 +1,4 @@
+import { fleeGoldCost } from '../../domain/battle-rules.js';
 /* 战斗页渲染：HUD（两条血条）、敌人形象、词信息、槽位、字母盘、道具栏、按钮状态。
  *
  * 契约：
@@ -258,7 +259,10 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
       : (ghostLeft
         ? '影分身：本轮远征唯一一次免费撤退，不计失败、不扣生命'
         : '影分身本轮已用完：撤退需要损失 ' + SKIP_HP_COST + ' 点生命');
-    $('tFlee').disabled = G.gold < 10;
+    const fleeCost = fleeGoldCost(G.gold);
+    $('tFlee').disabled = G.gold < fleeCost;
+    $('tFlee').innerHTML = '逃跑<small>损失 ' + fleeCost + ' 金币</small>';
+    $('tFlee').title = '损失一半金币，最低 50；不获得怪物奖励（余额不足不能逃跑）';
     $('fCombo').textContent = B.combo > 0 ? ('连击 ' + B.combo + '  ✦ 伤害 ×' + (1 + B.combo * comboRate()).toFixed(1)) : '';
     // 战意条紧挨着连击行：目标是可见才有追求。纯只读，绝不在这里发奖励。
     comboTrack.paint(B.combo, G.milestones);
