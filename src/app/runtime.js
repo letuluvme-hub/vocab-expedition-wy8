@@ -376,7 +376,7 @@ const heroVoice = id => heroById(id).voice || HERO_VOICE_DEFAULT;
    刷新一次语音自己回来了。commit(false) 在事务内部会自动延期到最外层。 */
 const TTS=createSpeech({heroVoice,curHeroId,rnd,voiceLines:VOICE_LINES,foeLineCfg,
   onChange:enabled=>{DB.voice=enabled;saveDB();commit(false)},
-  capability:audioCapability});
+  capability:audioCapability, onAnnouncementStart:count=>sfx.announcement(count)});
 
 /* ---- 语音层的启动挂钩 ----
    1) 浏览器自动播放策略：speechSynthesis 必须先有用户手势才肯发声。
@@ -684,7 +684,7 @@ function startFight(n){
   show('s-fight'); renderFight();
   sfx.enemy(boss||elite);
   foeCry('spawn');                                    // ← 语音层：敌人登场叫（音高按敌人种类散开）
-  // ← 语音层：入场中文台词。用 zh-CN 音色、每种怪不同 rate/pitch；
+  // ← 语音层：入场英文台词。用 en-US 音色、每种怪不同 rate/pitch；
   //   受 TTS.on 总开关 + 限流控制；没有中文音色时静默跳过（叫声仍在）。
   TTS.foeLine({n:e.n, elite:elite, boss:boss, ic:e.ic});
 }
@@ -1434,7 +1434,7 @@ const streakFeedback=createWordStreakFeedback({
   setState:s=>{ if(G) G.wordStreak=s },
   /* 低优先级播报：只在「没有词/提示在念」时才可能真的出声，
      且绝不 cancel 正在读的那句（见 speech.announcement）。 */
-  speakAnnouncement:req=>{ try{ return TTS.announcement(req&&req.text)===true }catch(e){ return false } },
+  speakAnnouncement:req=>{ try{ return TTS.announcement(req&&req.text,{count:req&&req.count})===true }catch(e){ return false } },
   getWordPriorityBusy:()=>{ try{ return TTS.wordPriorityBusy()===true }catch(e){ return false } },
   /* 「这场战斗还配不配让低优先级播报出声」。
    * ★ 判据**不是** `!B.over`：整词完成的瞬间里程碑刚排进队列，紧接着

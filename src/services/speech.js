@@ -7,7 +7,7 @@ import { CHANNEL } from './audio-capability.js';
 /* now / schedule / clearScheduled 同样是**可选**注入：不给就用真实 Date.now 与真实
    setTimeout，行为逐字不变；给了就让测试用假时钟钉死「多久之后」。
    ★ 占用上界、「每 120ms 轮询」这类**时长语义**必须可注入，否则只能真等。 */
-export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINES, foeLineCfg, onChange, environment = globalThis, capability = null, utteranceTimeoutMs = null, now: nowFn = null, schedule: scheduleFn = null, clearScheduled: clearFn = null }) {
+export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINES, foeLineCfg, onChange, onAnnouncementStart, environment = globalThis, capability = null, utteranceTimeoutMs = null, now: nowFn = null, schedule: scheduleFn = null, clearScheduled: clearFn = null }) {
   const TTS = (() => {
   const w=environment;
   const NOW    = typeof nowFn==='function'     ? nowFn     : () => Date.now();
@@ -64,39 +64,15 @@ export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINE
     return best;
   }
 
-  /* ---- 中文音色（怪物说中文台词用）
-     ★ 为什么必须单独筛：en 音色念中文是「塑料味」，完全不像人说话。
-     ★ 判定要同时认 zh-CN / zh_CN / zh-Hans / zh-TW / 裸 zh：各系统写法不统一
-       （Windows 是 zh-CN，Android 常是 zh-CN，macOS 有 zh-CN 与 zh-TW，
-        Chrome 桌面版还可能出现 zh_CN 下划线写法）。统一小写并把 _ 换成 -。 */
-  const normLang = v => String((v&&v.lang)||'').toLowerCase().replace(/_/g,'-');
-  const zhVoices = () => (T.voices||[]).filter(v=>v && normLang(v).indexOf('zh')===0);
-  /* 中文音色的性别同样只能靠名字猜：常见 zh-CN 本地音色有
-     Microsoft Huihui / Yaoyao（女）、Kangkang 小新（男）、Google 普通话（中性）。 */
-  const ZH_FEMALE=/(huihui|xiaoxiao|xiaoyi|xiaohan|xiaomo|yaoyao|tingting|ting-ting|sin-ji|mei-?jia|panpan|yunxia|liangliang|female|woman)/i;
-  const ZH_MALE=/(kangkang|yunxi|yunjian|yunfeng|yunyang|haowen|danny|male|man)/i;
-  const zhGender = v => {
-    const s=(v.name||'')+' '+(v.voiceURI||'');
-    if(ZH_FEMALE.test(s)) return 'female';
-    if(ZH_MALE.test(s))   return 'male';
-    return null;
-  };
-  /* 怪物 → 中文音色：同性别优先、离线音色优先、更自然的引擎优先；
-     最后按 seed 在候选里转一格，让不同怪尽量落到不同中文嗓子上。
-     一个 zh 音色都没有 → 返回 null（调用方静默跳过，绝不报错）。 */
-  function zhVoiceFor(cfg, seed){
-    const all=zhVoices();
-    if(!all.length) return null;
-    const pool=all.filter(v=>normLang(v)==='zh-cn');
-    const use=pool.length?pool:all;
-    const ranked=use.map(v=>{
-      let s=0; const g=zhGender(v);
-      if(cfg&&cfg.vo&&g) s += (g===cfg.vo?100:0);
-      if(v.localService) s += 10;
-      if(/natural|neural|enhanced|premium|普通话/i.test(v.name||'')) s += 4;
-      return {v:v,s:s};
-    }).sort((a,b)=>b.s-a.s).map(x=>x.v);
-    return ranked[Math.abs(seed||0)%ranked.length];
+  // English feedback voices stay separate from the hero's teaching voice.
+  function feedbackVoice(prefer = 'male', seed = 0) {
+    const all=enVoices(); if(!all.length) return null;
+    const us=all.filter(v=>String(v.lang||'').toLowerCase()==='en-us');
+    const pool=us.length?us:all;
+    const score=v=>(voiceGender(v)===prefer?100:0)+(v.localService?10:0)+(/natural|neural|enhanced|premium/i.test(v.name||'')?4:0);
+    const best=Math.max(...pool.map(score));
+    const tied=pool.filter(v=>score(v)===best);
+    return tied[Math.abs(seed)%tied.length];
   }
 
   const T={
@@ -224,15 +200,16 @@ export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINE
        3b) 上一条播报还在念 → false（播报自己不排队，避免两次提示叠在一起）；
        4) 说了就**不 cancel** 任何东西（noCancel）：正在读的那句绝不能被打断。
        true = 这一句真的发出去了；false = 这次没播（调用方只当「没播」）。 */
-    announcement(text){
+    announcement(text, { count = 1 } = {}){
       const s=String(text==null?'':text).trim();
       if(!T.supported || !T.on || !s) return false;
       if(T.wordPriorityBusy()) return false;
       if(T.announcementBusy()) return false;
       try{ if(synth && (synth.speaking || synth.pending)) return false }catch(e){}
-      const v=heroVoice(curHeroId());
-      return T.speak(s, { rate:Math.max(0.9,v.rate), pitch:v.pitch,
-        voice:voiceFor(curHeroId()), volume:.9, noCancel:true, announce:true });
+      const level=clamp(Math.floor(Number(count)||1),1,10);
+      return T.speak(s, { rate:1.04, pitch:Math.max(.68,.86-level*.02),
+        voice:feedbackVoice('male'), volume:1, noCancel:true, announce:true,
+        onStart:()=>{ if(typeof onAnnouncementStart==='function') onAnnouncementStart(level) } });
     },
 
     /* ★ 终局台词（win / lose）的「一条有界延迟」队列。
@@ -475,6 +452,13 @@ export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINE
       // 之前装，链式保留真实回调）。
       if(o.highPriority===true) T._claimPriority(u, est);
       if(o.announce===true) T._claimAnnouncement(u, est);
+      if(typeof o.onStart==='function') {
+        const generation=T._annGen; let started=false;
+        u.onstart=()=>{
+          if(started || !T.on || generation!==T._annGen || !T._annActive) return;
+          started=true; try{ o.onStart() }catch(e){ /* Optional impact must not block speech. */ }
+        };
+      }
       T.watchUtterance(u,{ text:String(text), rate:rate });
       // speak 抛错 = 这一路真的放不出声（微信隐私模式 / 系统 TTS 缺失时常见）
       try{ synth.speak(u); return true }catch(e){ T._retire(T._obs); T._obs=null; if(o.highPriority===true) T._releasePriority(); if(o.announce===true) T._releaseAnnouncement(); T.report('reportUtteranceFailure',CHANNEL.SPEECH,'utterance-error',e&&e.message); return false }
@@ -546,20 +530,16 @@ export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINE
       if(ok) T._lastLineAt=now;
       return ok;
     },
-    /* ⑤ 怪物入场中文台词。
-       ★ 与 foeCry() 的 WebAudio 叫声是两层东西：叫声是「非人声怪叫」，
-         这里才是怪物「说人话」。两者可以叠加，人声优先、限流让位。
-       ★ 必须用 zh-CN 音色 —— 用 en 音色念中文是塑料味。
-       ★ 找不到任何 zh 音色 → 静默返回 false，只留 WebAudio 叫声，绝不报错。 */
+    /* English monster dialogue keeps each species' pace and pitch.
+       Words and streaks retain priority; a missing voice uses the system en-US fallback. */
     foeLine(foe, opt){
       if(!T.supported || !T.on || !foe) return false;
-      if(T.wordPriorityBusy()) return false;      // 中文台词同样不抢词的读音
+      if(T.wordPriorityBusy()) return false;      // 怪物台词不抢词的读音
       if(T.announcementBusy()) return false;      // 也不许截断已经送出的连胜播报
       opt=opt||{};
       const cfg = foeLineCfg(foe);
       if(!cfg) return false;
-      const v = zhVoiceFor(cfg, cfg.seed||0);
-      if(!v) return false;                      // 无中文音色 → 优雅降级
+      const v = feedbackVoice(cfg.vo, cfg.seed||0);
       const now=NOW();
       // 限流：怪物之间至少 2.6s；不压在单词朗读尾巴（1.4s）上；
       //      也不压在角色刚说完的台词尾巴（1.8s）上 —— 免得两段话叠在一起。
@@ -574,7 +554,7 @@ export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINE
       if(arr.length>1 && i===T._lastPick[key]) i=(i+1)%arr.length;
       T._lastPick[key]=i;
       const ok=T.speak(arr[i], {rate:cfg.rate, pitch:cfg.pitch, voice:v,
-                                 lang:'zh-CN', volume:cfg.volume==null?.92:cfg.volume});
+                                 lang:'en-US', volume:cfg.volume==null?.92:cfg.volume});
       if(ok) T._lastFoeAt=now;
       return ok;
     },
