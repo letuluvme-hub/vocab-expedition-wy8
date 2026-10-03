@@ -37,6 +37,7 @@ test('skipping at exactly 50 HP kills the run instead of clamping to 1', async (
   await game.start();
   await game.fight();
   await setHp(page, 50);
+  page.once('dialog', d => d.accept());
   await page.locator('#tSkip').click();
   await expect(page.locator('#s-over')).toBeVisible();
   await expect(page.locator('#oTitle')).toHaveText('远征结束');
@@ -55,6 +56,7 @@ test('a skipped node is not advanced and grants no kills when the run is lost', 
   await game.start();
   await game.fight();
   await setHp(page, 10);
+  page.once('dialog', d => d.accept());
   const floorBefore = (await game.state()).G.floor;
   await page.locator('#tSkip').click();
   await expect(page.locator('#s-over')).toBeVisible();
@@ -72,6 +74,7 @@ test('double-clicking skip at low HP still ends the run exactly once', async ({ 
   await game.start();
   await game.fight();
   await setHp(page, 20);
+  page.once('dialog', d => d.accept());
   await page.locator('#tSkip').evaluate(el => { el.click(); el.click(); });
   await expect(page.locator('#s-over')).toBeVisible();
   const state = await game.state();
@@ -89,3 +92,17 @@ test('the skip button states the 50 HP cost', async ({ game, page }, testInfo) =
   await expect(page.locator('#tSkip')).toContainText('50');
   await expect(page.locator('#tSkip')).not.toContainText('不掉血');
 });
+
+for (const input of ['click','F8']) {
+  test(`lethal skip ${input} warns; cancellation preserves the fight and save`, async ({game,page},info) => {
+    newOnly(info,'New lethal confirmation');
+    await game.open();await game.start();await game.fight();await setHp(page,50);
+    const messages=[];page.on('dialog',async d=>{messages.push(d.message());await d.dismiss()});
+    if(input==='click')await page.locator('#tSkip').click();else await page.keyboard.press('F8');
+    await expect.poll(()=>messages.length).toBe(1);expect(messages[0]).toContain('远征立即结束');
+    await expect(page.locator('#s-fight')).toBeVisible();
+    expect((await game.state()).B.myHp).toBe(50);expect((await game.state()).B.over).toBe(false);
+    await page.locator('#tPause').click();await page.reload();await page.locator('#continueRun').click();
+    expect((await game.state()).B.myHp).toBe(50);await expect(page.locator('#s-fight')).toBeVisible();
+  });
+}

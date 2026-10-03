@@ -1510,6 +1510,7 @@ const foeAttackCtl=createFoeAttackController({
       ||(PHASE_STATE!==PHASE.BATTLE)||!B||B.over||B.finished,
 });
 const combat=createCombatController({state,ports:{$,norm,clamp,rnd,hasR,itemById,hitDmg,wordDmg,wordComplete,
+  confirm:message=>confirm(message),
   creditWord,onWordWrong,centerOf,heroPoint,toast,sfx,TTS,burst,floatTxt,flash,ring,animHero,
   wordFinisher,foeCry,renderFight,nextWord,winFight,loseFight,finishNode,saveDB,
   onWholeWordComplete,onSpellingMistake,

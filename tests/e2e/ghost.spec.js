@@ -79,6 +79,7 @@ test('a second free retreat is impossible even at full HP and gives no extra nod
   await game.fight();
   await page.evaluate(() => { window.__gameTest.B.myHp = 50; window.__gameTest.renderFight(); });
   const floorBefore = (await game.state()).G.floor;
+  page.once('dialog',d=>d.accept());
   await skip(page).click();
   await expect(page.locator('#s-over')).toBeVisible();
   const state = await game.state();
