@@ -44,7 +44,7 @@
   gap: 6px;
 }
 /* 窄屏：名称列用 minmax(0,7em) 而不是固定宽度，320px 下它自己收缩，
-   右侧效果列永远拿得到剩余宽度；不靠媒体查询切单列，这样本表的规则
+   右侧效果列永远拿得到剩余宽度；手机媒体查询在末尾切单列，本表的规则
    全部是纯 .equip 选择器（与 pause.css 同样可以逐条核对作用域）。 */
 .equip .eq-row {
   display: grid;
@@ -93,3 +93,10 @@
 /* 耗尽态（用满的道具、已用完的影分身）：仍然显示，但视觉上明确「本场不再生效」。 */
 .equip .eq-spent .eq-h { color: #6f7a88; text-decoration: line-through; }
 .equip .eq-spent .eq-d { color: #6f7a88; }
+
+/* On phones, names and effects each get the full width. */
+@media (max-width:480px){
+  .equip .eq-row{display:block}
+  .equip .eq-h{display:block}
+  .equip .eq-d{display:block;margin-top:4px}
+}

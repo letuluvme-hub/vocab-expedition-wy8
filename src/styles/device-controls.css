@@ -1,0 +1,7 @@
+.device-touch .desktopHelp,
+.device-touch #keyboardTipHost,
+.device-touch .keyShortcutHint,
+.device-touch #fItems .kb,
+.device-touch #map .kb,
+.device-android #dlAndroid{display:none!important}
+#fHintShared{color:var(--mut);font-size:11px;text-align:center;line-height:1.3;margin:0 0 4px}

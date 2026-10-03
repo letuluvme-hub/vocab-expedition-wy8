@@ -78,3 +78,7 @@ export function canFinishFight(battle) {
   if (hp === null) return false;
   return hp <= 0;
 }
+// 逃跑花当前金币的一半（向上取整），最低 50；余额不足不能支付。
+export function fleeGoldCost(gold) {
+  return Math.max(50, Math.ceil(Math.max(0, Number(gold) || 0) / 2));
+}

@@ -254,8 +254,13 @@ for (const width of [320, 390, 1024]) {
     }));
     expect(rows.filter(r => r.iconRight).length).toBeGreaterThanOrEqual(6);
     for (const row of rows) {
-      expect(row.descLeft, row.name + ': effect belongs in the right column').toBeGreaterThanOrEqual(row.headRight);
-      expect(Math.abs(row.descTop - row.headTop), row.name + ': effect shares the heading row').toBeLessThanOrEqual(1);
+      if(width>480){
+        expect(row.descLeft, row.name + ': effect belongs in the right column').toBeGreaterThanOrEqual(row.headRight);
+        expect(Math.abs(row.descTop - row.headTop), row.name + ': effect shares the heading row').toBeLessThanOrEqual(1);
+      } else {
+        expect(row.descWidth).toBeGreaterThan(row.rowWidth*.9);
+        expect(row.descTop).toBeGreaterThan(row.headTop);
+      }
       expect(row.descWidth, row.name + ': effect gets the remaining width').toBeGreaterThan(row.rowWidth / 2);
       if (row.iconRight) expect(row.iconRight).toBeLessThanOrEqual(row.headRight);
       expect(row.rowLeft).toBeGreaterThanOrEqual(0);

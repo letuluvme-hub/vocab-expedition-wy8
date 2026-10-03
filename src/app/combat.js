@@ -1,3 +1,4 @@
+import { fleeGoldCost } from '../domain/battle-rules.js';
 /* 战斗协调器：把 runtime.js 里的战斗输入/结算流程搬成可注入、可测的控制器。
  *
  * 设计约束（迁移期必须守住）：
@@ -646,10 +647,12 @@ export function createCombatController({ state, ports }) {
 
   function fleeFight() {
     const B = state.B, G = state.G;
-    if (!B || B.over || !G || G.gold < 10) return false;
-    G.gold -= 10;
-    B.over = true;
-    toast('逃跑成功，损失 10 金币');
+    if (!B || B.over || B.finished || !G) return false;
+    const cost = fleeGoldCost(G.gold);
+    if (G.gold < cost) return false;
+    G.gold -= cost;
+    B.over = true; B.won = false;
+    toast('逃跑成功，损失 ' + cost + ' 金币，不获得怪物奖励');
     sfx.flee();
     finishNode();
     return true;

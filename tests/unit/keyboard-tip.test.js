@@ -88,3 +88,9 @@ test('没有宿主容器时安静返回，不抛错', () => {
   const view = createKeyboardTip({ isSeen: () => false, onDismiss: () => {}, document: doc });
   assert.equal(view.paint(), null);
 });
+
+test('touch and Android hide the computer tip without marking it seen', () => {
+  const host=new El('div'); let dismissed=0;
+  const view=createKeyboardTip({isSeen:()=>false,isDesktop:()=>false,onDismiss:()=>dismissed++,document:doc});
+  view.mount(host);view.paint();assert.equal(host.children.length,0);assert.equal(dismissed,0);
+});
