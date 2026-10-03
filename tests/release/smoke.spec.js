@@ -57,7 +57,7 @@ for (const [kind, url] of [
     if(kind==='offline single HTML')await page.route(/^https?:\/\//,route=>route.abort());
     if(kind==='built website')await page.context().grantPermissions(['clipboard-read','clipboard-write']);
     await page.goto(url);expect(await page.evaluate(()=>typeof window.__gameTest)).toBe('undefined');expect(await page.evaluate(()=>typeof window.__VOCAB_TEST__)).toBe('undefined');
-    await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill('cat 猫\ndog 狗');await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
+    await page.locator('#dailyEntry > summary').click();await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill('cat 猫\ndog 狗');await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
     for(const word of ['cat','dog']){await page.keyboard.type(word);await page.locator('#dailyNext').click()}
     expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')).dictationMastered)).toEqual([]);
     await page.locator('#dailyFormal').click();await expect(page.locator('#dailyKeys .dictation-key')).toHaveCount(27);

@@ -833,8 +833,11 @@ test('over.renderOver draws the win screen with the current run reward', async (
   // 那一格整段排除在对照之外（旧版是 "🛡️"，新版是一整段 SVG，没有可比性），
   // 图标本身在下面单独断言 —— 否则这条对照会因为美术换代而永远红。
   const stripRelicArt = s => s.replace(/oRelics→[^\n]*/, 'oRelics→<art>');
-  assert.equal(stripRelicArt(stripRound(snapDoc(doc, OVER_IDS))),
-    stripRelicArt(snapDoc(docOld, OVER_IDS)));
+  // 用户移除了成功结算的重开按钮与复习提示；其余结算内容继续逐元素对照。
+  const SAME_OVER_IDS = OVER_IDS.filter(id => id !== 'oAgain');
+  const removeReviewCopy = value => value.replace('可复习本单元或返回选择单元。', '可以返回主页选择单元。');
+  assert.equal(stripRelicArt(stripRound(snapDoc(doc, SAME_OVER_IDS))),
+    removeReviewCopy(stripRelicArt(snapDoc(docOld, SAME_OVER_IDS))));
   // 遗物格确实换成了像素图标，而且每个都带着 hover 说明。
   const relicCells = doc.getElementById('oRelics').children;
   assert.equal(relicCells.length, 2);
@@ -849,7 +852,10 @@ test('over.renderOver draws the win screen with the current run reward', async (
   assert.equal(doc.getElementById('oFloor').textContent, '9');
   assert.equal(doc.getElementById('oKill').textContent, '21');
   assert.equal(doc.getElementById('oAcc').textContent, '90%');
-  assert.equal(doc.getElementById('oAgain').textContent, '复习本单元');
+  assert.equal(doc.getElementById('oAgain').textContent, '');
+  assert.equal(doc.getElementById('oAgain').hidden, true);
+  assert.equal(doc.getElementById('oAgain').onclick, null);
+  assert.doesNotMatch(doc.getElementById('oText').textContent, /复习本单元/);
   // 任务 7 的**有意漂移**：旧版在胜利屏上无条件预告「继续 Unit N+1」，那正是
   // 「打完 BOSS 就算掌握了这个单元」的谎话。现在没有 campaign 视图就没有解锁依据，
   // 于是这里退回本单元的诚实入口（真实运行期 runtime 一定传 campaign）。

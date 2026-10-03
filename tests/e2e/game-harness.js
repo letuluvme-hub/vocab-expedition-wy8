@@ -192,3 +192,9 @@ export const test = base.extend({
 });
 
 export { expect };
+
+// Exercise the native folded home entry before existing practice/collection flows.
+export async function openPracticePanel(page) {
+  const entry = page.locator('#dailyEntry');
+  if (!await entry.evaluate(node => node.open)) await entry.locator(':scope > summary').click();
+}

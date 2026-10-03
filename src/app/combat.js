@@ -12,8 +12,10 @@ import { applyDamage, canFinishFight } from '../domain/battle-rules.js';
 import { newlyReached, milestoneGrant, milestoneToast } from '../domain/combo-milestones.js';
 import { synergyBonuses } from '../domain/relic-rules.js';
 import { dictationWordKey } from '../domain/dictation.js';
+import { completeWordStats, decodeWordQ } from '../domain/word-quality.js';
 
 export function createCombatController({ state, ports }) {
+  const wordQ = b => b.wordQ || (b.wordQ = decodeWordQ(undefined));
   const { $, norm, clamp, rnd, hasR, itemById, hitDmg, wordDmg, wordComplete, creditWord,
     onWordWrong, centerOf, heroPoint, toast, sfx, TTS, burst, floatTxt, flash, ring, animHero,
     wordFinisher, foeCry, renderFight, nextWord, winFight, loseFight, finishNode, saveDB,
@@ -102,6 +104,9 @@ export function createCombatController({ state, ports }) {
     }
     B.hints = (B.hints | 0) - 1;
     B.hintTotal = (B.hintTotal | 0) + 1;
+    const q = wordQ(B);
+    q.hint++;
+    q.revealed += Math.max(0, tgt.length - pos - B.hintUsed);
     B.hintUsed = tgt.length - pos;
     G.prophecyUsed = true;                             // 记账在 run 上：换战斗不重置
     toast('📜 预知残卷：' + B.hintUsed + ' 个字母全部揭示（提示 −1）'
@@ -290,6 +295,7 @@ export function createCombatController({ state, ports }) {
         break;
       case 'reveal':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
+        const shownBefore = B.hintUsed;
         // ★ 代价：吃掉 1 点提示额度（与内置提示键同一个池子）。
         //   以前这里是纯白赚 —— 揭示 2 个字母且「不消耗提示次数」，于是它永远
         //   优于按提示键，道具就退化成了免费版按钮。现在它是一次取舍：
@@ -300,6 +306,9 @@ export function createCombatController({ state, ports }) {
         {
           const rt = norm(B.word.w), rp = B.input.length;
           const need = Math.min(2, rt.length - rp);
+          const q = wordQ(B);
+          q.hint++;
+          q.revealed += Math.max(0, need - shownBefore);
           for (let j = 0; j < B.letters.length; j++) {
             if (!B.used[j] && B.bad[j] && B.letters[j] === rt[rp]) B.bad[j] = false;
           }
@@ -431,6 +440,7 @@ export function createCombatController({ state, ports }) {
         //   dealDamage 里那个字母命中已经先把敌人扣到 1 血地板，所以这里
         //   「最后一个字母的普通 hit」绝不会抢先赢 —— 赢一定发生在大招上。
         const bonus = wordDmg();       // 大招伤害：≥ 单字母 ×3.2
+        G.qStats = completeWordStats(G.qStats, B.word.w, B.wordQ);
         creditWord(B.word.w);          // 整词拼完 → 记为学会（掌握表 + 本局退休）
         B.wordsDone = (B.wordsDone || 0) + 1;
         B.wordStreak = (B.wordStreak || 0) + 1;   // 连续整词 → 下一次大招更强
@@ -452,6 +462,7 @@ export function createCombatController({ state, ports }) {
       renderFight();
     } else {
       // ❌ 错误：区分「单词里根本没这个字母」和「字母对、只是顺序不对」
+      wordQ(B).wrong++;
       const inWord = tgt.indexOf(ch) >= 0;
       // 有效尝试（清单 13）：错字母同样打断蓄力 —— 用户原意是「输入字母则可以
       // 打断」。但**打断与教学惩罚分开记**：下面的 12/6 点扣血、错词记录、
@@ -551,6 +562,8 @@ export function createCombatController({ state, ports }) {
       return false;
     }
     B.hints--; B.hintUsed++; B.hintTotal = (B.hintTotal || 0) + 1;
+    const q = wordQ(B);
+    q.hint++; q.revealed++;
     // 提示同时解开被误标的字母，避免死局
     let freed = 0;
     for (let j = 0; j < B.letters.length; j++) {
