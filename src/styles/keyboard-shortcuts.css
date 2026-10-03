@@ -1,0 +1,11 @@
+/* Keyboard-only hints: scoped to the controls marked by keyboard-shortcuts.js. */
+.keyShortcutHost > .keyShortcutHint{display:none}
+.keyShortcutHost > .keyShortcutHint::after{content:attr(data-label)}
+.keyShortcutHost .kb{display:none}
+@media (min-width:768px) and (hover:hover) and (pointer:fine){
+  .keyShortcutHost > .keyShortcutHint{display:inline-block;margin:3px 0 0 6px;padding:2px 5px;
+    border:1px solid #ffffff38;border-radius:4px;background:#ffffff0b;color:var(--mut);
+    font:600 10px/1.2 ui-monospace,monospace;white-space:nowrap;vertical-align:middle;
+    pointer-events:none}
+  .keyShortcutHost.node > .keyShortcutHint{position:absolute;right:-7px;top:-8px;margin:0;background:var(--bg)}
+}

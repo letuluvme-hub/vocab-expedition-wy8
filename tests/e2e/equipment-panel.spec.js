@@ -235,6 +235,35 @@ test('restoring a saved fight re-syncs the panel from the restored snapshot', as
   await expect(page.locator('#fEquipment > summary')).toHaveText('装备与能力 · 5');
 });
 
+for (const width of [320, 390, 1024]) {
+  test(`equipment effects stay beside their icon and name at ${width}px`, async ({ game, page }, testInfo) => {
+    newOnly(testInfo);
+    await page.setViewportSize({ width, height: 844 });
+    await game.open(); await game.start();
+    await game.fight({ word: 'litre', enemyHp: 500 });
+    await grant(page, { heroId: 'ranger', relics: ['shield', 'forge', 'purse', 'hint'], bag: { leech: 2, stone: 1 } });
+    await page.locator('#fEquipment > summary').tap();
+    const rows = await page.locator('#fEquipment .eq-row').evaluateAll(nodes => nodes.map(row => {
+      const h = row.querySelector('.eq-h').getBoundingClientRect();
+      const d = row.querySelector('.eq-d').getBoundingClientRect();
+      const i = row.querySelector('.eq-ic')?.getBoundingClientRect();
+      const r = row.getBoundingClientRect();
+      return { name: row.querySelector('.eq-h').textContent, headRight: h.right, headTop: h.top,
+        descLeft: d.left, descTop: d.top, descWidth: d.width, rowWidth: r.width,
+        iconRight: i?.right, rowLeft: r.left, rowRight: r.right };
+    }));
+    expect(rows.filter(r => r.iconRight).length).toBeGreaterThanOrEqual(6);
+    for (const row of rows) {
+      expect(row.descLeft, row.name + ': effect belongs in the right column').toBeGreaterThanOrEqual(row.headRight);
+      expect(Math.abs(row.descTop - row.headTop), row.name + ': effect shares the heading row').toBeLessThanOrEqual(1);
+      expect(row.descWidth, row.name + ': effect gets the remaining width').toBeGreaterThan(row.rowWidth / 2);
+      if (row.iconRight) expect(row.iconRight).toBeLessThanOrEqual(row.headRight);
+      expect(row.rowLeft).toBeGreaterThanOrEqual(0);
+      expect(row.rowRight).toBeLessThanOrEqual(width + 1);
+    }
+  });
+}
+
 for (const width of [320, 390]) {
   test(`the panel fits ${width}px without horizontal overflow or covering the letter bank`, async ({ game, page }, testInfo) => {
     newOnly(testInfo);

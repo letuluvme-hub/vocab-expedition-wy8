@@ -48,6 +48,7 @@ const ADDED = [
   ['./word-choice.css', /^#fOffer/, '战斗页选词候选卡'],
   // 主页主操作常驻：前缀是 runtime 给「开始远征」那一行加的 #startRow。
   ['./home-cta.css', /^#startRow/, '主页开始远征常驻'],
+  ['./keyboard-shortcuts.css', /^\.keyShortcutHost\b/, '桌面快捷键提示'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

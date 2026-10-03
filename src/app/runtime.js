@@ -19,7 +19,7 @@ import { newRoundId, noteRoundUnitComplete } from './rounds.js';
 import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
 import { drawWord as selectWord, isPoolComplete } from '../domain/word-selection.js';
-import { offerWords, canSwitchWord } from '../domain/word-choice.js';
+import { offerWords, canSwitchWord, preferredOfferWord } from '../domain/word-choice.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
 import { createTitleScreen } from '../ui/screens/title.js';
 import { createMapScreen } from '../ui/screens/map.js';
@@ -39,6 +39,7 @@ import { pcHTML, heroStatLines, heroById, HERO_DEFAULT } from '../ui/components/
 import { rewardScope, renderRewardCard } from '../ui/components/reward-card.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 import { createEffects } from '../ui/effects.js';
+import { createGameShortcuts, isTextEntry } from '../ui/keyboard-shortcuts.js';
 import { createLifecycle } from './lifecycle.js';
 import { createFoeAttackController } from './foe-attacks.js';
 import { WORDS } from '../data/words.js';
@@ -640,10 +641,12 @@ function startFight(n){
   const hpMax = scaleEnemyHealth(foeBaseHpMax, G&&G.difficulty);
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
-  const qword = drawWord(budget);
+  const drawn = drawWord(budget);
   // ★ 词池已抽干（自定义小词表、或本单元词汇全部完成）：不进战斗，
   //   也不生成空字母盘 —— 统一走「本单元词汇已全部完成」检查点。
-  if(!qword) return showLearningComplete();
+  if(!drawn) return showLearningComplete();
+  const offer=offerWords(G,drawn,null);
+  const qword=preferredOfferWord(offer,drawn,DB.wordChoiceIndex);
   const lt = drawLetters(qword);
   B={ word:qword, letters:lt.letters, used:lt.used, bad:new Array(lt.letters.length).fill(false),
       node:n, foe:e, boss:boss, elite:elite,
@@ -667,7 +670,7 @@ function startFight(n){
   G.nextHint=0;
   // 选词出招：抽到的词旁边再给 2 个未完成的备选（不消耗随机数，见 domain/word-choice.js）。
   // autoHint = 开场自动揭示的次数：不算「玩家动过这个词」，换词时随之带走。
-  B.offer=offerWords(G,qword,null); B.autoHint=B.hintTotal;
+  B.offer=offer; B.autoHint=B.hintTotal;
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
   const opening=heroOpeningGrant(G,B);
@@ -850,14 +853,15 @@ function drawLetters(qword){return generateLetters(G,B,qword)}
 // 敌人还活着时换下一个词
 function nextWord(){
   const budget=B.boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(B.elite?1:0));
-  const nw=drawWord(budget);
+  const drawn=drawWord(budget);
   // ★ 最后一个未完成的词刚答完、这一场还没打死怪：进「词汇已全部完成」检查点。
   //   combat 的整词分支已经先判过 lethal（真打死就走 winFight 的既有奖励），
   //   所以走到这里一定还有未打死的怪 —— 这里绝不调 winFight / endRun(true)，
   //   kills / gold / wins 一律不动，怪物血与 run 状态如实保留。
-  if(!nw) return showLearningComplete();
+  if(!drawn) return showLearningComplete();
+  const offer=offerWords(G,drawn,B.word);
+  const nw=preferredOfferWord(offer,drawn,DB.wordChoiceIndex);
   const nl=drawLetters(nw);
-  const prevWord=B.word;
   B.word=nw; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);
   B.freezeWord=false;   // 寒冰护符只保护一个词
@@ -865,7 +869,7 @@ function nextWord(){
   B.wordQ=createWordQ();
   B.letterProgress=0;
   if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1; B.wordQ.hint++; B.wordQ.revealed++ }   // 学者之书：揭示首字母
-  B.offer=offerWords(G,nw,prevWord); B.autoHint=B.hintTotal; B.wordLocked=false;
+  B.offer=offer; B.autoHint=B.hintTotal; B.wordLocked=false;
   renderFight();
 }
 /* 选词出招：在这个词还没被动过时，换成候选里的另一个词（docs/feature-word-choice.md）。
@@ -873,8 +877,11 @@ function nextWord(){
  * 新词重新生成字母盘 —— 换词本身不是一次作答，所以不打断蓄力、不记任何学习事实。 */
 function chooseWord(idx){
   if(!B||!canSwitchWord(B)) return false;
+  if(!Number.isInteger(idx)||idx<0||idx>=B.offer.length) return false;
   const w=B.offer[idx];
-  if(!w||w.w===B.word.w) return false;
+  if(!w) return false;
+  DB.wordChoiceIndex=idx;
+  if(w.w===B.word.w) return true;
   const nl=drawLetters(w);
   B.word=w; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);
@@ -1190,7 +1197,10 @@ function advance(){
 $('tHint').onclick=()=>progress.requestHint();
 $('tSkip').onclick=()=>progress.skipFight();
 $('tFlee').onclick=()=>progress.fleeFight();
+const keyboardShortcuts=createGameShortcuts();
 document.addEventListener('keydown',e=>{
+  if(e.defaultPrevented||e.isComposing||e.keyCode===229||e.ctrlKey||e.altKey||e.metaKey||isTextEntry(e.target)) return;
+  if(keyboardShortcuts.handle(e)) return;
   // 暂停屏优先：暂停期间任何键都不得改状态（闸门在 progress 里，这里只是不抢键）。
   if(dailyView?.active()){ dailyView.handleKey(e); return; }
   if(progress.isPaused()) return;
@@ -1201,18 +1211,11 @@ document.addEventListener('keydown',e=>{
     // 字母盘上没有光标，所以方向键 ←→↑↓ 在这里不做任何事：
     // 既不移动、不发声，也不改输入；连 preventDefault 都不做，
     // 让方向键保持浏览器默认行为（页面照常滚动），和其他界面一致。
-    if(e.key==='1'||e.key==='2'||e.key==='3'){
-      // 数字键快速使用第 N 个道具
-      const held=Object.keys(G.bag||{}).filter(id=>(G.bag[id]|0)>0);
-      const id=held[parseInt(e.key,10)-1];
-      if(id) progress.useItem(id);
-      e.preventDefault();
-    }
-    else if(e.key==='Tab'){
+    if(e.key==='Tab'){
       // 选词出招：Tab 依次切到下一个候选（这个词已经动过就不再响应，交还浏览器默认行为）。
       if(canSwitchWord(B)){
         const i=B.offer.findIndex(w=>w.w===B.word.w);
-        progress.chooseWord((i+1)%B.offer.length);
+        progress.chooseWord((i+(e.shiftKey?-1:1)+B.offer.length)%B.offer.length);
         e.preventDefault();
       }
     }

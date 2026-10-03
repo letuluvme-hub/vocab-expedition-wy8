@@ -21,6 +21,28 @@ const facts = page => page.evaluate(() => {
     done: [...G.done], wrong: [...G.wrong], mastered: [...DB.mastered] };
 });
 
+for(const index of [0,1,2]) {
+  test(`the next word retains chosen position ${index} after pause and reload`,async({game,page},info)=>{
+    newOnly(info); await game.open(); await game.start(); await enterBattle(page);
+    await page.evaluate(()=>{const t=window.__gameTest;t.B.enHp=t.B.enMax=100000;t.renderFight()});
+    await expect(page.locator('#fOffer .wcCard')).toHaveCount(3);
+    await page.locator('#fOffer .wcCard').nth(index).click();
+    await expect(page.locator('#fOffer .wcCard').nth(index)).toHaveClass(/\bon\b/);
+    expect((await game.saved()).wordChoiceIndex).toBe(index);
+    await page.locator('#tPause').click(); await page.reload(); await page.locator('#continueRun').click();
+    const previous=await facts(page);
+    await page.keyboard.type(previous.word.replace(/[^a-z]/gi,'').toLowerCase());
+    await expect.poll(async()=>(await facts(page)).word).not.toBe(previous.word);
+    await expect(page.locator('#fOffer .wcCard')).toHaveCount(3);
+    await expect(page.locator('#fOffer .wcCard').nth(index)).toHaveClass(/\bon\b/);
+    const after=await facts(page);
+    expect(after.word).toBe(after.offer[index]);
+    expect(after.wrong).toEqual([]);
+    expect(after.done).toEqual([previous.word]);
+    expect((await game.saved()).dictationMastered).toEqual([]);
+  });
+}
+
 test('candidate cards show meanings and damage, never the English answer', async ({ game, page }, info) => {
   newOnly(info); await game.open(); await game.start(); await enterBattle(page);
   const f = await facts(page);
