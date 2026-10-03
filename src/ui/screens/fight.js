@@ -25,11 +25,13 @@ import { fitPhraseSlots } from '../components/phrase-slots.js';
 import { createEquipmentPanel } from '../components/equipment-panel.js';
 import { createFoeAttackMeter } from '../components/foe-attack-meter.js';
 import { createComboMilestoneTrack } from '../components/combo-milestones.js';
+import { createWordOffer } from '../components/word-offer.js';
+import { estimateWordDamage, canSwitchWord } from '../../domain/word-choice.js';
 import { FOE_ART_SCALE_MAX } from '../../data/balance.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0];
 
-export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow, getFoeAttackFact }) {
+export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow, getFoeAttackFact, onChooseWord }) {
   const $ = id => document.getElementById(id);
   const isKbMode = () => !!getDB().kbMode;
   const isKbUpper = () => !!getDB().kbUpper;
@@ -43,6 +45,20 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
   // 战意条：只读 run.milestones 与 battle.combo，自己不发放任何奖励。
   // 容器缺席时组件安静返回 null（未接线的测试台 / 旧页面），不影响其余渲染。
   const comboTrack = createComboMilestoneTrack({ $ });
+  // 选词条：只读 battle.offer 并算预估伤害（不改战斗），点卡交回索引。
+  const wordOffer = createWordOffer({ $ });
+  function paintOffer() {
+    const G = getRun(), B = getBattle();
+    const offer = Array.isArray(B.offer) ? B.offer : [];
+    wordOffer.paint({
+      offer, current: B.word, canSwitch: canSwitchWord(B),
+      cards: offer.map(w => {
+        const est = estimateWordDamage(G, B, w);
+        return { letters: norm(w.w).length, total: est.total, lethal: est.total >= B.enHp };
+      }),
+      onPick: i => { if (onChooseWord) onChooseWord(i); },
+    });
+  }
   // 怪物放大（清单 13）：只改 #fAv 自己的尺寸变量，上限由数据层钉死（≤1.2 倍）。
   // ★ 绝不碰 .avatar 的既有形状/动画/滤镜 —— 玩家已经认可那些形象与特效。
   //   放大走 inline style 而不是新样式表：这样 styles.test.js 那条
@@ -126,6 +142,7 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     const attackFact = getFoeAttackFact ? getFoeAttackFact() : B.foeAttack;
     foeAttackMeter.paint(attackFact, getFoeAttackWindow ? getFoeAttackWindow() : null);
     $('fName').textContent = B.foe.n + (B.boss ? '（首领）' : B.elite ? '（精英）' : '');
+    paintOffer();
     $('fZh').textContent = B.word.z;
     // 字符数按 norm() 的字母数算（否则 keep an eye on 会显示「14 字符」，
     // 而槽位只有 11 个，对不上）；词组额外标一个「词组」标签。

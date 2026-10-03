@@ -1,8 +1,11 @@
 // 单元解锁与跨单元衔接的**纯规则**。无 DOM / 无存储 / 无全局。
 //
 // 三条口径（docs/feature-campaign.md）：
-//  1) 解锁的唯一依据是「本单元目标词全部通过无错误、无提示、无揭示的正式默写」（DB.dictationMastered 覆盖全部目标身份）。
-//     历史 wins / best / 纪念卡 / 部分词**都不是**证据。
+//  1) 解锁依据有两条，满足任一即可：
+//     a) 「本单元目标词全部通过无错误、无提示、无揭示的正式默写」（DB.dictationMastered 覆盖全部目标身份）；
+//     b) 远征里把本单元词池全部整词拼完（recordUnitComplete 写下的、带 completedAt 的完成凭据）。
+//     历史 wins / best / 纪念卡 / 部分词 / 打过首领**都不是**证据。
+//     （b 是 2026-10 起恢复的：只有 a 时，只玩远征的学生永远解不开 Unit 2。）
 //  2) 迁移保守且连续：旧存档按 dictationMastered 覆盖推导，Unit N 解锁要求 1..N-1 全部完成；
 //     单元 3 学完但单元 2 没学完时，单元 3 仍然锁着。绝不一次授予全册。
 //  3) 自定义词表（单元 0）永远可玩，但从不参与教材解锁。
@@ -38,7 +41,12 @@ export function ensureProgress(db) {
   return db.unitProgress;
 }
 
-/* 旧 unitProgress 保留作自由远征历史，绝不作为正式默写解锁证据。 */
+/* 远征完成凭据：只认 recordUnitComplete 写下的形状（complete===true 且带 completedAt 字符串）。
+ * 缺时间戳的旧/手改记录不算 —— 宁可多拼一遍，也不凭一个布尔授予解锁。 */
+export function expeditionComplete(unitProgress, unit) {
+  const rec = unitProgress && typeof unitProgress === 'object' ? unitProgress[String(unit)] : null;
+  return !!(rec && typeof rec === 'object' && rec.complete === true && typeof rec.completedAt === 'string');
+}
 /* 本单元是否「全部词完成」。口径只有一条：目标身份全部出现在 dictationMastered 里。 */
 export function isUnitComplete({ unit, words, db }) {
   const targets = unitTargets(words);
@@ -60,8 +68,12 @@ export function unitCounts({ unit, words, db }) {
 export function recordUnitComplete(db, unit, { now = Date.now() } = {}) {
   const progress = ensureProgress(db);
   const key = String(unit);
-  if (progress[key] && progress[key].complete === true) return false;
-  progress[key] = { complete: true, completedAt: new Date(now).toISOString() };
+  const rec = progress[key];
+  // 已有带时间戳的凭据 → 幂等。只有 complete:true 而没有时间戳的旧记录不算凭据
+  // （见 expeditionComplete），一次新的真实完成要把时间戳补上，否则这份存档永远解不开。
+  if (rec && rec.complete === true && typeof rec.completedAt === 'string') return false;
+  progress[key] = Object.assign({}, rec && typeof rec === 'object' ? rec : {},
+    { complete: true, completedAt: new Date(now).toISOString() });
   return true;
 }
 
@@ -77,7 +89,7 @@ function safeWords(wordsFor, unit) {
 }
 
 /* 解锁全貌。纯派生：不写任何东西，所以 UI 直接画它也不会漂移成第二套口径。 */
-export function unlockProgress({ units, wordsFor, dictationMastered }) {
+export function unlockProgress({ units, wordsFor, dictationMastered, unitProgress }) {
   // ★ units 排序 + 去重：解锁是一串**有序**的教材单元，输入顺序（[3,1,0,1,…]）绝不许
   //   改变连续口径。非数字项直接丢掉（脏数据不该长出一个单元）。
   const nos = Array.from(new Set((units || []).filter(n => typeof n === 'number' && Number.isFinite(n))))
@@ -98,21 +110,25 @@ export function unlockProgress({ units, wordsFor, dictationMastered }) {
     }
     const c = unitCounts({ unit: n, words: safeWords(wordsFor, n), db });
     const complete = c.total > 0 && c.remaining === 0;
+    const expedition = c.total > 0 && expeditionComplete(unitProgress, n);
+    // passed = 正式默写全覆盖 **或** 远征整词完成 —— 解锁看它；complete 仍只表示默写覆盖。
+    const passed = complete || expedition;
     // ★ 解锁只看**前面**的单元：本单元自己做完之前它就已经可玩了
     //   （Unit 1 永远可玩，Unit 2 在 Unit 1 完成时解锁）。
     const unlocked = contiguous;
     byUnit[n] = Object.assign({}, c, {
-      complete, unlocked,
+      complete, expedition, passed, unlocked,
       lockedReason: unlocked ? null : ('unit-' + (n - 1)),
     });
-    if (!complete) contiguous = false;         // 从这里往后全部锁住（连续口径）
+    if (!passed) contiguous = false;           // 从这里往后全部锁住（连续口径）
   }
   return {
     byUnit,
     isUnlocked: unit => !!(byUnit[unit] && byUnit[unit].unlocked),
     counts: unit => (byUnit[unit]
-      ? { total: byUnit[unit].total, done: byUnit[unit].done, remaining: byUnit[unit].remaining, complete: byUnit[unit].complete }
-      : { total: 0, done: 0, remaining: 0, complete: false }),
+      ? { total: byUnit[unit].total, done: byUnit[unit].done, remaining: byUnit[unit].remaining,
+        complete: byUnit[unit].complete, passed: !!byUnit[unit].passed }
+      : { total: 0, done: 0, remaining: 0, complete: false, passed: false }),
     next: unit => nos.filter(n => n !== CUSTOM_UNIT).sort((a, b) => a - b)
       .filter(n => n > unit)[0],
   };
@@ -206,7 +222,7 @@ export function transitionNextUnit({ run, progress }) {
   // ★ 先报「本单元还有词没学完」：这是玩家真正要解决的事，也是 locked 的上游成因。
   //   顺序反了的话，新存档上只会得到一句没有行动方向的「locked」。
   const counts = progress.counts ? progress.counts(run.unit) : null;
-  if (counts && counts.complete !== true) return { ok: false, reason: 'incomplete', from: run.unit, to, counts };
+  if (counts && counts.complete !== true && counts.passed !== true) return { ok: false, reason: 'incomplete', from: run.unit, to, counts };
   if (!canSelectUnit(progress, to)) return { ok: false, reason: 'locked', from: run.unit, to };
   return { ok: true, from: run.unit, to };
 }

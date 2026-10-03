@@ -82,7 +82,7 @@ test('extracted game catalogs are byte-for-byte equivalent values', async () => 
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css'];
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
@@ -124,6 +124,8 @@ const PAUSE_ONLY_NEW = [
   // 战意·连击里程碑条容器：纯新增（归档里没有对应物），挂在战斗页词卡里 #fCombo 下方。
   // 连同上面的注释整块挖掉 —— 注释也是本次新增，留在骨架里会让「逐字相同」恒假。
   /    <!-- 战意·连击里程碑（docs\/feature-combo-milestones\.md）：[\s\S]*?<div class="comboMs" id="fComboMs"><\/div>\n/,
+  // 选词出招的候选卡容器：纯新增，挂在战斗词卡顶部 #fZh 之前。连同注释整块挖掉。
+  /    <!-- 选词出招（docs\/feature-word-choice\.md）：[\s\S]*?<div id="fOffer" hidden><\/div>\n/,
 ];
 // 包裹了既有控件的改动 → 还原成归档里的原始写法（放弃远征按钮被包进了一行 .row）。
 const PAUSE_BACK_TO_LEGACY = [
@@ -199,16 +201,28 @@ const backToLegacyVolrow = html => {
   return out;
 };
 
+// P0-2 的明确展示变化：新增远征统计，正式默写统计只改标签。
+// 精确归一化后仍逐字核对归档骨架，不能借此隐藏其他控件差异。
+const backToLegacyHomeProgress = html => {
+  const lf = html.replace(/\r\n/g, '\n');
+  const expedition = /      <div><b id="sExpedition" style="color:var\(--acc2\)">0<\/b><i>远征拼对<\/i><\/div>\n/;
+  const formal = /(<b id="sMaster" style="color:var\(--ok\)">0<\/b><i>)默写掌握(<\/i>)/;
+  assert.match(lf, expedition, '新增远征统计必须真实存在');
+  assert.match(lf, formal, '既有掌握统计必须明确是默写掌握');
+  return lf.replace(expedition, '').replace(formal, '$1已掌握$2');
+};
+
 test('page skeleton preserves approved character parts and all existing controls', () => {
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  const comparable = backToLegacyHomeProgress(html);
   // 两边都要走 stripPause：暂停新增是本任务允许的唯一偏离，其余必须逐字相同。
   // 主页声音设置区是同位置的替换：把新版容器还原成归档的 .volrow 段再比。
   // 知识成长容器是纯新增：整段删掉再比（见 stripMasteryHost）。
-  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(html))))).replace(SKIP_COPY_DIFF, '$1跳过代价$2'))),
+  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(comparable))))).replace(SKIP_COPY_DIFF, '$1跳过代价$2'))),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '$1跳过代价$2')));
   // 去掉跳过文案的归一化后，仍然必须完全对齐
-  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(html))))).replace(SKIP_COPY_DIFF, ''))),
+  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(comparable))))).replace(SKIP_COPY_DIFF, ''))),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '')));
   // 并且当前文案确实点明了 50 点生命
   assert.match(html, /id="tSkip">跳过<small>损失 50 生命<\/small>/);

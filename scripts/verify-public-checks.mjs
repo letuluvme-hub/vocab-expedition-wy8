@@ -50,6 +50,10 @@ export async function verifyLegacyPlay(page) {
 
 export async function verifyDailyPlay(page) {
   const width=page.viewportSize().width;
+  await expect(page.locator('#dailyEntry')).toHaveJSProperty('open',false);
+  await expect(page.locator('#dailyOpen')).not.toBeVisible();
+  await expect(page.locator('#homeAtlas')).toBeVisible();
+  await page.locator('#dailyEntry > summary').click();
   await expect(page.locator('#dailyPartner')).toBeVisible();await page.locator('#dailyAtlasToggle').click();
   await expect(page.locator('#dailyAtlasCards .daily-card')).toHaveCount(45);
   const home=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,boxes:[document.querySelector('#dailyPartner'),...document.querySelectorAll('#dailyAtlasCards .daily-card')].map(n=>n.getBoundingClientRect().toJSON())}));
@@ -76,7 +80,7 @@ export async function verifyDailyPlay(page) {
   const copied=await page.evaluate(()=>navigator.clipboard.readText());
   for(const id of ['dailyReportDate','dailyReportDuration','dailyReportWords','dailyReportRate'])expect(copied).toContain(await page.locator('#'+id).innerText());
   expect(copied).toContain('cat · 猫');
-  await page.reload({waitUntil:'networkidle'});await expect(page.locator('#sMaster')).toHaveText('1');await expect(page.locator('#dailyReportRate')).toHaveText('一次拼对率：50%（1/2）');
+  await page.reload({waitUntil:'networkidle'});await page.locator('#dailyEntry > summary').click();await expect(page.locator('#sMaster')).toHaveText('1');await expect(page.locator('#dailyReportRate')).toHaveText('一次拼对率：50%（1/2）');
   expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')).dictationMastered)).toEqual(['dog']);
   expect(await page.evaluate(()=>({probe:typeof window.__gameTest,flag:typeof window.__VOCAB_TEST__}))).toEqual({probe:'undefined',flag:'undefined'});
   return {date,warmupMastered:0,formalMastered:['dog'],firstTryRate:'一次拼对率：50%（1/2）',clipboardCopied:true,width};

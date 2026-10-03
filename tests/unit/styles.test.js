@@ -44,6 +44,10 @@ const ADDED = [
   // 安卓 APK 下载入口。前缀是宿主 id —— <a> 当按钮用要补的几条居中/去下划线，
   // 不能写进冻结的 base.css。
   ['./android-download.css', /^#dlAndroid/, '主页安卓版下载入口'],
+  // 选词出招的候选卡。前缀是宿主 id #fOffer（战斗词框内）。
+  ['./word-choice.css', /^#fOffer/, '战斗页选词候选卡'],
+  // 主页主操作常驻：前缀是 runtime 给「开始远征」那一行加的 #startRow。
+  ['./home-cta.css', /^#startRow/, '主页开始远征常驻'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

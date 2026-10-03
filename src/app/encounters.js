@@ -16,7 +16,7 @@
  */
 import { RELICS } from '../data/relics.js';
 import { ITEMS } from '../data/items.js';
-import { LEGACY_RELIC_SHOP_PRICE, WHET_MAX_PER_RUN } from '../data/balance.js';
+import { LEGACY_RELIC_SHOP_PRICE, WHET_MAX_PER_RUN, REWARD_ECONOMY } from '../data/balance.js';
 import { relicPrice, relicRarityLabel, pickRelicWeighted, sampleRelicsWeighted,
   activeSynergies } from '../domain/relic-rules.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
@@ -416,7 +416,8 @@ export function createEncounterController({ state, ports }) {
     const B = state.B, G = state.G;
     if (!B || !G) return null;
     const opts = [];
-    if (!B.boss) {
+    // 受伤才给回血卡：满血时一张「回复 71 点生命」只是占位。
+    if (!B.boss && B.myHp < G.maxhp) {
       const heal = Math.round(12 + B.enMax * 0.12);
       // 回血要作用在 B.myHp 上，否则会被 finishNode 的结转覆盖
       opts.push({ cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + heal + ' 点生命', id: 'reward:heal', fn: () => {
@@ -432,10 +433,15 @@ export function createEncounterController({ state, ports }) {
       } });
     }
     const availRel = ownedRelics(G);
-    if (availRel.length) {
+    // 遗物张数：首领 3 选 1、精英 2 选 1、普通战只有小概率掉 1 张（REWARD_ECONOMY）。
+    // ★ 普通战的概率判定走 relicRnd（与加权抽样同一个注入口），单测可以固定它。
+    const relicCount = B.boss ? REWARD_ECONOMY.bossRelics
+      : B.elite ? REWARD_ECONOMY.eliteRelics
+        : (relicRnd() < REWARD_ECONOMY.normalRelicChance ? 1 : 0);
+    if (availRel.length && relicCount > 0) {
       // 加权不重复抽样：同一批候选里，传说出现的概率远低于普通，
       // 而均匀洗牌会让它和「+2 次提示」一样常见。
-      sampleRelicsWeighted(availRel, 3, relicRnd).forEach(r => opts.push({
+      sampleRelicsWeighted(availRel, relicCount, relicRnd).forEach(r => opts.push({
         cat: 'relic', ic: r.ic, t: r.n, d: relicRarityLabel(r) + ' · ' + r.d, id: 'reward:relic:' + r.id, fn: () => {
         const S = state.G;
         S.relics.push(r.id);
@@ -445,20 +451,19 @@ export function createEncounterController({ state, ports }) {
         finishNode();
       } }));
     }
-    // 战斗胜利掉落道具（精英/BOSS 必掉，普通战斗 35% 概率）
-    if (B.elite || B.boss || Math.random() < 0.35) {
-      const drop = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max))[0];
-      if (drop) {
-        const n = B.boss ? 3 : (B.elite ? 2 : 1);
-        opts.push({ cat: 'item', ic: drop.ic, t: drop.n + ' ×' + n, d: drop.d, tip: drop.tip, id: 'reward:item:' + drop.id, fn: () => {
-          const S = state.G;
-          S.bag[drop.id] = (S.bag[drop.id] | 0) + n;
-          sfx.coin();
-          toast('🎒 获得 ' + drop.n + ' ×' + n);
-          finishNode();
-        } });
-      }
-    }
+    // 道具：普通战二选一（不同种），精英 / 首领一张大份。只给还没拿满的。
+    const itemPool = shuffle(ITEMS.filter(it => (G.bag[it.id] | 0) < it.max));
+    const drops = itemPool.slice(0, (B.elite || B.boss) ? 1 : REWARD_ECONOMY.normalItemChoices);
+    drops.forEach(drop => {
+      const n = B.boss ? 3 : (B.elite ? 2 : 1);
+      opts.push({ cat: 'item', ic: drop.ic, t: drop.n + ' ×' + n, d: drop.d, tip: drop.tip, id: 'reward:item:' + drop.id, fn: () => {
+        const S = state.G;
+        S.bag[drop.id] = (S.bag[drop.id] | 0) + n;
+        sfx.coin();
+        toast('🎒 获得 ' + drop.n + ' ×' + n);
+        finishNode();
+      } });
+    });
     if (!opts.length) opts.push({ cat: 'none', ic: '✅', t: '继续前进', d: '没有更多奖励了', id: 'reward:next', fn: finishNode });
     // ★ roll 完立刻发布检查点。胜利后到展示之间有 900ms，玩家完全可能在这段
     //   空窗里暂停或杀掉页面 —— 没有这份描述，reward 相位的快照会因为「缺
@@ -500,10 +505,14 @@ export function createEncounterController({ state, ports }) {
       picks.appendChild(b);
     });
     const skip = $('pSkip');
-    skip.style.display = opts.length > 1 ? '' : 'none';
+    // 「跳过」= 什么都不拿，直接前进。旧实现在这里领取第一张卡（回血），按钮名与行为不符。
+    const onlyContinue = opts.length === 1 && opts[0].id === 'reward:next';
+    skip.style.display = onlyContinue ? 'none' : '';
     skip.onclick = () => {
       if (!canAct()) return;
-      if (opts.length) take(opts[0]); else mutate(() => { B.rewardTaken = true; finishNode(); });
+      if (state.B !== B || state.G !== G) return;
+      if (B.rewardTaken) return;
+      mutate(() => { B.rewardTaken = true; finishNode(); });
     };
     // 相位切到「待领奖」：金币在 winFight 时已入账，这里只把「还剩这些卡可领」记下来。
     // 刷新后靠这份描述重建同一批卡 —— 不重新 roll，玩家也刷不出额外遗物。
@@ -725,10 +734,14 @@ export function createEncounterController({ state, ports }) {
       };
       opts.forEach(o => { const b = cardButton(o, { untrusted: true }); b.onclick = () => take(o); picks.appendChild(b); });
       const skip = $('pSkip');
-      skip.style.display = opts.length > 1 ? '' : 'none';
+      // 与实时路径同一口径：「跳过」什么都不拿，只推进一次。
+      const onlyContinue = opts.length === 1 && opts[0].id === 'reward:next';
+      skip.style.display = onlyContinue ? 'none' : '';
       skip.onclick = () => {
         if (!canAct()) return;
-        if (opts.length) take(opts[0]); else mutate(() => { B.rewardTaken = true; finishNode(); });
+        if (state.B !== B || state.G !== G) return;
+        if (B.rewardTaken) return;
+        mutate(() => { B.rewardTaken = true; finishNode(); });
       };
       publish(Object.assign({}, desc, { options: opts.map(o => ({ id: o.id, cat: o.cat, ic: o.ic, t: o.t, d: o.d, tip: o.tip })) }));
       if (setPhase) setPhase(PHASE_REWARD);

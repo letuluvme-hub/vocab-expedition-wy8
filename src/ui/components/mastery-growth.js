@@ -30,7 +30,7 @@ function num(v) {
   return Math.floor(n);
 }
 
-const NOTE = '只在新开一轮远征时生效：正在远征中或从存档恢复时不会补回生命，也不会提高本轮生命上限；跨单元不再额外增加。';
+const NOTE = '只算每日默写里零错误的教材词，且未用提示、未揭示答案。只在新开一轮远征时生效：正在远征中或从存档恢复时不会补回生命，也不会提高本轮生命上限；跨单元不再额外增加。';
 
 export function createMasteryGrowth({ getSummary, document: doc } = {}) {
   const D = doc || (typeof document !== 'undefined' ? document : null);

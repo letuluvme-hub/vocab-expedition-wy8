@@ -8,6 +8,7 @@ import { RELICS } from '../../data/relics.js';
 import { clamp } from '../../domain/math.js';
 import { rewardScope, rewardRoundLine, renderRewardCard } from '../components/reward-card.js';
 import { pixelIconSVG, relicIconKey } from '../components/pixel-art.js';
+import { decodeQStats, createQStats } from '../../domain/word-quality.js';
 
 const relicById = id => RELICS.filter(r => r.id === id)[0];
 
@@ -28,7 +29,8 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   // 没有 campaign 视图（旧的接线/测试台）就**没有解锁依据**：这时退回旧行为，
   // 绝不凭空显示一个「继续 Unit N+1」。真实运行期 runtime 一定传 campaign。
   const uc = campaign && campaign.counts ? campaign.counts(G.unit) : null;
-  const unitComplete = !!(uc && uc.complete);
+  // 正式默写全覆盖或远征整词完成（passed）都算本单元完成：两者都解锁下一单元。
+  const unitComplete = !!(uc && (uc.complete || uc.passed));
   // ★ 自定义单元没有「下一单元」，但**可以有**「继续本单元词汇」：打完 BOSS、
   //   自己词表里还有词没练完时，玩家照样需要一条不卡死的续练入口。
   //   next() 对单元 0 会返回教材里的 Unit 2，所以这里自己把 custom 挡掉。
@@ -40,10 +42,13 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   const bookLast = win && unitComplete && lastByCatalog;
 
   const again = $('oAgain');
-  again.textContent = win ? (G.unit === 0 ? '复习自定义词表' : '复习本单元') : '再来一次';
-  // 「复习」永远是**新开一轮**去重练，不是「继续」。把两个语义混在一起会让玩家
-  // 以为复习能顺带推进单元。
-  again.onclick = onAgain ? () => { onAgain(); } : null;
+  again.hidden = win;
+  if (win) again.style.display = 'none';
+  else if (again.style.display) again.style.display = '';
+  again.disabled = win;
+  again.textContent = win ? '' : '再来一次';
+  // 成功结算只提供同轮续练与返回主页，避免从这里误开新一轮。
+  again.onclick = !win && onAgain ? () => { onAgain(); } : null;
   const home = $('oHome');
   if (home) home.onclick = onHome ? () => { onHome(); } : () => { onTitle(); show('s-title'); };
 
@@ -72,14 +77,28 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   $('oTitle').textContent = win ? '远征成功！' : '远征结束';
   $('oText').textContent = win
     ? '你击败了词汇之王，完成了' + rewardScope(G.unit) + '的本次远征（' + rewardRoundLine(G.reward || {}) + '）！'
-      + (bookLast ? '本册词汇已完成，可复习本单元或返回选择单元。'
+      + (bookLast ? '本册词汇已完成，可以返回主页选择单元。'
         : nextOpen ? ('Unit ' + nextUnit + ' 的词汇已解锁，可以带着现有物资继续。')
           : continueOpen ? ('本单元还有 ' + uc.remaining + ' 个词没完成，完成后才能进入下一个单元。')
-            : (!uc && lastByCatalog ? '已到本册最后一个单元，可复习本单元或返回选择单元。' : ''))
+            : (!uc && lastByCatalog ? '已到本册最后一个单元，可以返回主页选择单元。' : ''))
     : '你倒在了第 ' + G.floor + ' 层。那些还没记住的词，还在等着你。';
   $('oFloor').textContent = G.maxFloor;
   $('oKill').textContent = G.kills;
   $('oAcc').textContent = acc + '%';
+  const q = decodeQStats(G.qStats) || createQStats();
+  let quality = $('oQuality');
+  if (!quality) {
+    // Add the row at render time, preserving the archived static page skeleton.
+    const relics = $('oRelics'), card = relics && relics.parentElement;
+    if (card && card.parentElement) {
+      quality = document.createElement('p'); quality.id = 'oQuality';
+      quality.setAttribute('aria-live', 'polite');
+      card.parentElement.insertBefore(quality, card);
+    }
+  }
+  if (quality) quality.textContent = '完美 ' + q.perfect + '/' + q.words
+    + ' · 每词提示 ' + (q.hintsUsed / Math.max(1, q.words)).toFixed(1)
+    + ' · 每词错字母 ' + (q.wrongLetters / Math.max(1, q.words)).toFixed(1);
   const rb = $('oRelics'); rb.innerHTML = '';
   if (!G.relics.length) rb.innerHTML = '<span style="font-size:12px;color:var(--dim)">这次没有获得遗物</span>';
   G.relics.forEach(id => { const r = relicById(id); if (!r) return;

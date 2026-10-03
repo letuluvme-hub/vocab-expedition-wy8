@@ -145,6 +145,9 @@ export const test = base.extend({
             letters: letters.letters, used: letters.used, bad: letters.letters.map(() => false),
             input: [], enHp: enemyHp, enMax: enemyHp, combo: 0,
           });
+          // 选词出招：场景指定了出招词，候选就只剩它一个（与真实「词池只剩一个词」同形）。
+          // 否则候选条里是开场抽到的另外几个词，快照也会因「当前词不在候选里」fail closed。
+          if ('offer' in t.B) t.B.offer = [entry];
           t.renderFight();
         }, { word, enemyHp, boss, elite });
         await expect(page.locator('#s-fight')).toBeVisible();
@@ -192,3 +195,9 @@ export const test = base.extend({
 });
 
 export { expect };
+
+// Exercise the native folded home entry before existing practice/collection flows.
+export async function openPracticePanel(page) {
+  const entry = page.locator('#dailyEntry');
+  if (!await entry.evaluate(node => node.open)) await entry.locator(':scope > summary').click();
+}

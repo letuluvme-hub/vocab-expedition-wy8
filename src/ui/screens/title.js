@@ -6,6 +6,7 @@ import { HEROES } from '../../data/heroes.js';
 import { UNITS } from '../../data/units.js';
 import { HERO_DEFAULT, heroById, pcHTML, heroStatLines } from '../components/hero.js';
 import { renderRewardCard } from '../components/reward-card.js';
+import { canonicalMasteryKeys } from '../../domain/mastery-growth.js';
 
 export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHero, onUnit }) {
   const $ = id => document.getElementById(id);
@@ -51,22 +52,24 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
       //   原因 —— 靠躲测试而不是靠结构，迟早又会被别的文本命中）。
       //   单元名与编号照常可见，脚本改用 data-unit / <b> 定位。
       b.setAttribute('data-unit', String(u.n));
-      // 进度口径统一来自 campaign（同一份 dictationMastered + 同一份 trim+lower 身份），
-      // 所以主页说的「已掌握 12/45」与解锁判据永远不会是两套算法。
+      // 两份记录只在展示时并列：远征读 mastered，正式默写沿用 campaign。
+      // 复用教材交集的 trim+lower 身份；不把任何展示计数写回存档或解锁规则。
       const c = counts(u.n);
-      const m = c ? c.done : (DB.dictationMastered || []).filter(w => ws.some(x => x.w === w)).length;
+      const m = c ? c.done : canonicalMasteryKeys(DB.dictationMastered, ws).length;
+      const expedition = canonicalMasteryKeys(DB.mastered, ws).length;
       const total = c ? c.total : ws.length;
       const head = '<b>' + u.t + '</b><span>' + ws.length + ' 词' + (ws.length ? '' : '（空）') + '</span>';
+      const progress = ws.length ? '<em>' + unitProgressLine({ c, done: m, total, expedition }) + '</em>' : '';
       if (!open) {
         const need = u.n - 1;
-        b.innerHTML = head + '<em>🔒 完成 Unit ' + need + ' 全部词汇后解锁</em>';
+        b.innerHTML = head + (expedition > 0 ? progress : '') + '<em>🔒 完成 Unit ' + need + ' 全部词汇后解锁</em>';
         b.title = '完成 Unit ' + need + ' 的全部词汇后解锁这个单元；已解锁的单元随时可以复习';
         b.disabled = true;
         // ★ 锁定单元**不挂 onclick**：不是 disabled 还能点，而是一下都点不动。
         //   真正的闸门仍在 runtime.startRunFromUi（防止绕过 UI 直接开跑）。
         b.onclick = null;
       } else {
-        b.innerHTML = head + (ws.length ? '<em>' + unitProgressLine({ c, done: m, total }) + '</em>' : '');
+        b.innerHTML = head + progress;
         b.title = '';
         b.disabled = false;
         b.onclick = () => { onUnit(u.n); renderTitle() };
@@ -75,6 +78,11 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
     });
     $('sRun').textContent = DB.runs;
     $('sWin').textContent = DB.wins;
+    const expeditionStat = $('sExpedition');
+    if (expeditionStat) {
+      const textbook = UNITS.filter(u => u.n > 0).flatMap(u => allWords(u.n));
+      expeditionStat.textContent = canonicalMasteryKeys(DB.mastered, textbook).length;
+    }
     $('sMaster').textContent = (DB.dictationMastered || []).length;
     $('sFloor').textContent = DB.best;
     $('rewardSummary').textContent = '通关纪念卡 · ' + DB.rewards.length + ' 张（点击查看）';
@@ -90,9 +98,10 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
   return { renderHeroes, renderTitle };
 }
 
-/* 进度只反映当前正式默写证据；旧远征完成凭据不授予解锁。 */
-function unitProgressLine({ done, total }) {
+/* 部分远征进度也有明确读数；只有旧凭据而无逐词记录时保留已有完成说明。 */
+function unitProgressLine({ c, done, total, expedition }) {
+  if (expedition > 0) return '远征 ' + expedition + '/' + total + ' · 默写 ' + done + '/' + total;
+  if (c && c.passed && !c.complete) return '远征已通关 · 默写 ' + done + '/' + total;
   if (!done) return '未开始';
-  if (total > 0 && done >= total) return '已完成 ' + done + '/' + total;
-  return '已掌握 ' + done + '/' + total;
+  return '默写 ' + done + '/' + total;
 }
