@@ -45,7 +45,7 @@ export function createWordOffer({ $ }) {
     });
     const tip = document.createElement('div');
     tip.className = 'wcTip';
-    tip.textContent = view.canSwitch ? '选一个词出招 · 词越长打得越疼（电脑键盘按 Tab 换）' : '已出招，拼完这个词';
+    tip.textContent = view.canSwitch ? '选一个词出招 · 词越长打得越疼' : '已出招，拼完这个词';
     box.appendChild(tip);
     return box;
   }

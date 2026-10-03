@@ -38,6 +38,7 @@ import { pcHTML, heroStatLines, heroById, HERO_DEFAULT } from '../ui/components/
 import { rewardScope, renderRewardCard } from '../ui/components/reward-card.js';
 import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 import { createEffects } from '../ui/effects.js';
+import { createGameShortcuts, isTextEntry } from '../ui/keyboard-shortcuts.js';
 import { createLifecycle } from './lifecycle.js';
 import { createFoeAttackController } from './foe-attacks.js';
 import { WORDS } from '../data/words.js';
@@ -1178,7 +1179,10 @@ function advance(){
 $('tHint').onclick=()=>progress.requestHint();
 $('tSkip').onclick=()=>progress.skipFight();
 $('tFlee').onclick=()=>progress.fleeFight();
+const keyboardShortcuts=createGameShortcuts();
 document.addEventListener('keydown',e=>{
+  if(e.defaultPrevented||e.isComposing||e.keyCode===229||e.ctrlKey||e.altKey||e.metaKey||isTextEntry(e.target)) return;
+  if(keyboardShortcuts.handle(e)) return;
   // 暂停屏优先：暂停期间任何键都不得改状态（闸门在 progress 里，这里只是不抢键）。
   if(dailyView?.active()){ dailyView.handleKey(e); return; }
   if(progress.isPaused()) return;
@@ -1189,18 +1193,11 @@ document.addEventListener('keydown',e=>{
     // 字母盘上没有光标，所以方向键 ←→↑↓ 在这里不做任何事：
     // 既不移动、不发声，也不改输入；连 preventDefault 都不做，
     // 让方向键保持浏览器默认行为（页面照常滚动），和其他界面一致。
-    if(e.key==='1'||e.key==='2'||e.key==='3'){
-      // 数字键快速使用第 N 个道具
-      const held=Object.keys(G.bag||{}).filter(id=>(G.bag[id]|0)>0);
-      const id=held[parseInt(e.key,10)-1];
-      if(id) progress.useItem(id);
-      e.preventDefault();
-    }
-    else if(e.key==='Tab'){
+    if(e.key==='Tab'){
       // 选词出招：Tab 依次切到下一个候选（这个词已经动过就不再响应，交还浏览器默认行为）。
       if(canSwitchWord(B)){
         const i=B.offer.findIndex(w=>w.w===B.word.w);
-        progress.chooseWord((i+1)%B.offer.length);
+        progress.chooseWord((i+(e.shiftKey?-1:1)+B.offer.length)%B.offer.length);
         e.preventDefault();
       }
     }

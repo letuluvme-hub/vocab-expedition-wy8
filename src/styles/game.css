@@ -36,3 +36,4 @@
 @import './word-choice.css';
 /* 主页「开始远征」常驻视口底部：只作用于 #startRow，追加在最后。 */
 @import './home-cta.css';
+@import './keyboard-shortcuts.css';
