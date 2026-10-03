@@ -1,14 +1,18 @@
 import { createDictationKeyboard } from '../components/dictation-keyboard.js';
 import { pixelMonsterSVG } from '../components/pixel-art.js';
 import { ENEMIES, BOSS } from '../../data/enemies.js';
+import '../../styles/home-atlas.css';
 
 export function createDailyDictationScreen({ controller, show, onHome, onEnter = () => {}, document: doc = globalThis.document, confirm = globalThis.confirm } = {}) {
   const el = (tag, cls, text, id) => { const n = doc.createElement(tag); if(cls)n.className=cls; if(text !== undefined)n.textContent=text; if(id)n.id=id; return n; };
   const button = (text, id, action, secondary = false) => { const b=el('button','daily-button'+(secondary?' secondary':''),text,id); b.type='button'; b.onclick=action; return b; };
   const screen = el('section','screen daily-dictation daily-screen',undefined,'s-daily');
   doc.getElementById('app').appendChild(screen);
-  const entry = el('section','daily-dictation daily-entry',undefined,'dailyEntry');
-  const title = doc.getElementById('s-title'); title.insertBefore(entry,doc.getElementById('keyboardTipHost')||title.querySelector('.lbl'));
+  const entry = el('details','daily-dictation daily-entry home-practice',undefined,'dailyEntry');
+  const entrySummary = el('summary','home-practice-summary','练习与收藏');
+  const title = doc.getElementById('s-title'); title.append(entry);
+  const atlasHost = el('div','',undefined,'dailyAtlasHost');
+  title.insertBefore(atlasHost,doc.getElementById('keyboardTipHost')||title.querySelector('.lbl'));
   const keyboard = createDictationKeyboard({ document: doc, onInput: key => controller.input(key) });
   let hintAnswer = '', selectionUnit = '1';
   const state = () => controller.state();
@@ -17,11 +21,11 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   function open() { onEnter(); show('s-daily'); if(state()?.phase === 'completed')renderSelection(); else if(state())render(); else renderSelection(); }
   function paintEntry() {
     const extraHosts = ['dailyCollectionHost','dailyHomeReport'].map(id => entry.querySelector('#'+id) || el('div','',undefined,id));
-    entry.replaceChildren(el('h2','daily-heading','每日默写'),el('p','daily-note','热身 → 正式默写 → 今日完成 · 每次约 10–15 分钟'));
+    entry.replaceChildren(entrySummary,el('p','daily-note','按需练习，伙伴、收藏和学习记录都在这里。'));
     const s=state();
-    entry.append(button(s&&s.phase!=='completed'?'继续今日默写':'开始每日默写','dailyOpen',open));
+    entry.append(button(s&&s.phase!=='completed'?'继续练习':'开始练习','dailyOpen',open));
     if(s?.phase==='completed')entry.append(el('p','daily-note',`本次完成 ${controller.summary().completed} / ${s.words.length} 词 · 学习记录已保留`));
-    // PR3/PR4 mount owned report/collection containers below this main action.
+    // Keep mounted report/collection nodes and the native details open state on repaint.
     for(const host of extraHosts) entry.append(host);
   }
   function header(label) {

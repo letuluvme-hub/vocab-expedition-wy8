@@ -1209,8 +1209,8 @@ function settleRun(win){
   lifecycle.resetRun();                    // 冻结中的待办全部作废：已结束的局不得再动
   endRunProgress(G,DB,win);
   ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
-  // 结算屏的三个动作各自语义明确：复习=新开一轮；继续下一单元/继续本单元词汇=
-  // 同一轮跨段继续。oNext 的可见性与文案由 over.js 按「本单元词汇是否完成」决定。
+  // 成功结算只提供同轮续练与返回主页；战败才保留新开一轮的「再来一次」。
+  // oNext 的可见性与文案由 over.js 按「本单元词汇是否完成」决定。
   renderOver({run:G,db:DB,win,campaign:campaignState(),onTitle:renderTitle,show,
     onAgain:()=>{ if(!G||typeof G.result!=='boolean')return; curUnit=G.unit; startRunFromUi() },
     onNextUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.nextUnit() },
@@ -1545,13 +1545,13 @@ dailyReportView=createDailyReportView({host:$('dailyHomeReport'),getReport:()=>d
   copy:text=>navigator.clipboard?.writeText ? navigator.clipboard.writeText(text) : Promise.reject(new Error('Clipboard unavailable')),
 });
 dailyReportView.paint();
-dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),getView:()=>dailyCollection.view(),
+dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),atlasHost:$('dailyAtlasHost'),getView:()=>dailyCollection.view(),
   getCards:unit=>dailyCollection.cards(unit),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
 });
 dailyCollectionView.paint();
 $('startRun').textContent='自由远征';
 const titleSub=$('s-title').querySelector('.sub');
-if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 每日短局练默写，自由远征练拼词';
+if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 收集单词卡，开启你的词汇远征';
 // Refresh the clock and accumulate active time through the timing port.
 // Persist at action completion or the single time-budget checkpoint, not each tick.
 setInterval(()=>{dailyView.updateTime();dailyReportView.updateDate();dailyCollectionView.updateDate()},1000);

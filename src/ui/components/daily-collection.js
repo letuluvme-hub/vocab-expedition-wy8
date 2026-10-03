@@ -25,13 +25,14 @@ function partnerArt(doc,stage,accessory) {
   return svg;
 }
 
-export function createDailyCollectionView({host,getView,getCards,onEquip,onMakeup,getSaved=()=>null,document:doc=globalThis.document}={}) {
+export function createDailyCollectionView({host,atlasHost=host,getView,getCards,onEquip,onMakeup,getSaved=()=>null,document:doc=globalThis.document}={}) {
   const el=(tag,text,id,cls)=>{const node=doc.createElement(tag);if(text!==undefined)node.textContent=text;if(id)node.id=id;if(cls)node.className=cls;return node;};
   const button=(text,id,action)=>{const b=el('button',text,id);b.type='button';b.onclick=action;return b;};
   const root=el('section',undefined,undefined,'daily-collection');host.append(root);
+  const atlasRoot=el('section',undefined,'homeAtlas','daily-collection home-atlas');atlasHost.append(atlasRoot);
   let expanded=false,unit=1,date=null,makeupMessage='';
   function paint() {
-    const view=getView();date=view.checkin.date;root.replaceChildren();
+    const view=getView();date=view.checkin.date;root.replaceChildren();paintAtlas(view);
     const partner=el('div',undefined,undefined,'daily-partner');
     const art=el('div',undefined,'dailyPartner','daily-partner-art');art.append(partnerArt(doc,view.partner.stage,view.equipped.partner));
     const facts=el('div',undefined,undefined,'daily-partner-facts');facts.append(el('h3',`我的伙伴 · ${view.partner.name}`),el('p',`${view.partner.stageName} · 当前默写掌握 ${view.partner.count} 词`),
@@ -58,16 +59,19 @@ export function createDailyCollectionView({host,getView,getCards,onEquip,onMakeu
       checkin.append(label,select,button('补签这一天','dailyMakeup',()=>{const result=onMakeup(select.value);makeupMessage=result.ok?`已补签 ${result.date}；学习记录照实保留`:result.reason;paint();}));
     }
     const status=el('p',makeupMessage,'dailyMakeupStatus','daily-collection-note');status.setAttribute('role','status');checkin.append(status);root.append(checkin);
-    const toggle=button(expanded?'收起单词图鉴':'打开单词图鉴','dailyAtlasToggle',()=>{expanded=!expanded;paint();});toggle.setAttribute('aria-expanded',String(expanded));root.append(toggle);
+  }
+  function paintAtlas(view) {
+    atlasRoot.replaceChildren(el('h2','单词图鉴',undefined,'home-atlas-heading'));
+    const toggle=button(expanded?'收起单词图鉴':'打开单词图鉴','dailyAtlasToggle',()=>{expanded=!expanded;paintAtlas(getView());});toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-controls','dailyAtlas');atlasRoot.append(toggle);
     if(expanded){
       const atlas=el('div',undefined,'dailyAtlas','daily-atlas');const label=el('label','按单元浏览');const select=el('select',undefined,'dailyAtlasUnit');label.htmlFor=select.id;
       for(const n of [1,2,3,4,5,6,0]){const option=el('option',n?`Unit ${n}`:'自定义收藏');option.value=String(n);select.append(option);}
-      select.value=String(unit);select.onchange=()=>{unit=Number(select.value);paint();};atlas.append(label,select);
+      select.value=String(unit);select.onchange=()=>{unit=Number(select.value);paintAtlas(getView());};atlas.append(label,select);
       const cards=getCards(unit);atlas.append(el('p',`已收集 ${cards.filter(c=>c.level>0).length} / ${cards.length} · 默写对 ${cards.filter(c=>c.level>=3).length} · 复习稳固 ${cards.filter(c=>c.level===4).length}`,'dailyAtlasProgress','daily-collection-note'));
       const grid=el('div',undefined,'dailyAtlasCards','daily-atlas-grid');
       for(const card of cards){const item=el('article',undefined,undefined,`daily-card level-${card.level}`);item.dataset.word=card.key;if(view.equipped.frame)item.dataset.frame=view.equipped.frame;
         item.append(el('strong',card.word.w),el('p',card.word.z),el('span',card.label,undefined,'daily-card-level'));grid.append(item);}
-      if(!cards.length)grid.append(el('p','开始练习后，见过的自定义词会留在这里。'));atlas.append(grid);root.append(atlas);
+      if(!cards.length)grid.append(el('p','开始练习后，见过的自定义词会留在这里。'));atlas.append(grid);atlasRoot.append(atlas);
     }
   }
   function paintCompletion(host,session) {
