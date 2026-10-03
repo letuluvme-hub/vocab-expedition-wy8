@@ -8,6 +8,8 @@
 - 新版本修改 `public/version.json`，构建自动注入版本及旧HTML兼容标记。
 - 每次发布确认 exact merge commit、workflow success、version.json、入口及每项asset的字节数/hash，并通过公共网址真实浏览器试玩。
 - 必须在部署完成后执行 `npm run verify:public -- https://letuluvme-hub.github.io/vocab-expedition-wy8/`，确认旧存档保留、自定义词完成、无调试探针和手机无溢出；该脚本使用隔离浏览器，不改用户真实浏览器存档。公网验收不通过不得报告上线成功。
+- 公网验收前须在 exact 发布提交上构建 `dist`。脚本对比该构建中每个文件（含入口、JS/CSS、离线单文件和 APK 下载）的线上字节数与 SHA-256；版本文件独自相同不能证明发布物一致。
+- 公网试玩分别使用 320px／390px 隔离浏览器：旧 `mastered` 保留为练习记录且不追认掌握；完成热身、提示后拼完、无提示拼完及「今日完成」，真实回读日报剪贴板，刷新后再次核对掌握和日报。伙伴／图鉴及完整键盘的布局也必须通过。先读 [发布准备记录](daily-dictation-release-readiness.md)，再决定是否合并和上线。
 - `dist/vocab-expedition-standalone.html` 是离线下载物，不是源代码；不得直接编辑。
 
 ## 首次迁移回滚
