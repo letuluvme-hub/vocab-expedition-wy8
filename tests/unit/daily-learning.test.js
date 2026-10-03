@@ -98,3 +98,9 @@ test('report plain text contains correct date, active duration, unique words, ra
  const f=await fixture();f.start();f.clock(65000);f.warm();f.ctl.hint();for(const k of 'cat')f.ctl.input(k);f.ctl.next();for(const k of 'dog')f.ctl.input(k);f.ctl.next();const text=(await api()).reportText(f.learning.report());
  assert.match(text,/2026-10-02/);assert.match(text,/1分05秒/);assert.match(text,/练习词数：2/);assert.match(text,/50%（1\/2）/);assert.match(text,/cat · 猫/);assert.doesNotMatch(text,/<[^>]+>/);
 });
+for(const kind of ['wrong-order','wrong-letter','hint','prophecy','vision'])test(`controller due ${kind} uses real criterion and cannot regain mastery after correction`,async()=>{
+ const f=await fixture();f.db.dictationMastered=['cat'];f.db.reviewSchedule.cat={word:cat,intervalIndex:4,dueDate:'2026-10-02',stable:true};f.start();f.warm();const target=f.ctl.state().attempt.target;assert.equal(target,'cat');
+ if(kind==='wrong-order')f.ctl.input(target[1]);else if(kind==='wrong-letter')f.ctl.input('x');else if(kind==='hint')f.ctl.hint();else f.ctl.assist(kind);
+ assert.equal(f.db.dictationMastered.includes(target),false);assert.equal(f.db.reviewSchedule[target].dueDate,'2026-10-03');assert.equal(f.db.reviewSchedule[target].stable,false);
+ for(const k of target)f.ctl.input(k);f.ctl.next();assert.equal(f.db.dictationMastered.includes(target),false);assert.equal(f.db.reviewSchedule[target].intervalIndex,0);assert.equal(f.learning.report().formalAttempts,1);assert.equal(f.learning.report().firstTry,0);assert.deepEqual(f.learning.report().wrongWords,[cat]);
+});
