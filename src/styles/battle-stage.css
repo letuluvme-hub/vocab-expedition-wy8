@@ -1,6 +1,6 @@
 /* Opponents and HP stay outside the independently scrolling word/equipment area. */
 #s-fight.on { display:flex;flex-direction:column;height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px));max-height:calc(var(--vh,100vh) - var(--padT,12px) - var(--padB,30px)); }
-#s-fight #fBattleStage { flex:none;position:relative;z-index:90;isolation:isolate;background:#0a0a14;border-bottom:1px solid #ffffff16; }
+#s-fight #fBattleStage { flex:none;position:relative;z-index:auto;background:#0a0a14;border-bottom:1px solid #ffffff16; }
 #s-fight #fBattleStage .hud { position:relative;padding-bottom:3px; }
 #s-fight #fBattleStage .vsrow { margin:0;padding:4px 4px 7px;min-height:96px; }
 #s-fight #fBattleStage .finfo { min-width:0; }
