@@ -187,6 +187,8 @@ export function createCombatController({ state, ports }) {
    * 只在 pressKey **真正接受**一次输入后调用；越界、已用、已试过、
    * 自动解锁、退格、提示都不算。没有这个端口（未接入战斗）时静默返回 false。 */
   function notifyAttempt() {
+    // 选词出招：一次被接受的尝试 = 这个词已经出招，之后退格清空也不能再换词。
+    if (state.B) state.B.wordLocked = true;
     if (typeof ports.notifyLetterAttempted !== 'function') return false;
     return ports.notifyLetterAttempted() === true;
   }

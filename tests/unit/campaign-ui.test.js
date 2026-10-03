@@ -132,15 +132,19 @@ test('every unit button carries data-unit so locators never depend on the label 
   assert.match(String(buttons[1].innerHTML), /完成 Unit 1 全部词汇后解锁/);
 });
 
-test('stale historical completion cannot contradict current formal evidence or unlock the next unit', () => {
+test('expedition completion unlocks the next unit without claiming formal dictation mastery', () => {
   const all = WORDS.filter(w => w.u === 1).map(w => w.w);
   const db = mkDb({ dictationMastered: all.slice(0, -1), unitProgress: { 1: { complete: true, completedAt: 'now' } } });
   const { buttons } = renderTitleUnits(db, wordsFor);
   const u1 = buttons.find(b => b.getAttribute('data-unit') === '1');
-  assert.match(u1.textContent, /44\/45/);
-  assert.doesNotMatch(u1.textContent, /已完成过|已全部完成/);
+  assert.match(u1.textContent, /远征已通关/);
+  assert.match(u1.textContent, /44\/45/, '默写进度仍如实显示');
+  assert.doesNotMatch(u1.textContent, /已全部完成|本册/);
   const u2 = buttons.find(b => b.getAttribute('data-unit') === '2');
-  assert.equal(u2.disabled, true);
+  assert.equal(u2.disabled, false, '远征完成凭据（带时间戳）解锁下一单元');
+  // 没有时间戳的旧凭据仍然不算
+  const stale = renderTitleUnits(mkDb({ dictationMastered: all.slice(0, -1), unitProgress: { 1: { complete: true } } }), wordsFor);
+  assert.equal(stale.buttons.find(b => b.getAttribute('data-unit') === '2').disabled, true);
 });
 
 test('completing unit 1 makes unit 2 playable and shows real progress', () => {
@@ -316,4 +320,30 @@ test('boss-first on the custom unit keeps a same-run continuation instead of dea
   assert.doesNotMatch(next.textContent, /Unit \d/, '绝不许预告教材单元：' + next.textContent);
   next.onclick();
   assert.deepEqual(acts, ['continue-unit']);
+});
+
+/* ---------------- 远征完成凭据在两个续玩屏上同样生效（PR #28 review） ----------------
+ * 只玩远征的学生 complete 恒为 false（它只表示正式默写）；续玩屏若只看 complete，
+ * 刚被允许的「同一轮进入下一单元」在界面上就够不着，只能放弃本轮回主页重开。 */
+test('learning-complete offers the next unit on expedition completion alone', () => {
+  const db = mkDb({ unitProgress: { 1: { complete: true, completedAt: 'now' } } });
+  const G = createRun(1, HERO, wordsFor(1));
+  G.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
+  const els = renderLc({ db, run: G, battle: { enHp: 40, enMax: 100, boss: false } });
+  assert.equal(els.get('lcBtnNext').hidden, false);
+  assert.match(els.get('lcBtnNext').textContent, /Unit 2/);
+  assert.match(els.get('lcNext').textContent, /已解锁/);
+});
+
+test('boss screen offers the next unit on expedition completion alone', () => {
+  const db = mkDb({ unitProgress: { 1: { complete: true, completedAt: 'now' } } });
+  const G = wonRun(1, db);
+  G.done = new Set(WORDS.filter(w => w.u === 1).map(w => w.w));
+  const acts = [];
+  const els = renderOverInto({ run: G, db, win: true, campaign: view(db),
+    onNextUnit: () => acts.push('next-unit'), onContinueUnit: () => acts.push('continue-unit') });
+  assert.equal(els.get('oNext').hidden, false);
+  assert.match(els.get('oNext').textContent, /继续 Unit 2/);
+  els.get('oNext').onclick();
+  assert.deepEqual(acts, ['next-unit']);
 });

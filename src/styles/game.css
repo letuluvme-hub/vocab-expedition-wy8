@@ -32,3 +32,7 @@
 @import './foe-avatar.css';
 /* 主页的安卓 APK 下载入口：只作用于 #dlAndroid，追加在最后。 */
 @import './android-download.css';
+/* 选词出招的候选卡：只作用于 #fOffer，追加在最后。 */
+@import './word-choice.css';
+/* 主页「开始远征」常驻视口底部：只作用于 #startRow，追加在最后。 */
+@import './home-cta.css';

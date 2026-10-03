@@ -361,6 +361,7 @@ export function createProgressController({ state, api, store, now = Date.now }) 
   const requestHint = () => (gate() ? mutating(() => api.requestHint()) : false);
   const skipFight = () => (gate() ? mutating(() => api.skipFight()) : false);
   const fleeFight = () => (gate() ? mutating(() => api.fleeFight()) : false);
+  const chooseWord = i => (gate() ? mutating(() => (api.chooseWord ? api.chooseWord(i) : false)) : false);
   const enterNode = n => (gate() ? mutating(() => api.enterNode(n)) : false);
   const chooseEncounter = id => (gate() ? mutating(() => api.chooseEncounter(id)) : false);
   const takeReward = id => (gate() ? mutating(() => api.takeReward(id)) : false);
@@ -437,7 +438,7 @@ export function createProgressController({ state, api, store, now = Date.now }) 
     atTitle: () => atTitle,
     pause, resume, returnToTitle, save, checkpoint, continueRun,
     abandonRun, endRun, resetProgress, discardSnapshot, peekSnapshot,
-    pressLetter, typeLetter, undoLetter, useItem, requestHint, skipFight, fleeFight,
+    pressLetter, typeLetter, undoLetter, useItem, requestHint, skipFight, fleeFight, chooseWord,
     enterNode, chooseEncounter, takeReward, advance, nextUnit, continueUnit,
     titleState, startRunFromUi,
     onHidden, onVisible, onPageHide,

@@ -29,7 +29,8 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   // 没有 campaign 视图（旧的接线/测试台）就**没有解锁依据**：这时退回旧行为，
   // 绝不凭空显示一个「继续 Unit N+1」。真实运行期 runtime 一定传 campaign。
   const uc = campaign && campaign.counts ? campaign.counts(G.unit) : null;
-  const unitComplete = !!(uc && uc.complete);
+  // 正式默写全覆盖或远征整词完成（passed）都算本单元完成：两者都解锁下一单元。
+  const unitComplete = !!(uc && (uc.complete || uc.passed));
   // ★ 自定义单元没有「下一单元」，但**可以有**「继续本单元词汇」：打完 BOSS、
   //   自己词表里还有词没练完时，玩家照样需要一条不卡死的续练入口。
   //   next() 对单元 0 会返回教材里的 Unit 2，所以这里自己把 custom 挡掉。

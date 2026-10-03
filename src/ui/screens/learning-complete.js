@@ -71,7 +71,8 @@ export function createLearningCompleteScreen({ getRun, getBattle, db, getCampaig
     // ★ 自定义单元**绝不给**「下一单元」入口：progress.next(0) 返回的是教材里的
     //   Unit 2（自定义学完不解锁教材），照抄它会让玩家从自己的词表直接跳进课本。
     const nextUnit = custom ? null : (prog && prog.next ? prog.next(unit) : null);
-    const complete = !!(uc && uc.complete);
+    // 正式默写全覆盖或远征整词完成（passed）都算本单元完成：两者都解锁下一单元。
+    const complete = !!(uc && (uc.complete || uc.passed));
     const nextOpen = complete && nextUnit != null && prog.isUnlocked(nextUnit);
     const nextBtn = $('lcBtnNext');
     if (nextBtn) {

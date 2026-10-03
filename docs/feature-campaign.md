@@ -1,5 +1,8 @@
 # 单元解锁主线（任务 7）
 
+> **2026-10 更新**：解锁口径改为「正式默写全覆盖 **或** 远征里本单元词池全部整词拼完（带时间戳的完成凭据）」，
+> 连续口径不变。详见 `docs/feature-word-choice.md` 第四节；下文保留原始设计记录。
+
 > 状态：**已实施**，测试见 `tests/unit/campaign.test.js`、`tests/unit/campaign-ui.test.js`、
 > `tests/e2e/campaign.spec.js`。真实 iPhone / 安卓实机未验证。
 
