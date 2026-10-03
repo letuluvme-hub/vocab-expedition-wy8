@@ -44,6 +44,15 @@ test('stable requires formal mastery and completion of entire due review ladder'
 test('past custom exposure snapshots stay in collection after replacing custom list',async()=>{
  const m=await api(),db=fresh();recordExposure(db,cat,true);db.custom=[dog];const cards=m.atlasCards(db,WORDS,0);assert.equal(cards.some(c=>c.word.w==='cat'&&c.word.z==='猫'&&c.level===2),true);
 });
+test('current custom atlas includes every unseen word and replacement keeps historical snapshots',async()=>{
+ const m=await api(),db=fresh();db.custom=Array.from({length:25},(_,n)=>({w:`custom${n}`,z:`词${n}`}));recordExposure(db,cat,true);
+ const cards=m.atlasCards(db,WORDS,0);assert.equal(cards.length,26);assert.equal(cards.filter(c=>c.level===0).length,25);assert.deepEqual(cards.slice(0,25).map(c=>c.word),db.custom);
+ db.custom=[dog];const next=m.atlasCards(db,WORDS,0);assert.deepEqual(next.map(c=>c.word.w),['dog','cat']);
+});
+test('old checkins without first date retain actual earliest date and recent missed candidates',async()=>{
+ const m=await api(),db=fresh();db.dailyCollection={checkins:{'2026-10-01':'practice'},unknown:'keep'};m.completeCollection(db,{at:at('2026-10-03'),practiced:true,random:()=>0});
+ assert.equal(db.dailyCollection.firstCheckinDate,'2026-10-01');assert.equal(m.collectionView(db,at('2026-10-04')).checkin.candidates.includes('2026-10-02'),true);assert.equal(m.applyMakeup(db,'2026-10-02',at('2026-10-04')).ok,true);
+});
 test('empty finish gets no checkin or cosmetic; real practice receives both',async()=>{
  const m=await api(),db=fresh();assert.equal(m.completeCollection(db,{at:at('2026-10-03'),practiced:false,random:()=>0}).awarded,false);
  assert.equal(m.collectionView(db,at('2026-10-03')).checkin.checkedToday,false);assert.equal(db.dailyCollection.cosmetics.length,0);
@@ -106,4 +115,9 @@ test('blank daily finish gets no reward; finish old practice after midnight gets
 });
 test('app equipment and makeup persist exactly once and publish fresh view',async()=>{
  const f=await fixture();f.ctl.start({unit:0});f.ctl.input('c');f.ctl.pause();f.ctl.finish();const id=f.db.dailyCollection.cosmetics[0],n=f.commits.length;assert.equal(f.collection.equip(id),true);assert.equal(f.commits.length,n+1);f.clock('2026-10-05');const result=f.collection.makeup('2026-10-04');assert.equal(result.ok,true);assert.equal(f.commits.length,n+2);assert.equal(f.collection.saved(),true);
+});
+test('replacing getDB with incomplete old collection can equip safely and preserve unknown once',async()=>{
+ const {createDailyCollection}=await app();let db=fresh(),saves=0;const collection=createDailyCollection({getDB:()=>db,getWords:()=>WORDS,now:()=>at('2026-10-03'),persist:()=>{saves++;return true}});
+ db={...fresh(),dailyCollection:{cosmetics:['leaf-ribbon'],unknown:{keep:true}},activeRun:{hp:8},future:'kept'};
+ assert.equal(collection.equip('leaf-ribbon'),true);assert.equal(saves,1);assert.equal(db.dailyCollection.equipped.partner,'leaf-ribbon');assert.deepEqual(db.dailyCollection.unknown,{keep:true});assert.deepEqual(db.activeRun,{hp:8});assert.equal(db.future,'kept');
 });
