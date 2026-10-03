@@ -1,0 +1,8 @@
+/* Home layout only; archived CSS and the learning screens keep their own rules. */
+#homeAtlas { margin: 14px 0 18px; }
+#homeAtlas .home-atlas-heading { margin: 0; font-size: 18px; line-height: 1.4; }
+#homeAtlas #dailyAtlasToggle { margin-top: 8px; }
+#dailyEntry.home-practice { margin: 18px 0 0; padding: 12px; border-color: #3d4f63; border-radius: 12px; background: #162232; text-align: left; }
+#dailyEntry > .home-practice-summary { min-height: 44px; padding: 10px 4px; color: #bfcde6; font-size: 14px; line-height: 24px; cursor: pointer; }
+#dailyEntry > .home-practice-summary:focus-visible { outline: 2px solid #f5d99b; outline-offset: 2px; border-radius: 6px; }
+#dailyEntry[open] > .home-practice-summary { margin-bottom: 6px; }

@@ -65,8 +65,9 @@ test('BOSS victory collects one reward card and next unit starts without stale b
   await expect(page.locator('#oTitle')).toHaveText('远征成功！');
   await expect(page.locator('#oReward .reward-card')).toHaveCount(1);
   await expect(page.locator('#oReward')).toContainText('不代表已掌握全部词汇');
-  await expect(page.locator('#oAgain')).toHaveText('复习本单元');
   const isLegacy = testInfo.project.metadata.target === 'legacy';
+  if (isLegacy) await expect(page.locator('#oAgain')).toHaveText('复习本单元');
+  else await expect(page.locator('#oAgain')).toBeHidden();
   // Legacy starts a fresh next-unit run; the campaign build continues this unit
   // until its vocabulary is complete. Preserve both actual target contracts.
   await expect(page.locator('#oNext')).toBeVisible();
@@ -107,9 +108,15 @@ test('last unit victory hides next-unit action in computed layout', async ({ gam
   await expect(page.locator('#oText')).toContainText(testInfo.project.metadata.target === 'legacy'
     ? '已到本册最后一个单元' : '本册词汇已完成');
   await expect(page.locator('#oReward')).toContainText('Unit 6');
-  await page.locator('#oAgain').click();
-  expect((await game.state()).G.unit).toBe(6);
-  expect((await game.state()).B).toBeNull();
+  if (testInfo.project.metadata.target === 'legacy') {
+    await page.locator('#oAgain').click();
+    expect((await game.state()).G.unit).toBe(6);
+    expect((await game.state()).B).toBeNull();
+  } else {
+    await expect(page.locator('#oAgain')).toBeHidden();
+    await expect(page.locator('#oAgain')).toBeDisabled();
+    expect((await game.state()).G.unit).toBe(6);
+  }
 });
 
 test('skipping BOSS is a failed run with no reward or next-unit action', async ({ game, page }) => {
