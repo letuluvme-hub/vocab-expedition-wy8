@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createDailyDictationController } from '../../src/app/daily-dictation.js';
 import { createDailyLearning } from '../../src/app/daily-learning.js';
 import { createDailyCollection } from '../../src/app/daily-collection.js';
+import { createDictationAttempt } from '../../src/domain/dictation.js';
 import { restoreDailySession } from '../../src/domain/daily-session.js';
 import { shanghaiDate, addDays } from '../../src/domain/daily-learning.js';
 
@@ -110,4 +111,9 @@ test('deferring yesterday\'s already assessed error does not invent practice, re
   assert.equal(x.learning.report().practicedWords,0);assert.equal(x.learning.report().formalAttempts,0);
   assert.equal(x.db.dailyCollection.checkins[today],undefined);assert.equal(x.db.dailyCollection.gifts[today],undefined);
   assert.equal(x.db.reviewSchedule.cat.dueDate,today);assert.equal(x.c.summary().assessed,1);
+});
+test('restored deferred result cannot be replayed as the current clean attempt',()=>{
+  const x=setup();formal(x.c,[cat,dog,pig]);spell(x.c,'cat');x.c.next();x.c.input('x');x.c.defer();
+  const corrupt=structuredClone(x.c.state());corrupt.index=1;corrupt.attempt=createDictationAttempt(dog);
+  assert.equal(restoreDailySession(corrupt),null);
 });

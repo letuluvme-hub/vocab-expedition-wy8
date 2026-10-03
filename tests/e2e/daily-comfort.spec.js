@@ -26,7 +26,7 @@ test('hinted lastword defer ends exactly once, reload and input cannot grant mas
   await page.keyboard.type('at');await game.reload();const after=await game.saved();expect(after.dailySession).toEqual(before.dailySession);expect(after.dailyReports.days).toEqual(before.dailyReports.days);
   await expect(page.locator('#dailyEntry')).toContainText('本次完成 0 / 1 词');
 });
-test('free telegraph stays frozen while formal mistakes wait through two real attack windows',async({game,page},info)=>{
+test('free telegraph stays frozen while formal mistakes wait through a real attack cycle',async({game,page},info)=>{
   newOnly(info);test.setTimeout(40000);await game.open();await game.start();await game.fight({enemyHp:10000});
   await page.waitForFunction(()=>window.__gameTest.B.foeAttack.phase==='telegraph',null,{timeout:15000});
   await page.locator('#tPause').click();await page.locator('#pzHome').click();const before=await game.saved();
