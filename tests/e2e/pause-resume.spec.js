@@ -816,8 +816,12 @@ test('leaving a shop inside the 400ms advance window still leaves a restorable s
     const n = t.G.rows[0][0];
     n.type = 'shop';
     t.enterNode(n);
-    // 把去重窗口推到「刚刚」，制造 advance 的 'locked' 分支（用真实字段，不改玩法）
-    t.G.advAt = Date.now();
+    // Anchor the fixture to the real click, before the production handler.
+    // Setting it before Playwright's visibility/actionability RPCs can exceed
+    // 400ms under load and accidentally exercise the normal map branch instead.
+    document.querySelector('#rPicks .pick[data-opt="shop:leave"]').addEventListener('click', () => {
+      t.G.advAt = Date.now();
+    }, { capture: true, once: true });
   });
   await expect(page.locator('#s-rest')).toBeVisible();
   await page.locator('#rPicks .pick[data-opt="shop:leave"]').click();

@@ -13,7 +13,11 @@ for (const width of [320, 390, 1024]) test(`expedition CTA leads, atlas follows 
   await expect(page.locator('#dailyOpen')).not.toBeVisible();
   await expect(page.locator('#dailyPartner')).not.toBeVisible();
   await expect(page.locator('#dailyHomeReport')).not.toBeVisible();
-  expect(await page.locator('#s-title').innerText()).not.toMatch(/每日默写|每日短局/);
+  // P0-2 明确要求知识成长说明与就近默写入口；主远征区仍不插入另一套每日主玩法。
+  const homeText = await page.locator('#s-title').innerText();
+  const growthText = await page.locator('#masteryGrowthHost').innerText();
+  expect(homeText).toContain(growthText);
+  expect(homeText.replace(growthText, '')).not.toMatch(/每日默写|每日短局/);
   const bounds = await page.evaluate(() => {
     const before = (a, b) => !!(document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & Node.DOCUMENT_POSITION_FOLLOWING);
     // 2026-10：远征是主玩法，「开始远征」与遗物/导入行在图鉴之前（docs/feature-word-choice.md 第五节）。

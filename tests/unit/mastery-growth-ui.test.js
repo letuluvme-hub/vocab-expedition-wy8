@@ -182,6 +182,8 @@ test('说明文字只讲「新开一轮生效」，不含补血 / 当前轮加�
     view.mount(host);
     view.paint();
     const note = byClass(host, 'mgrowth-note')[0].textContent;
+    assert.match(note, /只算每日默写里零错误的教材词/);
+    assert.match(note, /未用提示、未揭示答案/);
     assert.match(note, /新开一轮/);
     assert.match(note, /不会补回生命/);
     assert.match(note, /不会提高本轮生命上限/);

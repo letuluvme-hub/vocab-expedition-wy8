@@ -201,16 +201,28 @@ const backToLegacyVolrow = html => {
   return out;
 };
 
+// P0-2 的明确展示变化：新增远征统计，正式默写统计只改标签。
+// 精确归一化后仍逐字核对归档骨架，不能借此隐藏其他控件差异。
+const backToLegacyHomeProgress = html => {
+  const lf = html.replace(/\r\n/g, '\n');
+  const expedition = /      <div><b id="sExpedition" style="color:var\(--acc2\)">0<\/b><i>远征拼对<\/i><\/div>\n/;
+  const formal = /(<b id="sMaster" style="color:var\(--ok\)">0<\/b><i>)默写掌握(<\/i>)/;
+  assert.match(lf, expedition, '新增远征统计必须真实存在');
+  assert.match(lf, formal, '既有掌握统计必须明确是默写掌握');
+  return lf.replace(expedition, '').replace(formal, '$1已掌握$2');
+};
+
 test('page skeleton preserves approved character parts and all existing controls', () => {
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  const comparable = backToLegacyHomeProgress(html);
   // 两边都要走 stripPause：暂停新增是本任务允许的唯一偏离，其余必须逐字相同。
   // 主页声音设置区是同位置的替换：把新版容器还原成归档的 .volrow 段再比。
   // 知识成长容器是纯新增：整段删掉再比（见 stripMasteryHost）。
-  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(html))))).replace(SKIP_COPY_DIFF, '$1跳过代价$2'))),
+  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(comparable))))).replace(SKIP_COPY_DIFF, '$1跳过代价$2'))),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '$1跳过代价$2')));
   // 去掉跳过文案的归一化后，仍然必须完全对齐
-  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(html))))).replace(SKIP_COPY_DIFF, ''))),
+  assert.equal(strip(stripPause(stripAndroidDownload(stripKeyboardTipHost(stripStreakHost(stripMasteryHost(backToLegacyVolrow(comparable))))).replace(SKIP_COPY_DIFF, ''))),
     strip(stripPause(baseline).replace(SKIP_COPY_DIFF, '')));
   // 并且当前文案确实点明了 50 点生命
   assert.match(html, /id="tSkip">跳过<small>损失 50 生命<\/small>/);

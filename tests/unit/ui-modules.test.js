@@ -722,7 +722,7 @@ test('map.renderMap stays silent when the available set did not change', async (
 const TITLE_IDS = ['heroes', 'heroDesc', 'units', 'sRun', 'sWin', 'sMaster', 'sFloor',
   'rewardSummary', 'rewardCards'];
 
-test('title screen preserves legacy presentation for matching formal progress', async () => {
+test('title screen preserves legacy controls while separating matching expedition and formal progress', async () => {
   const { createTitleScreen } = await import('../../src/ui/screens/title.js');
   const { renderRewardCard } = await import('../../src/ui/components/reward-card.js');
   const DB = { hero: 'ranger', mastered: ['book', 'pen', 'inborn'], dictationMastered: ['book', 'pen', 'inborn'], runs: 7, wins: 2, best: 9, rewards: [REWARD] };
@@ -738,10 +738,12 @@ test('title screen preserves legacy presentation for matching formal progress', 
   const helper = createTitleScreen({ getDB: () => DB, getUnit: () => 3, allWords, onHero: () => {}, onUnit: () => {} });
   withDocument(docOld, () => legacyFn('renderTitle', { $: $for(docOld), document: docOld, UNITS, HEROES, DB, allWords,
     curUnit: 3, renderHeroes: () => helper.renderHeroes(), renderRewardCard })());
-  // 任务 7 的**有意漂移**：单元按钮多了 data-unit（给严格定位用）。它只是属性，
-  // 可见文案、class 与回调全都不变 —— 所以 units 逐元素比对时排除这个属性。
+  // 有意漂移：data-unit 和两份学习进度。这里只归一化本例中两者相等的那一行；
+  // 新文案另作精确断言，class、选择回调、收藏和其他文字仍对照真实归档。
+  const progressToLegacy = html => html.replace(/<em>远征 (\d+)\/(\d+) · 默写 \1\/\2<\/em>/g,
+    '<em>已掌握 $1/$2</em>');
   const unitSnap = doc => snapDoc(doc, TITLE_IDS.filter(id => id !== 'units'))
-    + '\nunits-text:' + doc.getElementById('units').children.map(u => u._html).join('|')
+    + '\nunits-text:' + doc.getElementById('units').children.map(u => progressToLegacy(u._html)).join('|')
     + '\nunits-class:' + doc.getElementById('units').children.map(u => u.className).join('|');
   assert.equal(unitSnap(mineDoc), unitSnap(docOld));
 
@@ -756,7 +758,7 @@ test('title screen preserves legacy presentation for matching formal progress', 
   assert.equal(units.length, 7);
   assert.equal(units[0].className, 'unit');
   assert.equal(units[2].className, 'unit sel');
-  assert.equal(units[2]._html, '<b>Unit 3 成长与发现</b><span>29 词</span><em>已掌握 1/29</em>');
+  assert.equal(units[2]._html, '<b>Unit 3 成长与发现</b><span>29 词</span><em>远征 1/29 · 默写 1/29</em>');
   assert.equal(units[6]._html, '<b>我的词表</b><span>0 词（空）</span>');
   // 任务 7：每个单元按钮都带 data-unit（脚本按它定位，不按文本）
   assert.deepEqual(units.map(u => u.attrs['data-unit']), ['1', '2', '3', '4', '5', '6', '0']);
