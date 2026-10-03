@@ -117,3 +117,13 @@ test('restored deferred result cannot be replayed as the current clean attempt',
   const corrupt=structuredClone(x.c.state());corrupt.index=1;corrupt.attempt=createDictationAttempt(dog);
   assert.equal(restoreDailySession(corrupt),null);
 });
+test('formal results cannot restore into earlier warmup or formal-ready phases',()=>{
+  const x=setup();formal(x.c,[cat,dog,pig]);spell(x.c,'cat');x.c.next();x.c.hint();x.c.defer();
+  for(const phase of ['warmup','formal-ready']) {
+    const corrupt=structuredClone(x.c.state());corrupt.phase=phase;corrupt.index=0;
+    corrupt.attempt=phase==='warmup'?createDictationAttempt(cat,{phase:'warmup'}):null;
+    assert.equal(restoreDailySession(corrupt),null);
+  }
+  const creditedDeferred=structuredClone(x.c.state());creditedDeferred.index=1;creditedDeferred.attempt=createDictationAttempt(dog);
+  Object.assign(creditedDeferred.attempt,{input:'dog',completed:true,credited:true});assert.equal(restoreDailySession(creditedDeferred),null);
+});
