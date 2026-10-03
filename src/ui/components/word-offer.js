@@ -40,7 +40,7 @@ export function createWordOffer({ $ }) {
       b.innerHTML = '<span class="wcZh">' + esc(w.z) + '</span>'
         + '<span class="wcMeta">' + (c.letters | 0) + '字母 · '
         + (c.lethal ? '<b class="wcKill">可斩杀</b>' : '⚔' + (c.total | 0)) + '</span>';
-      if (view.canSwitch && !on) b.onclick = () => view.onPick(i);
+      if (view.canSwitch) b.onclick = () => view.onPick(i);
       box.appendChild(b);
     });
     const tip = document.createElement('div');

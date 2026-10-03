@@ -18,7 +18,7 @@ import { newRoundId, noteRoundUnitComplete } from './rounds.js';
 import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
 import { drawWord as selectWord, isPoolComplete } from '../domain/word-selection.js';
-import { offerWords, canSwitchWord } from '../domain/word-choice.js';
+import { offerWords, canSwitchWord, preferredOfferWord } from '../domain/word-choice.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
 import { createTitleScreen } from '../ui/screens/title.js';
 import { createMapScreen } from '../ui/screens/map.js';
@@ -634,10 +634,12 @@ function startFight(n){
   const hpMax = scaleEnemyHealth(foeBaseHpMax, G&&G.difficulty);
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
-  const qword = drawWord(budget);
+  const drawn = drawWord(budget);
   // ★ 词池已抽干（自定义小词表、或本单元词汇全部完成）：不进战斗，
   //   也不生成空字母盘 —— 统一走「本单元词汇已全部完成」检查点。
-  if(!qword) return showLearningComplete();
+  if(!drawn) return showLearningComplete();
+  const offer=offerWords(G,drawn,null);
+  const qword=preferredOfferWord(offer,drawn,DB.wordChoiceIndex);
   const lt = drawLetters(qword);
   B={ word:qword, letters:lt.letters, used:lt.used, bad:new Array(lt.letters.length).fill(false),
       node:n, foe:e, boss:boss, elite:elite,
@@ -660,7 +662,7 @@ function startFight(n){
   G.nextHint=0;
   // 选词出招：抽到的词旁边再给 2 个未完成的备选（不消耗随机数，见 domain/word-choice.js）。
   // autoHint = 开场自动揭示的次数：不算「玩家动过这个词」，换词时随之带走。
-  B.offer=offerWords(G,qword,null); B.autoHint=B.hintTotal;
+  B.offer=offer; B.autoHint=B.hintTotal;
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
   if(G.hregen){ const h=Math.min(G.hregen,G.maxhp-B.myHp); B.myHp+=h;
@@ -842,21 +844,22 @@ function drawLetters(qword){return generateLetters(G,B,qword)}
 // 敌人还活着时换下一个词
 function nextWord(){
   const budget=B.boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(B.elite?1:0));
-  const nw=drawWord(budget);
+  const drawn=drawWord(budget);
   // ★ 最后一个未完成的词刚答完、这一场还没打死怪：进「词汇已全部完成」检查点。
   //   combat 的整词分支已经先判过 lethal（真打死就走 winFight 的既有奖励），
   //   所以走到这里一定还有未打死的怪 —— 这里绝不调 winFight / endRun(true)，
   //   kills / gold / wins 一律不动，怪物血与 run 状态如实保留。
-  if(!nw) return showLearningComplete();
+  if(!drawn) return showLearningComplete();
+  const offer=offerWords(G,drawn,B.word);
+  const nw=preferredOfferWord(offer,drawn,DB.wordChoiceIndex);
   const nl=drawLetters(nw);
-  const prevWord=B.word;
   B.word=nw; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);
   B.freezeWord=false;   // 寒冰护符只保护一个词
   B.input=[]; B.sel=0; B.hintUsed=0; B.hintTotal=0;
   B.wordQ=createWordQ();
   if(hasR('scholar') && B.wordsDone===1){ B.hintUsed=1; B.hintTotal=1; B.wordQ.hint++; B.wordQ.revealed++ }   // 学者之书：揭示首字母
-  B.offer=offerWords(G,nw,prevWord); B.autoHint=B.hintTotal; B.wordLocked=false;
+  B.offer=offer; B.autoHint=B.hintTotal; B.wordLocked=false;
   renderFight();
 }
 /* 选词出招：在这个词还没被动过时，换成候选里的另一个词（docs/feature-word-choice.md）。
@@ -864,8 +867,11 @@ function nextWord(){
  * 新词重新生成字母盘 —— 换词本身不是一次作答，所以不打断蓄力、不记任何学习事实。 */
 function chooseWord(idx){
   if(!B||!canSwitchWord(B)) return false;
+  if(!Number.isInteger(idx)||idx<0||idx>=B.offer.length) return false;
   const w=B.offer[idx];
-  if(!w||w.w===B.word.w) return false;
+  if(!w) return false;
+  DB.wordChoiceIndex=idx;
+  if(w.w===B.word.w) return true;
   const nl=drawLetters(w);
   B.word=w; B.letters=nl.letters; B.used=nl.used;
   B.bad=new Array(nl.letters.length).fill(false);

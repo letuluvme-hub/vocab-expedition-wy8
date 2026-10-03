@@ -18,6 +18,13 @@ import { norm } from './text.js';
 
 export const OFFER_SIZE = 3;
 
+// Keep a chosen screen position as the offer changes. A temporarily short
+// offer uses its last card; callers retain the original preference for later.
+export function preferredOfferWord(offer, drawn, index) {
+  if (!Number.isInteger(index) || index < 0 || index >= OFFER_SIZE || !offer.length) return drawn;
+  return offer[Math.min(index, offer.length - 1)];
+}
+
 const keyOf = w => String(w == null ? '' : w).trim().toLowerCase();
 const lenOf = w => norm(w.w).length;
 
