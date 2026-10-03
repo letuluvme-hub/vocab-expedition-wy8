@@ -104,3 +104,23 @@ for(const kind of ['wrong-order','wrong-letter','hint','prophecy','vision'])test
  assert.equal(f.db.dictationMastered.includes(target),false);assert.equal(f.db.reviewSchedule[target].dueDate,'2026-10-03');assert.equal(f.db.reviewSchedule[target].stable,false);
  for(const k of target)f.ctl.input(k);f.ctl.next();assert.equal(f.db.dictationMastered.includes(target),false);assert.equal(f.db.reviewSchedule[target].intervalIndex,0);assert.equal(f.learning.report().formalAttempts,1);assert.equal(f.learning.report().firstTry,0);assert.deepEqual(f.learning.report().wrongWords,[cat]);
 });
+test('corrupt or future daily snapshot words object is retained and does not crash migration',async()=>{
+ const m=await api(),db=fresh();const invalid={schemaVersion:999,words:{unexpected:true},unknown:'preserve'};db.dailySession=invalid;
+ assert.doesNotThrow(()=>m.initializeLearning(db,[cat,dog],stamp('2026-10-02')));assert.equal(db.dailySession,invalid);assert.deepEqual(db.dailySession.words,{unexpected:true});
+});
+test('prePR3 failed partial snapshot restored and finished without typing is accounted now exactly once',async()=>{
+ const f=await fixture();f.start();f.warm();f.ctl.input('a');f.ctl.pause();const db=structuredClone(f.db);delete db.reviewSchedule;delete db.dailyReports;delete db.wordExposure;delete db.dailySession.learning;db.dictationMastered=['cat'];
+ const {createDailyLearning}=await app();const learning=createDailyLearning({getDB:()=>db,getWords:()=>[cat,dog],now:()=>stamp('2026-10-02')});const ctl=createDailyDictationController({getDB:()=>db,getWords:()=>[cat,dog],now:()=>stamp('2026-10-02'),persist:()=>true,...learning.ports});
+ ctl.finish();ctl.finish();assert.equal(db.dictationMastered.includes('cat'),false);assert.equal(db.reviewSchedule.cat.dueDate,'2026-10-03');assert.equal(learning.report().formalAttempts,1);assert.equal(learning.report().firstTry,0);assert.deepEqual(learning.report().wrongWords,[cat]);
+});
+test('global due reviews cross unit and old custom lists while actual half quota remains enforced',async()=>{
+ const f=await fixture(),owl={w:'owl',z:'猫头鹰',u:6};f.db.reviewSchedule.owl={word:owl,intervalIndex:1,dueDate:'2026-10-01',stable:false};f.start();assert.equal(f.ctl.state().words.some(w=>w.w==='owl'&&w.u===6),true);assert.deepEqual(f.ctl.state().reviewKeys,['owl']);assert.equal(f.ctl.state().reviewKeys.length<=Math.floor(f.ctl.state().words.length/2),true);
+});
+test('last assisted word, pool exhaustion and duplicate attempt callback keep denominator exactly two',async()=>{
+ const f=await fixture();f.start();f.warm();for(const k of f.ctl.state().attempt.target)f.ctl.input(k);f.ctl.next();f.ctl.hint();for(const k of f.ctl.state().attempt.target)f.ctl.input(k);f.ctl.next();
+ assert.equal(f.ctl.state().index,f.ctl.state().words.length);const before=structuredClone(f.db.dailyReports);f.learning.ports.onAttempt({session:f.ctl.state(),attempt:f.ctl.state().attempt,result:f.ctl.state().results.at(-1),db:f.db,at:stamp('2026-10-02')});f.learning.ports.onComplete({session:f.ctl.state(),db:f.db,at:stamp('2026-10-02')});assert.deepEqual(f.db.dailyReports,before);assert.equal(f.learning.report().formalAttempts,2);assert.equal(f.learning.report().firstTry,1);
+});
+test('replayed earlier clean attempt after a later word does not increase report count',async()=>{
+ const f=await fixture();f.start();f.warm();for(const k of f.ctl.state().attempt.target)f.ctl.input(k);const earlier=structuredClone(f.ctl.state().results[0]);f.ctl.next();for(const k of f.ctl.state().attempt.target)f.ctl.input(k);f.ctl.next();const before=structuredClone(f.db.dailyReports);
+ f.learning.ports.onAttempt({session:f.ctl.state(),result:earlier,db:f.db,at:stamp('2026-10-02')});assert.deepEqual(f.db.dailyReports,before);
+});
