@@ -18,17 +18,40 @@ for (const width of [320, 390, 1024]) test(`atlas is first, practice is closed a
     const before = (a, b) => !!(document.getElementById(a).compareDocumentPosition(document.getElementById(b)) & Node.DOCUMENT_POSITION_FOLLOWING);
     return { atlasFirst: before('homeAtlas', 'keyboardTipHost'), practiceLast: before('rewardCollection', 'dailyEntry'),
       separate: !document.getElementById('dailyEntry').contains(document.getElementById('homeAtlas')),
-      width: document.documentElement.scrollWidth, startBottom: document.getElementById('startRun').getBoundingClientRect().bottom };
+      width: document.documentElement.scrollWidth, atlasHeight: document.getElementById('homeAtlas').getBoundingClientRect().height };
   });
   expect(bounds).toMatchObject({ atlasFirst: true, practiceLast: true, separate: true });
   expect(bounds.width).toBeLessThanOrEqual(width);
-  expect(bounds.startBottom).toBeLessThanOrEqual(844);
+  expect(bounds.atlasHeight).toBeLessThanOrEqual(140);
   const before = await game.saved();
   await page.locator('#dailyAtlasToggle').click();
   await expect(page.locator('#dailyAtlasCards .daily-card')).toHaveCount(45);
   await expect(page.locator('#dailyEntry')).toHaveJSProperty('open', false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   expect(await game.saved()).toEqual(before);
+});
+
+test('successful settlement removes replay and same-run continuation preserves resources', async ({ game, page }, info) => {
+  newOnly(info); await game.open(); await game.start();
+  await game.fight({ boss: true, word: 'litre', enemyHp: 1 });
+  await page.keyboard.type('litre'); await page.locator('#pPicks .pick').first().click();
+  await expect(page.locator('#s-over')).toBeVisible();
+  await expect(page.locator('#oAgain')).not.toBeVisible();
+  await expect(page.locator('#oAgain')).toBeDisabled();
+  expect(await page.locator('#oAgain').evaluate(node => node.onclick)).toBeNull();
+  expect(await page.locator('#s-over').innerText()).not.toMatch(/复习本单元|复习自定义词表/);
+  const before = await page.evaluate(() => {
+    const { G, DB } = window.__gameTest;
+    return { id: G.id, gold: G.gold, bag: structuredClone(G.bag), relics: [...G.relics], done: [...G.done], runs: DB.runs };
+  });
+  await page.locator('#oAgain').evaluate(node => node.click());
+  await expect(page.locator('#s-over')).toBeVisible();
+  await expect(page.locator('#oNext')).toHaveText('继续本单元词汇');
+  await page.locator('#oNext').click(); await expect(page.locator('#s-map')).toBeVisible();
+  expect(await page.evaluate(() => {
+    const { G, DB } = window.__gameTest;
+    return { id: G.id, gold: G.gold, bag: structuredClone(G.bag), relics: [...G.relics], done: [...G.done], runs: DB.runs };
+  })).toEqual(before);
 });
 
 test('keyboard toggles practice without moving atlas or losing mounted reports on repaint', async ({ game, page }, info) => {

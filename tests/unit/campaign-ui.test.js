@@ -4,7 +4,7 @@
  * 红线（沿用 learning-complete 的诚实口径）：
  *  - 解锁只由「本单元全部目标词完整拼对」驱动，绝不由 BOSS 击杀驱动。
  *  - 最后单元显示「本册词汇已完成」，绝不冒充「击败最终 BOSS」。
- *  - 复习（oAgain）永远是复习，不许被拿来当「继续」。
+ *  - 成功结算不提供会清空本轮进度的复习入口；战败仍可再来一次。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -221,8 +221,10 @@ test('boss-first with words remaining keeps a continue-this-unit entry', () => {
   assert.doesNotMatch(next.textContent, /Unit 2/, '本单元没完成，绝不许预告下一单元');
   next.onclick();
   assert.deepEqual(acts, ['continue-unit']);
-  els.get('oAgain').onclick();
-  assert.deepEqual(acts, ['continue-unit', 'again'], '复习仍是复习，不许拿它当继续');
+  assert.equal(els.get('oAgain').hidden, true);
+  assert.equal(els.get('oAgain').disabled, true);
+  assert.equal(els.get('oAgain').onclick, null, '成功结算不允许复习入口清空本轮进度');
+  assert.deepEqual(acts, ['continue-unit']);
 });
 
 test('boss screen switches to the next unit only when this unit vocabulary is complete', () => {
