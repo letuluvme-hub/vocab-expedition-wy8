@@ -14,7 +14,14 @@ async function checkScroll(details,page,touch=false){
  await details.evaluate(n=>n.scrollTop=0);
  const before=await details.evaluate(n=>n.scrollTop);
  if(touch){const r=await details.boundingBox(),cdp=await page.context().newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:r.x+r.width/2,y:r.y+r.height*.8}]});for(const ratio of [.7,.6,.5,.4,.3,.2]){await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:r.x+r.width/2,y:r.y+r.height*ratio}]});await page.waitForTimeout(20)}await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach()}
- else {await details.hover();await page.mouse.wheel(0,300)}
+ else {
+  await details.hover();
+  expect(await details.evaluate(n=>{const r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})).toBe(true);
+  // Wheel dispatch is asynchronous in Chromium. Retry actual wheel gestures,
+  // rather than assuming one dispatch has already reached the compositor.
+  // A non-scrollable or covered panel still fails; never set the success value.
+  await expect.poll(async()=>{await page.mouse.wheel(0,300);return details.evaluate(n=>n.scrollTop)}).toBeGreaterThan(before);
+ }
  await expect.poll(()=>details.evaluate(n=>n.scrollTop)).toBeGreaterThan(before);
  await page.locator('#fEquipment .eq-row').last().scrollIntoViewIfNeeded();
  for(const id of ['fAv','fPc','fMy','fEn']){
