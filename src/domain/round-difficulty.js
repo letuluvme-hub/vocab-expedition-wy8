@@ -166,9 +166,9 @@ export function deriveRoundDifficulty(facts = {}) {
  *   窗口 × intervalMultiplier（再按下限夹住），伤害 × damageMultiplier。
  *   baseProfile 缺失 / 脏值 → 回落 FOE_ATTACK.normal（fail safe：宁可慢也别 NaN）。
  *   ★ 返回全新对象：不改 baseProfile，不返回入参引用（调用方改了不会串到别处）。 */
-export function scaleFoeAttackProfile(baseProfile, difficulty) {
+export function scaleFoeAttackProfile(baseProfile, difficulty, segments) {
   const base = (baseProfile && typeof baseProfile === 'object' && !Array.isArray(baseProfile)) ? baseProfile : {};
-  const d = readDifficulty(difficulty);
+  const d = withSegment(readDifficulty(difficulty), segments);
   const fallback = FOE_ATTACK.normal;
   const pick = (field) => {
     const v = base[field];
@@ -185,8 +185,39 @@ export function scaleFoeAttackProfile(baseProfile, difficulty) {
 /* 敌人血量 → 本轮血量。四舍五入取整，最小 1。
  *   baseHp 非法（NaN / 非数 / 负数）→ 1（最小可玩值，绝不返回 NaN）。
  *   脏 difficulty → 原值（倍率全 1，等于没缩放）。 */
-export function scaleEnemyHealth(baseHp, difficulty) {
+export function scaleEnemyHealth(baseHp, difficulty, segments) {
   if (!isNum(baseHp) || baseHp <= 0) return 1;
-  const d = readDifficulty(difficulty);
+  const d = withSegment(readDifficulty(difficulty), segments);
   return Math.max(1, Math.round(baseHp * d.hpMultiplier));
+}
+/* ============ 同一次远征里的地图递增（2026-10 站长要求）============
+ * 一次远征可以连打很多张地图（跨单元、续段、跨册），每张图楼层从 1 重来，
+ * 怪物血量公式只看楼层，于是第 9 张图的怪和第 1 张一样软，而玩家已经攒了
+ * 几千金币和一整套遗物。这里按 run.campaign.segments（第几张图）再叠一层倍率。
+ *
+ * - 第 1 张图恒等于 1：旧行为逐字不变，所有「第 1 轮基线」的断言照旧成立。
+ * - segments 不落进 difficulty 事实：它本来就在快照的 campaign 里，
+ *   读的时候现算，所以快照形状不变，刷新也不会多升一档。
+ * - 思考窗口的硬下限（MIN_*_MS）照旧优先，怪物再快也留得出读词的时间。 */
+export const SEGMENT_HP_STEP = 0.15;        // 每多一张图，血量 +15%
+export const SEGMENT_DAMAGE_STEP = 0.10;    // 每多一张图，蓄力伤害 +10%
+export const SEGMENT_INTERVAL_STEP = 0.03;  // 每多一张图，蓄力节奏快 3%
+export const MAX_SEGMENT_STEPS = 20;        // 第 21 张图起封顶
+
+export function segmentMultipliers(segments) {
+  const steps = isInt(segments) && segments > 1 ? Math.min(segments - 1, MAX_SEGMENT_STEPS) : 0;
+  return {
+    hpMultiplier: 1 + SEGMENT_HP_STEP * steps,
+    damageMultiplier: 1 + SEGMENT_DAMAGE_STEP * steps,
+    intervalMultiplier: 1 - SEGMENT_INTERVAL_STEP * steps,
+  };
+}
+
+function withSegment(d, segments) {
+  const s = segmentMultipliers(segments);
+  return {
+    hpMultiplier: d.hpMultiplier * s.hpMultiplier,
+    damageMultiplier: d.damageMultiplier * s.damageMultiplier,
+    intervalMultiplier: d.intervalMultiplier * s.intervalMultiplier,
+  };
 }

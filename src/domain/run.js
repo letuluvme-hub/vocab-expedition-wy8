@@ -265,6 +265,9 @@ export function syncRoundCard(run, db) {
   if (!knownId) return null;                     // 这一轮还没有卡：不凭空 mint
   const card = db.rewards.filter(r => r && r.id === knownId)[0];
   if (!card) return null;                        // ★ 只同步真实存在的卡
+  // 跨册远征（八上学完顺延八下）里，卡只记它发出时那一册的单元：
+  // 单元号在两册里同名，混进来就会把八下 Unit 1 写成八上 Unit 1。
+  if ((card.bookId || DEFAULT_BOOK_ID) !== (run.bookId || DEFAULT_BOOK_ID)) return null;
   if (!run.reward) run.reward = card;            // 内存侧也认同一张卡，避免再发一张
   if (card.roundId === undefined && typeof run.roundId === 'string' && run.roundId) card.roundId = run.roundId;
   if (card.roundNumber === undefined && typeof run.roundNumber === 'number' && run.roundNumber > 0) {
