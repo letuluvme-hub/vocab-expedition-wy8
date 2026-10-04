@@ -2,7 +2,7 @@ import { PARTNER_STAGES } from '../../domain/daily-collection.js';
 import { BOOKS, DEFAULT_BOOK_ID, bookById, bookUnits } from '../../data/books.js';
 
 // Original seed-and-ink companion, drawn from rectangles rather than game art.
-function partnerArt(doc,stage,accessory) {
+export function partnerArt(doc,stage,accessory) {
   const ns='http://www.w3.org/2000/svg',svg=doc.createElementNS(ns,'svg');
   svg.setAttribute('viewBox','0 0 64 64');svg.setAttribute('role','img');svg.setAttribute('aria-label',`原创伙伴墨芽 · ${PARTNER_STAGES[stage].name}`);
   const title=doc.createElementNS(ns,'title');title.textContent='墨芽：从墨水种子长出的星叶伙伴';svg.append(title);
