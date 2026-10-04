@@ -1376,6 +1376,11 @@ const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
   getFoeAttackFact:()=>foeAttackCtl.captureFact(),
   onPress:i=>{ if(progress.isPaused())return; B.sel=i;progress.pressLetter(i)},
   onUseItem:id=>progress.useItem(id),paintSayBtn,
+  onOpenDetails:()=>{
+    if(progress.isPaused()||progress.isFinished()||currentScreen()!=='s-fight')return false;
+    progress.pause();return progress.isPaused();
+  },
+  onCloseDetails:()=>{if(progress.resume())renderFight()},
   onChooseWord:i=>progress.chooseWord(i)});
 const pauseScreen=createPauseScreen({getRun:()=>G,
   onResume:()=>{ resumeFromPause() },

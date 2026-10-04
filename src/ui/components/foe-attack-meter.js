@@ -37,7 +37,7 @@ import { FOE_PHASE } from '../../domain/foe-attack.js';
 
 export const INTERRUPT_HINT = '蓄力时尝试一个可用字母可打断；重复已试字母不算';
 
-export function createFoeAttackMeter({ $ = id => document.getElementById(id), doc } = {}) {
+export function createFoeAttackMeter({ $ = id => document.getElementById(id), doc, compact = false } = {}) {
   const D = () => doc || (typeof document !== 'undefined' ? document : null);
   // 最近一次建出来的元素引用。两个 paint 口只碰这几个，绝不 appendChild（除重建）。
   let refs = null;
@@ -72,7 +72,7 @@ export function createFoeAttackMeter({ $ = id => document.getElementById(id), do
     const secs = Math.max(0, Math.ceil((fact.remainingMs || 0) / 1000));
     const dmg = (window && window.damage) || 0;
     const text = telegraphing
-      ? ('⚠ 蓄力中 ' + secs + 's · 打出 ' + dmg + ' 伤害 · ' + INTERRUPT_HINT)
+      ? (compact ? ('⚠ 蓄力中 ' + secs + 's · ' + dmg + ' 伤害') : ('⚠ 蓄力中 ' + secs + 's · 打出 ' + dmg + ' 伤害 · ' + INTERRUPT_HINT))
       : fact.phase === FOE_PHASE.RECOVER
         ? (fact.interrupted ? '已被打断，怪在收招' : '怪在收招')
         : fact.phase === FOE_PHASE.DEFEATED ? '' : '怪在观察你';

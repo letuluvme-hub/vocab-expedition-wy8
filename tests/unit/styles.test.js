@@ -54,6 +54,7 @@ const ADDED = [
   ['./hero-roster.css', /^#heroes\b|^\.pc\b/, '九角色形象'],
   ['./battle-stage.css', /^#s-fight\b/, '固定双方战况'],
   ['./book-picker.css', /^#textbookPicker\b/, '教材册选择'],
+  ['./battle-details.css', /^#s-fight\b/, '战斗详情与常驻道具'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

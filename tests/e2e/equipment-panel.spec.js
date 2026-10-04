@@ -3,8 +3,8 @@
  * 目标全部 skip 到 new 项目：归档页面本来就没有这个面板，
  * legacy 对照跑的是旧版，不是这个功能。
  *
- * 覆盖的是**单测证明不了的部分**：真实 <details> 的点开行为、真实点击
- * 可用道具、320/390 窄屏不溢出且不挡住字母盘 HUD、暂停恢复后清单跟着
+ * 覆盖的是**单测证明不了的部分**：真实详情对话框的打开和暂停行为、真实点击
+ * 可用道具、320/390 窄屏不溢出且保留 HUD、关闭后字母盘可用、暂停恢复后清单跟着
  * 存档同步、以及面板不许偷偷改状态。
  */
 import { test, expect } from './game-harness.js';
@@ -29,24 +29,38 @@ async function grant(page, { relics = [], bag = {}, heroId = null, ghostUsed = f
 }
 
 const panel = page => page.locator('#fEquipment');
+async function openDetails(page) {
+  await page.locator('#fDetailsOpen').tap();
+  await expect(page.locator('#fBattleDetails')).toBeVisible();
+  expect(await page.evaluate(() => window.__gameTest.progress.isPaused())).toBe(true);
+}
+async function closeDetails(page) {
+  await page.locator('#fDetailsClose').tap();
+  await expect(page.locator('#fBattleDetails')).toBeHidden();
+  expect(await page.evaluate(() => window.__gameTest.progress.isPaused())).toBe(false);
+}
 
-test('the panel appears on the fight screen with a compact summary line', async ({ game, page }, testInfo) => {
+test('the persistent dock opens equipment in an initially hidden dialog', async ({ game, page }, testInfo) => {
   newOnly(testInfo);
   await game.open(); await game.start();
   await game.fight({ word: 'litre', enemyHp: 500 });
   await expect(panel(page)).toHaveCount(1);
-  // 折叠态是一行紧凑标题，不是展开的大清单
-  await expect(panel(page)).not.toHaveAttribute('open', /.*/);
+  await expect(page.locator('#fBattleDetails')).toHaveAttribute('role', 'dialog');
+  await expect(page.locator('#fBattleDetails')).toBeHidden();
+  await expect(panel(page)).toHaveAttribute('open', '');
   const summary = page.locator('#fEquipment > summary');
-  await expect(summary).toBeVisible();
+  await expect(summary).toBeHidden();
   await expect(summary).toHaveText(/^装备与能力 · \d+$/);
-  // 它挂在道具栏旁边，不是覆盖在道具栏或词卡上
-  const next = await page.evaluate(() =>
-    document.getElementById('fItems').nextElementSibling.id);
-  expect(next).toBe('fEquipment');
+  await expect(page.locator('#fDetailsOpen')).toBeVisible();
+  const dock = await page.evaluate(() => ({
+    items: document.getElementById('fItems').parentElement.id,
+    trigger: document.getElementById('fDetailsOpen').parentElement.id,
+    equipment: document.getElementById('fEquipment').parentElement.id,
+  }));
+  expect(dock).toEqual({ items: 'fActionDock', trigger: 'fActionDock', equipment: 'fDetailsBody' });
 });
 
-test('tapping the summary expands the effects — no hover required', async ({ game, page }, testInfo) => {
+test('tapping the dock details button opens the effects and pauses combat', async ({ game, page }, testInfo) => {
   newOnly(testInfo);
   await game.open(); await game.start();
   await game.fight({ word: 'litre', enemyHp: 500 });
@@ -54,7 +68,7 @@ test('tapping the summary expands the effects — no hover required', async ({ g
 
   const body = page.locator('#fEquipment .eq-body');
   await expect(body).toBeHidden();
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   await expect(panel(page)).toHaveAttribute('open', '');
   await expect(body).toBeVisible();
 
@@ -77,7 +91,7 @@ test('the title count matches the number of owned entries', async ({ game, page 
   // 英雄 1 + 去重后遗物 1（shield 出现两次算一件）+ 道具 1 = 3
   await grant(page, { relics: ['shield', 'shield'], bag: { purge: 1 } });
   await expect(page.locator('#fEquipment > summary')).toHaveText('装备与能力 · 3');
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   const text = await page.locator('#fEquipment .eq-body').textContent();
   // 合并成 ×2，但护盾效果只出现一次（叠两遍不会多给一次护盾）
   expect(text).toContain('护盾符文 ×2');
@@ -91,7 +105,7 @@ test('every owned relic shows, not just the first three', async ({ game, page },
   const all = ['hint', 'shield', 'combo', 'purse', 'thorn', 'battery', 'lucky', 'scholar', 'forge'];
   await grant(page, { relics: all });
   await expect(page.locator('#fEquipment > summary')).toHaveText('装备与能力 · ' + (1 + all.length));
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   const text = await page.locator('#fEquipment .eq-body').textContent();
   for (const n of ['提示水晶', '护盾符文', '连击徽章', '聚宝盆', '荆棘护符', '永动电池', '幸运草', '学者之书', '锻造台']) {
     expect(text, '遗物 ' + n + ' 必须可见').toContain(n);
@@ -104,7 +118,7 @@ test('an exhausted ghost quota says so, while a fresh one shows one left', async
   await game.fight({ word: 'litre', enemyHp: 500 });
 
   await grant(page, { relics: ['ghost'], ghostUsed: false });
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本轮剩余 1 次');
 
   // 用掉之后同一场战斗里立刻变成耗尽（额度是 run 级，不随战斗重置）
@@ -124,17 +138,21 @@ test('an item at its per-fight cap is marked spent, and using one updates the pa
   //   测到的就不是「已用满」而是「道具没了」。）
   await page.evaluate(() => { window.__gameTest.B.myHp = 10; });
   await grant(page, { bag: { leech: 5 } });
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本场已用 0/3');
 
-  // 点道具栏的按钮真的能消耗（面板是只读的，但绝不能妨碍原有使用路径）
+  // 详情期间不能使用物品；关闭恢复战斗后走原有真实点击路径。
+  await closeDetails(page);
   await page.locator('#fItems .item', { hasText: '吸血獠牙' }).click();
+  await openDetails(page);
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本场已用 1/3');
   await expect(page.locator('#fEquipment .eq-body')).toContainText('×4');
 
-  // 用满 3 次：面板标出已用满，道具栏按钮同步禁用（两处口径一致）
+  // 用满 3 次：关闭后点击，再打开核对存货与本场次数。
+  await closeDetails(page);
   await page.locator('#fItems .item', { hasText: '吸血獠牙' }).click();
   await page.locator('#fItems .item', { hasText: '吸血獠牙' }).click();
+  await openDetails(page);
   await expect(page.locator('#fEquipment .eq-body')).toContainText('本场已用 3/3');
   await expect(page.locator('#fEquipment .eq-body')).toContainText('已用满');
   await expect(page.locator('#fItems .item', { hasText: '吸血獠牙' })).toHaveClass(/off/);
@@ -147,7 +165,7 @@ test('the panel shows the real in-fight shield, and nothing gets re-applied', as
   // 顺序反了 B 还是 null（renderFight 会直接抛），测的就不是同一件事了。
   await page.evaluate(() => { window.__gameTest.G.relics = ['shield']; });
   await game.fight({ word: 'litre', enemyHp: 500 });
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
 
   const before = await game.state();
   // 护盾符文开局给了 15 点；战斗中被消耗掉一部分后面板必须跟着变，
@@ -176,19 +194,32 @@ test('rendering the panel mutates neither G nor B', async ({ game, page }, testI
   expect(after.B).toEqual(before.B);
 });
 
-test('re-render does not collapse a panel the player just opened', async ({ game, page }, testInfo) => {
+test('re-render keeps details open while background spelling and hints remain paused', async ({ game, page }, testInfo) => {
   newOnly(testInfo);
   await game.open(); await game.start();
   await game.fight({ word: 'litre', enemyHp: 500 });
   await grant(page, { relics: ['hint'] });
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   await expect(panel(page)).toHaveAttribute('open', '');
 
-  await game.clickLetter('l');                       // 半词：会触发 renderFight
+  const frozen = await game.state();
+  await page.keyboard.type('l');
+  await page.keyboard.press('F1');
+  await page.evaluate(() => window.__gameTest.progress.requestHint());
+  const blocked = await game.state();
+  expect(blocked.B.input).toEqual(frozen.B.input);
+  expect(blocked.B.hints).toBe(frozen.B.hints);
+  expect(blocked.G.bag).toEqual(frozen.G.bag);
+  await expect(page.locator('#fBattleDetails')).toBeVisible();
   await expect(panel(page)).toHaveAttribute('open', '');
   await grant(page, { relics: ['hint', 'combo'] });  // 状态变了，内容也必须跟着更新
   await expect(panel(page)).toHaveAttribute('open', '');
   await expect(page.locator('#fEquipment > summary')).toHaveText('装备与能力 · 3');
+  await expect(page.locator('#fEquipment .eq-body')).toContainText('连击徽章');
+  await closeDetails(page);await game.clickLetter('l');
+  expect((await game.state()).B.input).toEqual(['l']);
+  await expect(page.locator('#fBattleDetails')).toBeHidden();
+  await openDetails(page);
   await expect(page.locator('#fEquipment .eq-body')).toContainText('连击徽章');
 });
 
@@ -202,7 +233,7 @@ test('a hostile relic id from the save renders as text, not markup', async ({ ga
     window.__pwned = 0;
     t.renderFight();
   });
-  await page.locator('#fEquipment > summary').tap();
+  await openDetails(page);
   await expect(page.locator('#fEquipment .eq-body')).toContainText('未知装备');
   // 真实 IMG 元素一个都没有，onerror 也没有触发
   expect(await page.locator('#fEquipment img').count()).toBe(0);
@@ -226,6 +257,8 @@ test('restoring a saved fight re-syncs the panel from the restored snapshot', as
   await expect(page.locator('#s-fight')).toBeVisible();
 
   await expect(page.locator('#fEquipment')).toHaveCount(1);
+  await expect(page.locator('#fBattleDetails')).toBeHidden();
+  await openDetails(page);
   const text = await page.locator('#fEquipment .eq-body').textContent();
   expect(text).toContain('护盾符文');
   expect(text).toContain('学者之书');
@@ -242,7 +275,7 @@ for (const width of [320, 390, 1024]) {
     await game.open(); await game.start();
     await game.fight({ word: 'litre', enemyHp: 500 });
     await grant(page, { heroId: 'ranger', relics: ['shield', 'forge', 'purse', 'hint'], bag: { leech: 2, stone: 1 } });
-    await page.locator('#fEquipment > summary').tap();
+    await openDetails(page);
     const rows = await page.locator('#fEquipment .eq-row').evaluateAll(nodes => nodes.map(row => {
       const h = row.querySelector('.eq-h').getBoundingClientRect();
       const d = row.querySelector('.eq-d').getBoundingClientRect();
@@ -270,7 +303,7 @@ for (const width of [320, 390, 1024]) {
 }
 
 for (const width of [320, 390]) {
-  test(`the panel fits ${width}px without horizontal overflow or covering the letter bank`, async ({ game, page }, testInfo) => {
+  test(`paused details fit ${width}px and closing restores usable letter keys`, async ({ game, page }, testInfo) => {
     newOnly(testInfo);
     await page.setViewportSize({ width, height: 844 });
     await game.open(); await game.start();
@@ -282,34 +315,39 @@ for (const width of [320, 390]) {
       document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(await overflow(), width + 'px 折叠态不允许横向溢出').toBeLessThanOrEqual(1);
 
-    await page.locator('#fEquipment > summary').tap();
+    await openDetails(page);
     await expect(page.locator('#fEquipment .eq-body')).toBeVisible();
     expect(await overflow(), width + 'px 展开态不允许横向溢出').toBeLessThanOrEqual(1);
 
-    // 面板长在 .fmid 这个滚动区里（responsive.css 已把它设成 flex:1 + overflow-y:auto），
-    // 所以「不挡键盘 HUD」的准确判据是：面板被裁在 .fmid 的框内，
-    // 字母盘仍在框外且真的点得到 —— 而不是拿未裁剪的 rect 去比。
+    // 详情自己滚动；双方战况保留在它上方，背景输入暂时不可用。
     const boxes = await page.evaluate(() => {
-      const fm = document.querySelector('#s-fight .fmid');
-      const f = fm.getBoundingClientRect();
+      const details = document.getElementById('fDetailsBody');
+      const f = details.getBoundingClientRect();
       const p = document.getElementById('fEquipment').getBoundingClientRect();
-      const b = document.getElementById('fBank').getBoundingClientRect();
-      return { fmTop: f.top, fmBottom: f.bottom, pTop: p.top, pBottom: p.bottom,
-        pRight: p.right, bTop: b.top, overflowY: getComputedStyle(fm).overflowY };
+      const dialog = document.getElementById('fBattleDetails').getBoundingClientRect();
+      const stage = document.getElementById('fBattleStage').getBoundingClientRect();
+      return { bodyTop: f.top, bodyBottom: f.bottom, pTop: p.top, pBottom: p.bottom,
+        pRight: p.right, stageBottom: stage.bottom, dialogTop: dialog.top,
+        overflowY: getComputedStyle(details).overflowY,
+        bodyOverflowX: details.scrollWidth - details.clientWidth,
+        bankInert: !!document.getElementById('fBank').closest('[inert]') };
     });
-    expect(boxes.pTop).toBeGreaterThanOrEqual(boxes.fmTop - 1);
+    expect(boxes.pTop).toBeGreaterThanOrEqual(boxes.bodyTop - 1);
     expect(boxes.pRight).toBeLessThanOrEqual(width + 1);
-    if (boxes.pBottom > boxes.fmBottom) {
-      // 内容高于中段滚动区：必须是「可滚动的 fmid 裁掉它」，字母盘仍在下方可见
-      expect(boxes.overflowY, '面板超高时只能靠 .fmid 内部滚动消化').toBe('auto');
-    }
-    expect(boxes.bTop).toBeGreaterThanOrEqual(boxes.fmBottom - 1);
+    expect(boxes.stageBottom).toBeLessThanOrEqual(boxes.dialogTop);
+    expect(boxes.bodyOverflowX).toBeLessThanOrEqual(1);
+    expect(boxes.bankInert).toBe(true);
+    if (boxes.pBottom > boxes.bodyBottom) expect(boxes.overflowY).toBe('auto');
+    const frozen = await game.state();await page.keyboard.type('l');await page.keyboard.press('F1');
+    expect((await game.state()).B.input).toEqual(frozen.B.input);
+    expect((await game.state()).B.hints).toBe(frozen.B.hints);
 
-    // 真实交互：展开状态下点字母盘，事件必须真的到达字母盘（没被面板压住）
+    // 关闭后字母盘恢复，真实点击必须到达原来的输入路径。
+    await closeDetails(page);
     await page.evaluate(() => { window.__bankHit = 0;
       document.getElementById('fBank').addEventListener('click', () => window.__bankHit++, true); });
-    await expect(page.locator('#fBank .key:not(.gone)').first()).toBeVisible();
-    await page.locator('#fBank .key:not(.gone)').first().click();
-    expect(await page.evaluate(() => window.__bankHit), '展开面板不许吃掉字母盘的点击').toBeGreaterThan(0);
+    await game.clickLetter('l');
+    expect(await page.evaluate(() => window.__bankHit)).toBeGreaterThan(0);
+    expect((await game.state()).B.input).toEqual(['l']);
   });
 }

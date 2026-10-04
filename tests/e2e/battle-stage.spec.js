@@ -5,10 +5,11 @@ for(const [width,height] of [[390,844],[375,667],[320,568],[844,390]]){
  test(`combat stays visible above scrolling equipment at ${width}x${height}`,async({game,page},info)=>{
   only(info);await page.setViewportSize({width,height});await game.open();await game.start();await game.fight();
   await page.evaluate(()=>{const t=window.__gameTest;t.G.relics=t.RELICS.map(r=>r.id);t.G.bag=Object.fromEntries(t.ITEMS.map(i=>[i.id,3]));t.renderFight()});
-  await page.locator('#fEquipment > summary').click();await page.locator('#fEquipment .eq-row').last().scrollIntoViewIfNeeded();
-  const geo=await page.evaluate(()=>({width:document.documentElement.scrollWidth,rects:['fAv','fPc','fMy','fEn','tPause'].map(id=>({id,...document.getElementById(id).getBoundingClientRect().toJSON()})),scroll:document.querySelector('.fmid').scrollTop}));
+  await page.locator('#fDetailsOpen').click();await expect(page.locator('#fBattleDetails')).toBeVisible();expect(await page.evaluate(()=>window.__gameTest.progress.isPaused())).toBe(true);await page.locator('#fEquipment .eq-row').last().scrollIntoViewIfNeeded();
+  const geo=await page.evaluate(()=>({width:document.documentElement.scrollWidth,rects:['fAv','fPc','fMy','fEn'].map(id=>({id,...document.getElementById(id).getBoundingClientRect().toJSON()})),scroll:document.querySelector('#fDetailsBody').scrollTop,dialogTop:document.querySelector('#fBattleDetails').getBoundingClientRect().top}));
   expect(geo.width).toBeLessThanOrEqual(width);expect(geo.scroll).toBeGreaterThan(0);
-  for(const r of geo.rects){expect(r.top,r.id).toBeGreaterThanOrEqual(0);expect(r.bottom,r.id).toBeLessThanOrEqual(height);expect(r.height,r.id).toBeGreaterThan(0)}
+  for(const r of geo.rects){expect(r.top,r.id).toBeGreaterThanOrEqual(0);expect(r.bottom,r.id).toBeLessThanOrEqual(height);expect(r.height,r.id).toBeGreaterThan(0);expect(r.bottom,r.id+' remains above details').toBeLessThanOrEqual(geo.dialogTop)}
+  await page.locator('#fDetailsClose').click();await expect(page.locator('#fBattleDetails')).toBeHidden();expect(await page.evaluate(()=>window.__gameTest.progress.isPaused())).toBe(false);
   const hit=await page.locator('#tPause').evaluate(n=>{const r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))});expect(hit).toBe(true);
   if(width>height){
    const controls=await page.evaluate(()=>{const box=s=>document.querySelector(s).getBoundingClientRect().toJSON();const keys=[...document.querySelectorAll('#fBank .key')];return {bar:box('.bankbar'),hint:box('#fHintShared'),keys:keys.map(n=>n.getBoundingClientRect().toJSON()),tools:box('.tools'),hits:keys.filter(n=>!n.disabled).map(n=>{const r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))})}});

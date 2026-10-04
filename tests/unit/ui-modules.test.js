@@ -349,7 +349,9 @@ const LEGACY_QWERTY = (() => {
 test('fight bankCols / bankRows / bankPosOf agree with legacy for both modes', async () => {
   const { bankCols, bankRows, bankPosOf } = await import('../../src/ui/screens/fight.js');
   const oldCols = legacyFn('bankCols');
-  for (let n = 1; n <= 24; n++) assert.equal(bankCols(n), oldCols(n), 'cols n=' + n);
+  // 23+ letters deliberately use nine columns; mobile-letter-bank locks the
+  // new three-row geometry and the shared navigation identity separately.
+  for (let n = 1; n <= 22; n++) assert.equal(bankCols(n), oldCols(n), 'cols n=' + n);
 
   const samples = [
     ['apple', 'abcdefghijklmnopqrstuvwxyz'.slice(0, 12).split('')],
