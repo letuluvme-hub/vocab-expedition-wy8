@@ -204,6 +204,12 @@ function arp(notes,step,dur,type,vol,o){
 const combo=()=>getCombo();
 
 const sfx={
+  /* Short rising double pulse: monster starts charging, not the impact. */
+  foeWarning(){
+    if(AU.muted || AU.vol<=0) return;
+    tone(440,.10,'triangle',.11,660,{cut:2400});
+    tone(660,.13,'triangle',.12,880,{delay:.14,cut:2800});
+  },
   /* 答对一个字母：噪声 click + 音高随连击沿五声音阶上行的三角波，音量随连击微增 */
   good(){
     const c=combo();
