@@ -4,6 +4,7 @@ test('home switches textbooks without mixing units or previous-book completion',
  await game.open({saved:{unitProgress:{'1':{complete:true,completedAt:'2026-10-01T00:00:00Z'}},mastered:['normal'],dictationMastered:['normal']}});
  await expect(page.locator('#textbookSelect')).toHaveValue('wy8a');await expect(page.locator('#units [data-unit="1"]')).toContainText('45 词');
  await page.locator('#textbookSelect').selectOption('wy8b');await expect(page.locator('#units [data-unit="1"]')).toContainText('29 词');
+ await expect(page).toHaveTitle('词汇远征 · 外研版八下');
  await expect(page.locator('#units [data-unit="2"]')).toBeDisabled();await expect(page.locator('#units [data-unit="1"]')).toContainText('未开始');
  await game.start();expect(await page.evaluate(()=>window.__gameTest.G.bookId)).toBe('wy8b');
  expect(await page.evaluate(()=>window.__gameTest.G.pool.length)).toBe(29);
