@@ -109,7 +109,7 @@ test('unmodified enemy and unit catalogs are byte-for-byte equivalent values', a
 });
 
 // Each added sheet has its own UI scope; archived sheets remain unchanged.
-const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css', './hero-roster.css', './battle-stage.css'];
+const ADDED_CSS = ['./pause.css', './learning-complete.css', './audio-settings.css', './equipment-panel.css', './audio-compatibility.css', './mastery-growth.css', './foe-attacks.css', './streak-feedback.css', './combo-milestones.css', './relic-depth.css', './pixel-art.css', './keyboard-tip.css', './foe-avatar.css', './android-download.css', './word-choice.css', './home-cta.css', './keyboard-shortcuts.css', './device-controls.css', './hero-roster.css', './battle-stage.css', './book-picker.css'];
 test('CSS extraction preserves cascade order and every original rule', () => {
   const expected = baseline.match(/<style>([\s\S]*?)<\/style>/)[1];
   const entry = readFileSync(new URL('../../src/styles/game.css', import.meta.url), 'utf8');
@@ -262,6 +262,7 @@ test('page skeleton preserves approved character parts and all existing controls
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const comparable = backToLegacyBattleStage(backToLegacyHomeProgress(html))
+    .replace(/  <div class="book-picker" id="textbookPicker"><\/div>\r?\n/,'')
     // 主站页脚是已授权新增；其余主页结构仍逐字比较。
     .replace(/  <footer class="note" style="margin-top:20px;text-align:center"><a id="mainSiteLink" href="https:\/\/fangtuo.top" style="color:var\(--acc2\)">返回方拓主站 · fangtuo.top<\/a><\/footer>\r?\n/,'')
     .replace('<span class="desktopHelp">','').replace('方向键不做任何事。</span>','方向键不做任何事。')

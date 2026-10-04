@@ -11,7 +11,7 @@ export function createDictationKeyboard({ document: doc = globalThis.document, o
     root.setAttribute('role', 'group');
     root.setAttribute('aria-label', '完整字母键盘');
     const text = String(word && typeof word === 'object' ? word.w ?? '' : word ?? '');
-    const separators = [' ', '-', "'"].filter(ch => text.includes(ch) || (ch === "'" && text.includes('’')));
+    const separators = [' ', '-', "'", '.'].filter(ch => text.includes(ch) || (ch === "'" && text.includes('’')));
     allowed = new Set([...('abcdefghijklmnopqrstuvwxyz'), ...separators, 'Backspace']);
     for (const rowKeys of ['qwertyuiop'.split(''), 'asdfghjkl'.split(''), 'zxcvbnm'.split(''), [...separators, 'Backspace']]) {
       const row = doc.createElement('div');

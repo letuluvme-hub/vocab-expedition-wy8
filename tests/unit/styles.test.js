@@ -12,6 +12,7 @@ const ORIGINAL = [
   './controls.css', './cards.css', './responsive.css',
 ];
 const ADDED = [
+  // 册选择追加位置由下方原顺序保持，其容器禁止影响其他表单。
   ['./pause.css', /^#s-pause\b|^#continueRow\b/, '暂停屏'],
   ['./learning-complete.css', /^#s-learning-complete\b/, '词汇完成页'],
   ['./audio-settings.css', /^#audioSettings\b/, '主页声音设置区'],
@@ -52,6 +53,7 @@ const ADDED = [
   ['./device-controls.css', /^\.device-|^#fHintShared\b/, '设备专属提示与共用额度'],
   ['./hero-roster.css', /^#heroes\b|^\.pc\b/, '九角色形象'],
   ['./battle-stage.css', /^#s-fight\b/, '固定双方战况'],
+  ['./book-picker.css', /^#textbookPicker\b/, '教材册选择'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

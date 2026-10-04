@@ -12,7 +12,7 @@ import { SKIP_HP_COST } from '../data/balance.js';
 import { applyDamage, canFinishFight } from '../domain/battle-rules.js';
 import { newlyReached, milestoneGrant, milestoneToast } from '../domain/combo-milestones.js';
 import { synergyBonuses } from '../domain/relic-rules.js';
-import { dictationWordKey } from '../domain/dictation.js';
+import {learningKey,evidenceForWord} from '../domain/learning-identity.js';
 import { completeWordStats, decodeWordQ } from '../domain/word-quality.js';
 import { heroHintWidth, heroWordShield, rangerHealAmount } from '../domain/hero-rules.js';
 import { ITEM_BALANCE } from '../data/hero-balance.js';
@@ -124,8 +124,8 @@ export function createCombatController({ state, ports }) {
     B.mistaken.push(B.word.w);
     onWordWrong(B.word.w);
     if (!Array.isArray(DB.reviewQueue)) DB.reviewQueue = [];
-    const key = dictationWordKey(B.word.w);
-    if (!DB.reviewQueue.some(w => dictationWordKey(w) === key)) DB.reviewQueue.push(key);
+    const key = learningKey(B.word);
+    if (!DB.reviewQueue.some(w => learningKey(w) === key)) DB.reviewQueue.push(evidenceForWord(B.word));
     // Old mastered is historical practice; free practice cannot revoke formal evidence.
     saveDB();
   }

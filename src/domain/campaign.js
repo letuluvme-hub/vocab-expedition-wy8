@@ -15,17 +15,19 @@
 import { generateMap } from './map.js';
 import { learningCounts, isPoolComplete } from './word-selection.js';
 import { advanceHealerMapGrowth } from './hero-rules.js';
+import { bookUnits } from '../data/books.js';
+import { learningKey, wordBookId, DEFAULT_BOOK_ID, knownBookId } from './learning-identity.js';
 
 export const CUSTOM_UNIT = 0;
 
-export const wordKey = w => String(w == null ? '' : w).trim().toLowerCase();
+export const wordKey = w => learningKey(w);
 
 /* 本单元的目标身份列表：同一条目只留第一条，顺序保持词库原序。 */
 export function unitTargets(words) {
   const seen = new Set();
   const out = [];
   for (const w of words || []) {
-    const k = wordKey(w && w.w !== undefined ? w.w : w);
+    const k = wordKey(w);
     if (!k || seen.has(k)) continue;
     seen.add(k);
     out.push(k);
@@ -34,8 +36,16 @@ export function unitTargets(words) {
 }
 
 /* unitProgress 的形状修复。绝不动 mastered / custom / rewards。 */
-export function ensureProgress(db) {
+export function ensureProgress(db, { bookId = DEFAULT_BOOK_ID } = {}) {
   if (!db || typeof db !== 'object') return {};
+  if (!knownBookId(bookId)) return {};
+  if (bookId !== DEFAULT_BOOK_ID) {
+    if (!db.bookUnitProgress || typeof db.bookUnitProgress !== 'object' || Array.isArray(db.bookUnitProgress)) db.bookUnitProgress = {};
+    if (!Object.hasOwn(db.bookUnitProgress, bookId) || !db.bookUnitProgress[bookId] || typeof db.bookUnitProgress[bookId] !== 'object' || Array.isArray(db.bookUnitProgress[bookId])) {
+      Object.defineProperty(db.bookUnitProgress, bookId, { value: {}, configurable: true, enumerable: true, writable: true });
+    }
+    return db.bookUnitProgress[bookId];
+  }
   if (!db.unitProgress || typeof db.unitProgress !== 'object' || Array.isArray(db.unitProgress)) {
     db.unitProgress = {};
   }
@@ -66,8 +76,9 @@ export function unitCounts({ unit, words, db }) {
 
 /* 记一次「本单元词汇全部完成」。幂等：第一次写时间戳，之后只返回 false。
  * 不改任何计数（runs / wins / best 都不属于这个事实）。 */
-export function recordUnitComplete(db, unit, { now = Date.now() } = {}) {
-  const progress = ensureProgress(db);
+export function recordUnitComplete(db, unit, { now = Date.now(), bookId = DEFAULT_BOOK_ID } = {}) {
+  if (!knownBookId(bookId)) return false;
+  const progress = ensureProgress(db, { bookId });
   const key = String(unit);
   const rec = progress[key];
   // 已有带时间戳的凭据 → 幂等。只有 complete:true 而没有时间戳的旧记录不算凭据
@@ -90,7 +101,8 @@ function safeWords(wordsFor, unit) {
 }
 
 /* 解锁全貌。纯派生：不写任何东西，所以 UI 直接画它也不会漂移成第二套口径。 */
-export function unlockProgress({ units, wordsFor, dictationMastered, unitProgress }) {
+export function unlockProgress({ units, wordsFor, dictationMastered, unitProgress, bookId = DEFAULT_BOOK_ID, bookUnitProgress }) {
+  const proofs = bookId === DEFAULT_BOOK_ID ? unitProgress : bookUnitProgress?.[bookId];
   // ★ units 排序 + 去重：解锁是一串**有序**的教材单元，输入顺序（[3,1,0,1,…]）绝不许
   //   改变连续口径。非数字项直接丢掉（脏数据不该长出一个单元）。
   const nos = Array.from(new Set((units || []).filter(n => typeof n === 'number' && Number.isFinite(n))))
@@ -111,7 +123,7 @@ export function unlockProgress({ units, wordsFor, dictationMastered, unitProgres
     }
     const c = unitCounts({ unit: n, words: safeWords(wordsFor, n), db });
     const complete = c.total > 0 && c.remaining === 0;
-    const expedition = c.total > 0 && expeditionComplete(unitProgress, n);
+    const expedition = c.total > 0 && expeditionComplete(proofs, n);
     // passed = 正式默写全覆盖 **或** 远征整词完成 —— 解锁看它；complete 仍只表示默写覆盖。
     const passed = complete || expedition;
     // ★ 解锁只看**前面**的单元：本单元自己做完之前它就已经可玩了
@@ -124,6 +136,7 @@ export function unlockProgress({ units, wordsFor, dictationMastered, unitProgres
     if (!passed) contiguous = false;           // 从这里往后全部锁住（连续口径）
   }
   return {
+    ...(bookId !== DEFAULT_BOOK_ID ? { bookId } : {}),
     byUnit,
     isUnlocked: unit => !!(byUnit[unit] && byUnit[unit].unlocked),
     counts: unit => (byUnit[unit]
@@ -151,9 +164,9 @@ export const LAST_UNIT = 6;
 const CUSTOM_SCOPE = [CUSTOM_UNIT];
 
 /* 该轮的起点：campaign.startedUnit 优先，缺字段时退回当前单元（保守）。 */
-function scopeStart(run) {
+function scopeStart(run, units) {
   const started = run && run.campaign ? run.campaign.startedUnit : undefined;
-  if (Number.isInteger(started) && (started === CUSTOM_UNIT || (started >= 1 && started <= LAST_UNIT))) {
+  if (Number.isInteger(started) && (started === CUSTOM_UNIT || units.includes(started))) {
     return started;
   }
   return run && Number.isInteger(run.unit) ? run.unit : 1;
@@ -161,11 +174,10 @@ function scopeStart(run) {
 
 export function roundScopeUnits(run) {
   if (!run) return [];
-  const start = scopeStart(run);
+  const units = Array.isArray(run.scopeUnits) ? run.scopeUnits : bookUnits(run.bookId).map(u => u.n).filter(n => n > 0);
+  const start = scopeStart(run, units);
   if (start === CUSTOM_UNIT) return CUSTOM_SCOPE.slice();
-  const out = [];
-  for (let u = Math.max(1, Math.min(start, LAST_UNIT)); u <= LAST_UNIT; u++) out.push(u);
-  return out;
+  return [...new Set(units)].filter(u => u >= start).sort((a, b) => a - b);
 }
 
 /* 记录「本轮在这个单元把目标词全部整词完成了」。
@@ -214,6 +226,7 @@ export function roundCompletion(run) {
 export function transitionNextUnit({ run, progress }) {
   if (!run) return { ok: false, reason: 'no-run' };
   if (run.unit === CUSTOM_UNIT) return { ok: false, reason: 'custom', from: run.unit };
+  if (progress && (progress.bookId || DEFAULT_BOOK_ID) !== (run.bookId || DEFAULT_BOOK_ID)) return { ok: false, reason: 'book', from: run.unit };
   // ★ 这里**不再**有「campaign.startedUnit !== unit → already」的永久守卫。
   //   那个守卫把「这一轮是从 Unit 1 开始的」当成了「已经过渡过了」，于是
   //   Unit 2→3、3→4… 永远接不上（startedUnit 恒为 1）。它只是诊断字段。
@@ -225,7 +238,7 @@ export function transitionNextUnit({ run, progress }) {
   const counts = progress.counts ? progress.counts(run.unit) : null;
   if (counts && counts.complete !== true && counts.passed !== true) return { ok: false, reason: 'incomplete', from: run.unit, to, counts };
   if (!canSelectUnit(progress, to)) return { ok: false, reason: 'locked', from: run.unit, to };
-  return { ok: true, from: run.unit, to };
+  return { ok: true, from: run.unit, to, ...(run.bookId ? { bookId: run.bookId } : {}) };
 }
 
 /* 新学习段：重新生成地图并把楼层重置到 1，但 maxFloor（历史最好层数）不许改小。 */
@@ -256,6 +269,9 @@ function transitionApplicable(run, facts, progress) {
   if (!run || !facts || facts.ok !== true) return false;
   if (!Number.isInteger(facts.from) || !Number.isInteger(facts.to)) return false;
   if (run.unit !== facts.from) return false;
+  if (run.bookId && run.bookId !== DEFAULT_BOOK_ID && facts.bookId !== run.bookId) return false;
+  if (facts.bookId !== undefined && facts.bookId !== (run.bookId || DEFAULT_BOOK_ID)) return false;
+  if (progress && (progress.bookId || DEFAULT_BOOK_ID) !== (run.bookId || DEFAULT_BOOK_ID)) return false;
   if (facts.to === CUSTOM_UNIT || facts.to <= 0) return false;
   if (facts.to === facts.from) return false;
   if (progress && typeof progress.next === 'function') {
@@ -270,10 +286,11 @@ function transitionApplicable(run, facts, progress) {
  * 返回 null 表示这份事实不适用于当前 run（过期 / 非法），此时**没有任何副作用**。 */
 export function applyUnitTransition(run, facts, { words, random = Math.random, progress } = {}) {
   if (!transitionApplicable(run, facts, progress)) return null;
+  if ((words || []).some(word => wordBookId(word) !== (run.bookId || DEFAULT_BOOK_ID))) return null;
   run.unit = facts.to;
   run.pool = (words || []).slice();
   // 错词队列只保留仍在当前词池里的（抽词侧本来也会过滤，这里先收窄，快照更干净）。
-  const keys = new Set(run.pool.map(w => wordKey(w.w)));
+  const keys = new Set(run.pool.map(wordKey));
   run.wrong = (run.wrong || []).filter(w => keys.has(wordKey(w)));
   run.campaign = Object.assign({ startedUnit: run.campaign ? run.campaign.startedUnit : facts.from, segments: 1 }, run.campaign);
   run.campaign.startedUnit = run.campaign.startedUnit === undefined ? facts.from : run.campaign.startedUnit;
@@ -286,6 +303,7 @@ export function applyUnitTransition(run, facts, { words, random = Math.random, p
  * 单元不变、id 不变、次数不加，只换地图继续抽未完成的词。 */
 export function applyUnitSegment(run, { words, random = Math.random } = {}) {
   if (!run) return null;
+  if (run.unit !== CUSTOM_UNIT && words?.some(word => wordBookId(word) !== (run.bookId || DEFAULT_BOOK_ID))) return null;
   if (words) run.pool = words.slice();
   run.campaign = Object.assign({ startedUnit: run.unit, segments: 1 }, run.campaign);
   run.campaign.startedUnit = run.campaign.startedUnit === undefined ? run.unit : run.campaign.startedUnit;

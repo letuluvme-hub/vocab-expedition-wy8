@@ -11,6 +11,7 @@
 //
 // 「尽量不重复」不是「跳过未完成词」：只剩一个未完成词时它必须还能出现，
 // 否则玩家永远无法完成这一单元。
+import { learningKey } from './learning-identity.js';
 const rnd = (n, random) => Math.floor(random() * n);
 const pick = (a, random) => a[rnd(a.length, random)];
 const shuffle = (a, random) => {
@@ -24,7 +25,7 @@ const shuffle = (a, random) => {
 //   会折叠成同一个 key，三个不同的词被吞成一个，短语词再也练不到。
 //   空格、连字符、撇号都是**拼写的一部分**，去掉就把不同的词合并了。
 // 大小写与首尾空白不是：CAT / cat / ' Cat ' 说的是同一个词，必须共用一条退休记录。
-const keyOf = w => String(w == null ? '' : w).trim().toLowerCase();
+const keyOf = learningKey;
 
 /* run.done 以原始字符串记账（存档与掌握记录都不能被改写），
  * 但比较一律走身份：doneKeys 是「已完成身份」的集合。 */
@@ -38,7 +39,7 @@ function uniquePool(run) {
   const out = [];
   for (const w of pool) {
     if (!w || typeof w.w !== 'string') continue;      // 空/非法词条不纳入任何口径
-    const k = keyOf(w.w);
+    const k = keyOf(w);
     if (!k || seen.has(k)) continue;                  // seen 先登记：重复条目只留第一条
     seen.add(k);
     out.push(w);
@@ -51,7 +52,7 @@ function uniquePool(run) {
  * 而抽词还在吐词，两个口径永久分叉。 */
 export function pendingWords(run) {
   const doneKeys = doneKeysOf(run);
-  return uniquePool(run).filter(w => !doneKeys.has(keyOf(w.w)));
+  return uniquePool(run).filter(w => !doneKeys.has(keyOf(w)));
 }
 
 /* 本单元词汇是否已全部完成。检查点（learning-complete）由它推导，
@@ -70,7 +71,7 @@ export function learningCounts(run) {
   const remaining = pending.length;
   const finished = total - remaining;
   // 错词去重，且只算仍然未完成的（已完成的词不再算待复习）。
-  const pendingKeys = new Set(pending.map(w => keyOf(w.w)));
+  const pendingKeys = new Set(pending.map(keyOf));
   const wrongSeen = new Set();
   for (const raw of ((run && run.wrong) || [])) {
     const k = keyOf(raw);
@@ -89,8 +90,8 @@ export function drawWord(run, battle, budget, random = Math.random) {
   // 避免立刻重复上一个词。**在难度分池之前**剔除：旧顺序是先按难度分池再剔除，
   // 于是「唯一另一个候选恰好在别的难度档」时剔除后为空，只能认命重复。
   // 真的只剩上一个词时保留它 —— 未完成词不能被跳过（「尽量」不是「跳过」）。
-  const prevKey = battle && battle.word ? keyOf(battle.word.w) : null;
-  const alt = prevKey ? all.filter(w => keyOf(w.w) !== prevKey) : all;
+  const prevKey = battle && battle.word ? keyOf(battle.word) : null;
+  const alt = prevKey ? all.filter(w => keyOf(w) !== prevKey) : all;
   const pool = alt.length ? alt : all;
   // 答错过的词优先复习（最多占一半，且 fresh 至少留一半 —— 不许 fresh 饿死）
   const due = [];
@@ -98,11 +99,11 @@ export function drawWord(run, battle, budget, random = Math.random) {
   for (const raw of ((run && run.wrong) || [])) {
     const k = keyOf(raw);
     if (!k || dueSeen.has(k)) continue;             // 错词队列去重
-    const hit = pool.filter(x => keyOf(x.w) === k)[0];
+    const hit = pool.filter(x => keyOf(x) === k)[0];
     if (!hit) continue;                             // 必须仍是未完成词
     dueSeen.add(k); due.push(hit);
   }
-  const fresh = pool.filter(w => !dueSeen.has(keyOf(w.w)));
+  const fresh = pool.filter(w => !dueSeen.has(keyOf(w)));
   let candidates = pool;
   if (due.length && fresh.length) {
     const fromDue = Math.min(due.length, 1 + Math.floor(due.length / 2));

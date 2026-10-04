@@ -119,7 +119,7 @@ function simulate(hero, profile, loadout, seed) {
   // Each encounter starts at the same fixed slice for every hero. We do not
   // advance future encounter decks by a hero-specific number of kill words.
   const decks = encounters.map((_, i) => deck.filter((_, n) => n % encounters.length === i));
-  const G = createRun(0, hero, WORDS, rng(mix(seed, 0, 0, 3)),{version:GROWTH_VERSION,masteredAtStart:masteredCount,bonusHp:knowledge.bonusHp,bonusAttackPct:knowledge.bonusAttackPct});
+  const G = createRun(0, hero, WORDS, rng(mix(seed, 0, 0, 3)),{version:GROWTH_VERSION,masteredAtStart:masteredCount,bonusHp:knowledge.bonusHp,bonusAttackPct:knowledge.bonusAttackPct,catalogTotalAtStart:WORDS.length});
   G.difficulty = deriveRoundDifficulty({ roundNumber: round, unit: 0, segments: 1 });
   if (loadout.id === 'bare') G.bag = {};
   const DB = { mastered: [], reviewQueue: [] };

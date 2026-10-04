@@ -15,21 +15,21 @@ const newOnly = (testInfo, why) => {
 const panel = page => page.locator('#masteryGrowth');
 const realWords = n => WORDS.slice(0, n).map(w => w.w);
 
-test('the home page states real mastery growth and reports every word in the 259-word book', async ({ game, page }, testInfo) => {
+test('the home page states real mastery growth and reports the 467-word catalog', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
   await game.open({ saved: { dictationMastered: realWords(40) } });
 
   await expect(panel(page)).toBeVisible();
   await expect(panel(page).locator('.mgrowth-h')).toHaveText('知识成长');
-  // 40 个真实教材词 = +2（20 词 = +1），分母是词库真实规模 259。
-  await expect(panel(page).locator('.mgrowth-count')).toHaveText('教材词汇 40/259 · 下轮生命上限 +2（最多+12）');
+  // 原八上40词仍给+2；总分母随两册目录增加到467。
+  await expect(panel(page).locator('.mgrowth-count')).toHaveText('教材词汇 40/467 · 下轮生命上限 +2（最多+12）');
   await expect(panel(page).locator('.mgrowth-next')).toContainText('再学 20 个教材词');
   // 说明必须写清只在新一轮生效（用户最容易误读的三条）。
   await expect(panel(page).locator('.mgrowth-note')).toContainText('只在新开一轮远征时生效');
 
-  // 存档里没有的词不许计数：掌握表只有教材词时 totalCount 仍是 259。
+  // 掌握表里的未知词不增加分子；总分母来自两册目录。
   const txt = await panel(page).locator('.mgrowth-count').textContent();
-  expect(txt).toContain('/259');
+  expect(txt).toContain('/467');
 });
 
 test('custom-only words earn nothing: 500 of them still say +0', async ({ game, page }, testInfo) => {
@@ -37,7 +37,7 @@ test('custom-only words earn nothing: 500 of them still say +0', async ({ game, 
   const custom = Array.from({ length: 500 }, (_, i) => ({ w: 'myword' + i, z: '词' + i }));
   await game.open({ saved: { custom, dictationMastered: custom.map(x => x.w) } });
 
-  await expect(panel(page).locator('.mgrowth-count')).toContainText('教材词汇 0/259 · 下轮生命上限 +0');
+  await expect(panel(page).locator('.mgrowth-count')).toContainText('教材词汇 0/467 · 下轮生命上限 +0');
 });
 
 test('a new round really raises max hp by the growth bonus, and only at the new round', async ({ game, page }, testInfo) => {

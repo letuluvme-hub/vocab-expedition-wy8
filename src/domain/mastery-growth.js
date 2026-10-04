@@ -24,20 +24,25 @@
  */
 
 /* 固定规则常数。要改数值就改这里，并同步 docs 与单测的边界断言。 */
-export const GROWTH_VERSION = 2;
+import { learningKey } from './learning-identity.js';
+import { allCatalogWords } from '../data/books.js';
+export const GROWTH_VERSION = 3;
 export const ATTACK_GROWTH_INTERVAL = 10;
 export const ATTACK_GROWTH_STEP = 4;
 export const ATTACK_GROWTH_MAX = 60;
 export const attackGrowthFor = count => Math.min(ATTACK_GROWTH_MAX, Math.floor(Math.max(0, count) / ATTACK_GROWTH_INTERVAL) * ATTACK_GROWTH_STEP);
 
-// Version 1 keeps its HP-only semantics; new runs record version 2 explicitly.
+// Versions 1/2 retain the original 259-word boundary. Version 3 freezes the
+// catalog total as well as the earned count, with the same HP/attack caps.
 export function validGrowthFact(g) {
-  if (!g || typeof g !== "object" || Array.isArray(g) || ![1,2].includes(g.version)) return false;
-  if (!Number.isInteger(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > 259) return false;
+  if (!g || typeof g !== "object" || Array.isArray(g) || ![1,2,3].includes(g.version)) return false;
+  const total = g.version === 3 ? g.catalogTotalAtStart : 259;
+  if (!Number.isSafeInteger(total) || total < 0 || total > allCatalogWords().length) return false;
+  if (!Number.isInteger(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > total) return false;
   if (g.bonusHp !== Math.min(12, Math.floor(g.masteredAtStart / 20))) return false;
   return g.version === 1 || g.bonusAttackPct === attackGrowthFor(g.masteredAtStart);
 }
-export const growthAttackPct = run => validGrowthFact(run?.growth) && run.growth.version === 2 ? run.growth.bonusAttackPct : 0;
+export const growthAttackPct = run => validGrowthFact(run?.growth) && run.growth.version >= 2 ? run.growth.bonusAttackPct : 0;
 export const GROWTH_INTERVAL = 20;        // 20 个真实教材词 = +1
 export const GROWTH_MAX_BONUS = 12;       // 封顶 +12（259 词用不完这个额度）
 export const GROWTH_TOTALS_FLOOR = GROWTH_INTERVAL * GROWTH_MAX_BONUS; // 240 = 封顶点
@@ -55,8 +60,7 @@ export function growthKey(w) {
 
 /* 一条词记录 → 身份。词库条目是 {w,...}，DB.mastered 里两种形状都在流通。 */
 function keyOf(w) {
-  if (w && typeof w === 'object') return growthKey(w.w);
-  return growthKey(w);
+  return learningKey(w);
 }
 
 /* 词库身份表：去重 + 保持原序。非法条目静默跳过。 */
@@ -117,6 +121,7 @@ export function growthSummary(mastered, canonicalWords) {
   return {
     bonusAttackPct, maxBonusAttackPct: ATTACK_GROWTH_MAX, attackInterval: ATTACK_GROWTH_INTERVAL, attackStep: ATTACK_GROWTH_STEP, attackCapped, attackNextThreshold, attackToNext: attackCapped ? 0 : attackNextThreshold - masteredCount,
     version: GROWTH_VERSION,
+    catalogTotalAtStart: totalCount,
     masteredCount, totalCount,
     tier: tierOf(bonusHp),
     bonusHp, maxBonusHp: GROWTH_MAX_BONUS, interval: GROWTH_INTERVAL,

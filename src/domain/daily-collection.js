@@ -1,5 +1,5 @@
 // Cosmetic collection and calendar facts only. No combat values or browser APIs.
-import { dictationWordKey } from './dictation.js';
+import { learningKey } from './learning-identity.js';
 import { shanghaiDate, addDays } from './daily-learning.js';
 
 export const PARTNER_STAGES = Object.freeze([
@@ -21,7 +21,7 @@ const put = (map,key,value) => Object.defineProperty(map,key,{value,enumerable:t
 const validDate = date => {
   try { return typeof date==='string' && addDays(date,0)===date; } catch { return false; }
 };
-const identities = values => new Set((Array.isArray(values)?values:[]).map(dictationWordKey).filter(Boolean));
+const identities = values => new Set((Array.isArray(values)?values:[]).map(word=>learningKey(word)).filter(Boolean));
 const signed = (collection,date) => ['practice','makeup'].includes(own(collection?.checkins,date));
 const cosmetic = id => COSMETICS.find(c=>c.id===id);
 const currentStage = count => PARTNER_STAGES.reduce((stage,item,index)=>count>=item.required?index:stage,0);
@@ -96,7 +96,7 @@ export function equipCosmetic(db,id,type) {
   initializeCollection(db).equipped[item.type]=id;return true;
 }
 export function cardLevel(db,word) {
-  const key=dictationWordKey(word);if(!key)return 0;
+  const key=learningKey(word);if(!key)return 0;
   if(identities(db.dictationMastered).has(key)){
     const review=own(db.reviewSchedule,key);return review?.stable===true&&review.pendingFailure!==true?4:3;
   }
@@ -105,17 +105,17 @@ export function cardLevel(db,word) {
   return exposure?.seen===true?1:0;
 }
 export function atlasCards(db,words,unit) {
-  const source=Array.isArray(words)?words:[],original=new Set(source.map(dictationWordKey));
+  const source=Array.isArray(words)?words:[];
   let pool;
   if(unit===0){
     const seen=new Set();pool=[];
     const currentEntries=(Array.isArray(db.custom)?db.custom:[]).map(word=>({word,isCurrent:true}));
     const history=Object.values(object(db.wordExposure)?db.wordExposure:{}).map(entry=>({word:entry?.word,isCurrent:false}));
     for(const {word,isCurrent} of [...currentEntries,...history]){
-      const key=dictationWordKey(word);
-      if(!key||!object(word)||typeof word.z!=='string'||seen.has(key)||!isCurrent&&original.has(key)&&Number.isInteger(word.u)&&word.u>0)continue;
+      const key=learningKey(word);
+      if(!key||!object(word)||typeof word.z!=='string'||seen.has(key)||!isCurrent&&(word.bookId!==undefined||Number.isInteger(word.u)&&word.u>0))continue;
       seen.add(key);pool.push(word);
     }
   }else pool=unit===undefined?source:source.filter(word=>word.u===unit);
-  return pool.map(word=>{const level=cardLevel(db,word);return {word:{...word},key:dictationWordKey(word),level,label:CARD_LABELS[level]};});
+  return pool.map(word=>{const level=cardLevel(db,word);return {word:{...word},key:learningKey(word),level,label:CARD_LABELS[level]};});
 }

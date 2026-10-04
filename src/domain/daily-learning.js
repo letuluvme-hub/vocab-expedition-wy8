@@ -1,5 +1,5 @@
 // Shanghai calendar, spaced review and bounded parent records. Explicit inputs only.
-import { dictationWordKey } from './dictation.js';
+import { learningKey, evidenceForWord, knownBookId } from './learning-identity.js';
 export const REVIEW_INTERVALS = Object.freeze([1, 2, 4, 7, 15]);
 export const REPORT_DAYS = 30;
 const DAY_MS = 86400000, SHANGHAI_OFFSET = 8 * 3600000;
@@ -29,9 +29,12 @@ export function splitActiveTime(at, deltaMs) {
   return parts;
 }
 function wordCopy(word) {
-  const key = dictationWordKey(word);
-  return typeof word === 'object' && typeof word?.z === 'string'
-    ? { ...word } : { w: key, z: '旧记录未保存释义' };
+  const key = learningKey(word);
+  if (typeof word === 'object' && typeof word?.z === 'string') return { ...word };
+  const colon = key.indexOf(':');
+  return colon > 0 && knownBookId(key.slice(0, colon))
+    ? { w: key.slice(colon + 1), z: '旧记录未保存释义', bookId: key.slice(0, colon) }
+    : { w: key, z: '旧记录未保存释义' };
 }
 function fields(db) {
   if (!object(db.reviewSchedule)) db.reviewSchedule = {};
@@ -51,10 +54,10 @@ function fields(db) {
 export function initializeLearning(db, words, at) {
   fields(db); const date = shanghaiDate(at), catalog = new Map();
   for (const word of [...(Array.isArray(words) ? words : []), ...(Array.isArray(db.custom) ? db.custom : []), ...(Array.isArray(db.dailySession?.words) ? db.dailySession.words : [])]) {
-    const key = dictationWordKey(word); if (key && !catalog.has(key)) catalog.set(key, wordCopy(word));
+    const key = learningKey(word); if (key && !catalog.has(key)) catalog.set(key, wordCopy(word));
   }
   for (const entry of [...db.reviewQueue, ...db.dictationMastered]) {
-    const key = dictationWordKey(entry); if (!key) continue;
+    const key = learningKey(entry); if (!key) continue;
     const previous = own(db.reviewSchedule, key);
     if (object(previous) && validDate(previous.dueDate) && Number.isInteger(previous.intervalIndex) && previous.intervalIndex >= -1 && previous.intervalIndex < REVIEW_INTERVALS.length) continue;
     put(db.reviewSchedule, key, { ...(object(previous) ? previous : {}), word: catalog.get(key) || wordCopy(entry),
@@ -63,7 +66,7 @@ export function initializeLearning(db, words, at) {
   pruneDailyReports(db, at); return db;
 }
 function schedule(db, word) {
-  fields(db); const key = dictationWordKey(word); if (!key) return null;
+  fields(db); const key = learningKey(word); if (!key) return null;
   const previous = own(db.reviewSchedule, key);
   const value = object(previous) ? previous : { word: wordCopy(word), intervalIndex: -1, stable: false };
   value.word = { ...(object(value.word) ? value.word : {}), ...wordCopy(word) }; put(db.reviewSchedule, key, value); return { key, value };
@@ -74,8 +77,8 @@ export function recordReviewFailure(db, { word, at, token }) {
   if (token && value.lastFailureToken === token) return false;
   value.intervalIndex = 0; value.dueDate = addDays(shanghaiDate(at), 1); value.stable = false;
   value.pendingFailure = true; value.lastFailureDate = shanghaiDate(at); value.lastFailureToken = token;
-  db.dictationMastered = db.dictationMastered.filter(w => dictationWordKey(w) !== key);
-  if (!db.reviewQueue.some(w => dictationWordKey(w) === key)) db.reviewQueue.push(key);
+  db.dictationMastered = db.dictationMastered.filter(w => learningKey(w) !== key);
+  if (!db.reviewQueue.some(w => learningKey(w) === key)) db.reviewQueue.push(evidenceForWord(word));
   return true;
 }
 export function recordReviewSuccess(db, { word, at, token }) {
@@ -92,14 +95,14 @@ export function recordReviewSuccess(db, { word, at, token }) {
     value.dueDate = addDays(date, REVIEW_INTERVALS[value.intervalIndex]);
   }
   value.pendingFailure = false; value.lastSuccessDate = date; value.lastSuccessToken = token;
-  if (due || previous < 0 || value.intervalIndex === 0) db.reviewQueue = db.reviewQueue.filter(w => dictationWordKey(w) !== key);
+  if (due || previous < 0 || value.intervalIndex === 0) db.reviewQueue = db.reviewQueue.filter(w => learningKey(w) !== key);
   return true;
 }
 export function dueReviewWords(db, at) {
   const date = shanghaiDate(at);
   return Object.values(object(db.reviewSchedule) ? db.reviewSchedule : {})
-    .filter(r => object(r) && validDate(r.dueDate) && r.dueDate <= date && dictationWordKey(r.word))
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || dictationWordKey(a.word).localeCompare(dictationWordKey(b.word)))
+    .filter(r => object(r) && validDate(r.dueDate) && r.dueDate <= date && learningKey(r.word))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || learningKey(a.word).localeCompare(learningKey(b.word)))
     .map(r => wordCopy(r.word));
 }
 function ensureDay(db, date) {
@@ -111,13 +114,13 @@ function ensureDay(db, date) {
   return day;
 }
 function dayWord(day, word) {
-  const key = dictationWordKey(word); if (!key) return null;
+  const key = learningKey(word); if (!key) return null;
   let record = own(day.words, key);
   if (!object(record)) { record = { word: wordCopy(word), practiced: false, formalAttempts: 0, firstTry: 0, wrong: false }; put(day.words, key, record); }
   return record;
 }
 export function recordExposure(db, word, practiced = false) {
-  fields(db); const key = dictationWordKey(word); if (!key) return;
+  fields(db); const key = learningKey(word); if (!key) return;
   const previous = own(db.wordExposure, key);
   put(db.wordExposure, key, { ...(object(previous) ? previous : {}), word: { ...(object(previous?.word) ? previous.word : {}), ...wordCopy(word) }, seen: true,
     practiced: practiced || previous?.practiced === true });

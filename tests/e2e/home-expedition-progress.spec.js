@@ -38,7 +38,7 @@ test('a clean first expedition battle appears on home without becoming dictation
   await expect(unit).toContainText(`远征 ${fought.DB.mastered.length}/45 · 默写 0/45`);
   await expect(unit).not.toContainText('未开始');
   await expect(page.locator('#units [data-unit="2"]')).toBeDisabled();
-  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/259 · 下轮生命上限 +0');
+  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/467 · 下轮生命上限 +0');
   const savedBefore = await game.saved();
   await game.reload();
   await expect(page.locator('#sExpedition')).toHaveText(String(fought.DB.mastered.length));

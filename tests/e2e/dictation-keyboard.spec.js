@@ -64,12 +64,23 @@ test('formal wrong-order feedback only says 不对 and corrected word is still r
   expect(await page.evaluate(() => window.__gameTest.DB.reviewQueue)).toEqual(['cat']);
 });
 
+test('lower-book ellipsis phrases keep spaces and permit repeated punctuation on the complete keyboard',async({game,page},info)=>{
+  newOnly(info);await game.open();await page.setViewportSize({width:320,height:720});
+  const word={w:'prefer ... to',z:'更喜欢……',u:1,d:2,th:'个性',bookId:'wy8b'};
+  await mountFormal(page,word);await expect(page.locator('#formalKeys button')).toHaveCount(29);
+  await page.keyboard.type('prefer');await page.locator('#formalKeys [data-key=" "]').click();
+  for(let i=0;i<3;i++)await page.locator('#formalKeys [data-key="."]').click();
+  await page.keyboard.type(' to');await expect(page.locator('#formalInput')).toHaveText('prefer ... to');
+  expect(await page.evaluate(()=>window.__gameTest.DB.dictationMastered)).toEqual([word]);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
 test('a legacy all-practiced save with completion stamps gains no formal growth or unlock', async ({ game, page }, info) => {
   newOnly(info); const original = WORDS.map(w => w.w);
   await game.open({ saved: { mastered: original, unitProgress: { 1: { complete: true } }, future: { keep: 1 } } });
   await expect(page.locator('#units [data-unit="2"]')).toBeDisabled();
   await expect(page.locator('#sMaster')).toHaveText('0');
-  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/259');
+  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/467');
   await game.start(); expect((await game.state()).G.maxhp).toBe(60);
   const saved = await game.saved(); expect(saved.mastered).toEqual(original);
   expect(saved.dictationMastered).toEqual([]); expect(saved.future).toEqual({ keep: 1 });

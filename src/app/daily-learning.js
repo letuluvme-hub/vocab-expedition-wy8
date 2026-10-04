@@ -1,4 +1,4 @@
-import { dictationWordKey } from '../domain/dictation.js';
+import { learningKey } from '../domain/learning-identity.js';
 import { initializeLearning, dueReviewWords, recordReviewFailure, recordReviewSuccess,
   recordExposure, recordPractice, recordWrongWord, recordAssessment, recordActiveTime,
   recordSessionComplete, todayReport } from '../domain/daily-learning.js';
@@ -14,7 +14,7 @@ export function createDailyLearning({ getDB, getWords, now = Date.now } = {}) {
     return state;
   }
   function token(session, word) {
-    const index = session.words.findIndex(w => dictationWordKey(w) === dictationWordKey(word));
+    const index = session.words.findIndex(w => learningKey(w) === learningKey(word));
     return `${session.id}:formal:${index}`;
   }
   function failure({ session, word, db, at }) {
