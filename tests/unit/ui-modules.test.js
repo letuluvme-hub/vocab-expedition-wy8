@@ -1,3 +1,4 @@
+import { BOOKS } from '../../src/data/books.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -747,12 +748,15 @@ test('title screen preserves legacy controls while separating matching expeditio
     curUnit: 3, renderHeroes: () => helper.renderHeroes(), renderRewardCard })());
   // 有意漂移：data-unit 和两份学习进度。这里只归一化本例中两者相等的那一行；
   // 新文案另作精确断言，class、选择回调、收藏和其他文字仍对照真实归档。
-  const progressToLegacy = html => html.replace(/<em>远征 (\d+)\/(\d+) · 默写 \1\/\2<\/em>/g,
+  // 2026-10 预习模式：单元卡改成统一的「学会 N/M」，「学会单词」统计只数教材词（另作精确断言）。
+  const progressToLegacy = html => html.replace(/<em>学会 (\d+)\/(\d+)<\/em>/g,
     '<em>已掌握 $1/$2</em>');
-  const unitSnap = doc => snapDoc(doc, TITLE_IDS.filter(id => id !== 'units'))
+  const unitSnap = doc => snapDoc(doc, TITLE_IDS.filter(id => id !== 'units' && id !== 'sMaster'))
     + '\nunits-text:' + doc.getElementById('units').children.map(u => progressToLegacy(u._html)).join('|')
     + '\nunits-class:' + doc.getElementById('units').children.map(u => u.className).join('|');
   assert.equal(unitSnap(mineDoc), unitSnap(docOld));
+  const textbook = new Set(BOOKS.flatMap(b => b.words).map(w => w.w.trim().toLowerCase()));
+  assert.equal(mineDoc.getElementById('sMaster').textContent, String(['book', 'pen', 'inborn'].filter(w => textbook.has(w)).length));
 
   const heroes = mineDoc.getElementById('heroes').children;
   assert.equal(heroes.length, 9);
@@ -765,7 +769,7 @@ test('title screen preserves legacy controls while separating matching expeditio
   assert.equal(units.length, 7);
   assert.equal(units[0].className, 'unit');
   assert.equal(units[2].className, 'unit sel');
-  assert.equal(units[2]._html, '<b>Unit 3 成长与发现</b><span>29 词</span><em>远征 1/29 · 默写 1/29</em>');
+  assert.equal(units[2]._html, '<b>Unit 3 成长与发现</b><span>29 词</span><em>学会 1/29</em>');
   assert.equal(units[6]._html, '<b>我的词表</b><span>0 词（空）</span>');
   // 任务 7：每个单元按钮都带 data-unit（脚本按它定位，不按文本）
   assert.deepEqual(units.map(u => u.attrs['data-unit']), ['1', '2', '3', '4', '5', '6', '0']);

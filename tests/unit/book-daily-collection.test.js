@@ -96,7 +96,7 @@ function warm(controller) {
 }
 
 test('daily session freezes lower-book range, keeps spelling bare, and restores scoped mastery', () => {
-  const x=setupDaily();assert.equal(x.controller.start({unit:1,bookId:'wy8b'}),true);
+  const x=setupDaily();assert.equal(x.controller.start({mode:'dictation',unit:1,bookId:'wy8b'}),true);
   assert.equal(x.controller.state().bookId,'wy8b');assert.deepEqual(x.requests,[[1,'wy8b']]);
   warm(x.controller);assert.equal(x.controller.state().attempt.target,'rest');
   x.controller.pause();const resumed=setupDaily(structuredClone(x.db));resumed.controller.resume();
@@ -109,7 +109,7 @@ test('daily session freezes lower-book range, keeps spelling bare, and restores 
 test('daily failure and deferred result remain scoped to the book after a refresh', () => {
   const x=setupDaily();x.db.dictationMastered=['rest'];
   x.db.reviewSchedule.rest={word:upper,intervalIndex:4,dueDate:'2026-10-05',stable:true};
-  x.controller.start({unit:1,bookId:'wy8b'});warm(x.controller);x.controller.input('x');
+  x.controller.start({mode:'dictation',unit:1,bookId:'wy8b'});warm(x.controller);x.controller.input('x');
   assert.deepEqual(x.db.reviewQueue,[lower]);assert.deepEqual(x.db.dictationMastered,['rest']);
   x.controller.pause();const resumed=setupDaily(structuredClone(x.db));resumed.controller.resume();
   assert.equal(resumed.controller.defer(),true);assert.equal(resumed.controller.summary().deferred,1);
@@ -119,7 +119,7 @@ test('daily failure and deferred result remain scoped to the book after a refres
 
 test('a due word from the other book can coexist with the same-spelling selected word through warmup and formal restore', () => {
   const x=setupDaily();x.db.reviewQueue=['rest'];
-  assert.equal(x.controller.start({unit:1,bookId:'wy8b'}),true);
+  assert.equal(x.controller.start({mode:'dictation',unit:1,bookId:'wy8b'}),true);
   assert.deepEqual(x.controller.state().words,[upper,lower]);assert.deepEqual(x.controller.state().reviewKeys,['rest']);
   warm(x.controller);assert.deepEqual(x.db.dailySession.warmupDone,['rest','wy8b:rest']);
   for(const ch of 'rest')x.controller.input(ch);x.controller.next();
@@ -134,9 +134,9 @@ test('a due word from the other book can coexist with the same-spelling selected
 
 test('daily cursor and carry from one textbook book do not advance or replace the other book', () => {
   const x=setupDaily();x.db.dailyCursor={1:0,'wy8b:1':7};
-  x.controller.start({unit:1,bookId:'wy8b'});warm(x.controller);
+  x.controller.start({mode:'dictation',unit:1,bookId:'wy8b'});warm(x.controller);
   for(const ch of 'rest')x.controller.input(ch);x.controller.next();
-  const upperCursor=x.db.dailyCursor[1];assert.equal(x.controller.start({unit:1,bookId:'wy8a'}),true);
+  const upperCursor=x.db.dailyCursor[1];assert.equal(x.controller.start({mode:'dictation',unit:1,bookId:'wy8a'}),true);
   assert.equal(x.controller.state().words[0].z,'休息');assert.equal(x.controller.state().bookId??'wy8a','wy8a');
   assert.equal(upperCursor,0);assert.equal(x.db.dailyCursor['wy8b:1'],0);
 });

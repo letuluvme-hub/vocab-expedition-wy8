@@ -15,7 +15,7 @@ for(const width of [320,390])test(`public verifier preserves old practice and co
   const legacy=await verifyLegacyPlay(page);
   expect(legacy).toMatchObject({savePreserved:true,customWordPracticed:true,formalMastered:0});
   const daily=await verifyDailyPlay(page);
-  expect(daily).toMatchObject({warmupMastered:0,formalMastered:['dog'],firstTryRate:'一次拼对率：50%（1/2）',clipboardCopied:true,width});
+  expect(daily).toMatchObject({previewLearned:['dog'],hintedWord:'cat',clipboardCopied:true,width});
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')));
   expect(saved.future).toEqual({keep:true});expect(saved.mastered).toEqual(expect.arrayContaining(['factory','cat','dog']));
 });

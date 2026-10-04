@@ -1,3 +1,4 @@
+// 2026-10 起界面新开的是预习；这里显式开旧版默写会话，守住旧存档恢复后的默写界面与掌握规则。
 import {test,expect,openPracticePanel} from './game-harness.js';
 
 test('lower-book daily spelling earns scoped evidence and remains frozen across home book switch and reload',async({game,page},info)=>{
@@ -7,7 +8,7 @@ test('lower-book daily spelling earns scoped evidence and remains frozen across 
   await game.open({saved:{mastered:['self-expression']}});
   await page.locator('#textbookSelect').selectOption('wy8b');
   await openPracticePanel(page);await page.locator('#dailyOpen').click();
-  await page.locator('#dailyUnit').selectOption('1');await page.locator('#dailyStart').click();
+  await page.locator('#dailyUnit').selectOption('1');await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
   const words=(await game.saved()).dailySession.words;
   expect(words).toHaveLength(16);expect(words[0].w).toBe('self-expression');
   expect(words.every(word=>word.bookId==='wy8b')).toBe(true);

@@ -13,10 +13,11 @@ export function createDailyReportView({ host, getReport, copy = () => Promise.re
     root.append(element('h3', '今日记录'), element('p', report.date, 'dailyReportDate'));
     const facts = element('div'); facts.className = 'daily-report-facts';
     facts.append(element('p', `练习时长：${durationText(report.activeMs)}`, 'dailyReportDuration'),
-      element('p', `练习词数：${report.practicedWords}`, 'dailyReportWords'),
-      element('p', `一次拼对率：${report.formalAttempts ? `${report.firstTryRate}%（${report.firstTry}/${report.formalAttempts}）` : '暂无正式尝试'}`, 'dailyReportRate'));
+      element('p', `练习词数：${report.practicedWords}`, 'dailyReportWords'));
+    // 预习没有正式默写；一次拼对率只在当天还有旧默写记录时显示。
+    if (report.formalAttempts) facts.append(element('p', `一次拼对率：${report.firstTryRate}%（${report.firstTry}/${report.formalAttempts}）`, 'dailyReportRate'));
     root.append(facts);
-    const note = element('p', '词数当天去重，含热身；正确率按正式尝试统计，包含已出错或使用帮助的中断尝试。'); note.className = 'daily-report-note'; root.append(note);
+    const note = element('p', report.formalAttempts ? '词数当天去重，含预习；正确率按正式默写统计，包含已出错或使用帮助的中断尝试。' : '词数当天去重，含预习；预习里用了提示的词列在下面。'); note.className = 'daily-report-note'; root.append(note);
     const wrong = element('div', undefined, 'dailyReportWrong'); wrong.append(element('p', '今日错词／辅助词'));
     const list = element('ul'); for (const word of report.wrongWords) list.append(element('li', `${word.w} · ${word.z}`));
     wrong.append(report.wrongWords.length ? list : element('p', '无')); root.append(wrong);

@@ -1,10 +1,11 @@
+// 2026-10 起界面新开的是预习；这里显式开旧版默写会话，守住旧存档恢复后的默写界面与掌握规则。
 import { test, expect, openPracticePanel } from './game-harness.js';
 const newOnly = info => test.skip(info.project.metadata.target === 'legacy', 'Daily session is a new feature');
 async function customStart(page, text) {
   await page.locator('#dailyOpen').click();
   await page.locator('#dailyCustomText').fill(text);
   await page.locator('#dailyImport').click();
-  await page.locator('#dailyStart').click();
+  await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
   await expect(page.locator('#dailyStage')).toHaveText('热身');
 }
 async function warm(page, words) {
@@ -45,7 +46,7 @@ for(const width of [320,390])test(`real dailykeyboard/phrase fits ${width}px, or
 
 test('daily selects locked Unit6 while freeexpedition remains locked and schoolpool bounded16',async({game,page},info)=>{
   newOnly(info);await game.open();await openPracticePanel(page);await expect(page.locator('#units [data-unit="6"]')).toBeDisabled();
-  await page.locator('#dailyOpen').click();await page.locator('#dailyUnit').selectOption('6');await page.locator('#dailyStart').click();
+  await page.locator('#dailyOpen').click();await page.locator('#dailyUnit').selectOption('6');await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
   const save=await game.saved();expect(save.dailySession.words).toHaveLength(16);expect(save.dailySession.unit).toBe(6);expect(save.dailySession.words.every(w=>w.u===6)).toBe(true);
   await expect(page.locator('#dailySelectionInfo')).toContainText('余下 23');
 });

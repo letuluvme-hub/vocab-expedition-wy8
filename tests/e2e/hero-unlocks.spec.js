@@ -1,3 +1,4 @@
+// 2026-10 起界面新开的是预习；这里显式开旧版默写会话，守住旧存档恢复后的默写界面与掌握规则。
 import {test,expect} from './game-harness.js';
 const zero={words:0,cleanWords:0,kills:0,damage:0,healing:0};
 const only=info=>test.skip(info.project.metadata.target==='legacy','Role unlocks');
@@ -32,7 +33,7 @@ test('actual healing unlocks healer; full-health item cannot inflate healing and
 });
 
 test('daily warmup does not double-count and formal completion survives refresh once',async({game,page},info)=>{
- only(info);await game.open({saved:{heroStats:{...zero}}});await page.locator('#dailyEntry > summary').click();await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill('cat 猫');await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
+ only(info);await game.open({saved:{heroStats:{...zero}}});await page.locator('#dailyEntry > summary').click();await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill('cat 猫');await page.locator('#dailyImport').click();await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
  await page.keyboard.type('cat');await page.locator('#dailyNext').click();await page.locator('#dailyFormal').click();expect(await page.evaluate(()=>window.__gameTest.DB.heroStats.words)).toBe(0);
  await page.keyboard.type('cat');expect(await page.evaluate(()=>[window.__gameTest.DB.heroStats.words,window.__gameTest.DB.heroStats.cleanWords])).toEqual([1,1]);await page.reload();expect(await page.evaluate(()=>[window.__gameTest.DB.heroStats.words,window.__gameTest.DB.heroStats.cleanWords])).toEqual([1,1]);
 });

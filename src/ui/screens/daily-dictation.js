@@ -2,7 +2,7 @@ import { createDictationKeyboard } from '../components/dictation-keyboard.js';
 import { pixelMonsterSVG } from '../components/pixel-art.js';
 import { ENEMIES, BOSS } from '../../data/enemies.js';
 import '../../styles/home-atlas.css';
-import {DEFAULT_BOOK_ID,bookById,bookUnits} from '../../data/books.js';
+import {BOOKS,DEFAULT_BOOK_ID,bookById,bookUnits} from '../../data/books.js';
 
 export function createDailyDictationScreen({ controller, show, onHome, onEnter = () => {}, getBook=()=>DEFAULT_BOOK_ID, document: doc = globalThis.document, confirm = globalThis.confirm } = {}) {
   const el = (tag, cls, text, id) => { const n = doc.createElement(tag); if(cls)n.className=cls; if(text !== undefined)n.textContent=text; if(id)n.id=id; return n; };
@@ -21,7 +21,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   if (relicRow && relicRow.parentElement === title) title.insertBefore(atlasHost, relicRow.nextSibling);
   else title.insertBefore(atlasHost,doc.getElementById('keyboardTipHost')||title.querySelector('.lbl'));
   const keyboard = createDictationKeyboard({ document: doc, onInput: key => controller.input(key) });
-  let hintAnswer = '', selectionUnit = '1';
+  let hintAnswer = '', selectionUnit = '1', selectionBook = null;
   const state = () => controller.state();
   const active = () => screen.classList.contains('on');
   function home() { if(state() && state().phase !== 'completed')controller.pause('home'); keyboard.destroy(); onHome(); }
@@ -30,17 +30,17 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   const growthHost = doc.getElementById('masteryGrowthHost');
   if (growthHost) {
     const row = el('div', 'row');
-    const shortcut = button('进入每日默写', 'growthDailyOpen', open, true);
+    const shortcut = button('进入单词预习', 'growthDailyOpen', open, true);
     shortcut.className = 'btn g';
     row.append(shortcut);
     growthHost.append(row);
   }
   function paintEntry() {
     const extraHosts = ['dailyCollectionHost','dailyHomeReport'].map(id => entry.querySelector('#'+id) || el('div','',undefined,id));
-    entry.replaceChildren(entrySummary,el('p','daily-note','按需练习，伙伴、收藏和学习记录都在这里。'));
+    entry.replaceChildren(entrySummary,el('p','daily-note','单词预习、伙伴、收藏和学习记录都在这里。'));
     const s=state();
-    entry.append(button(s&&s.phase!=='completed'?'继续练习':'开始练习','dailyOpen',open));
-    if(s?.phase==='completed')entry.append(el('p','daily-note',`本次完成 ${controller.summary().completed} / ${s.words.length} 词 · 学习记录已保留`));
+    entry.append(button(s&&s.phase!=='completed'?'继续预习':'开始预习','dailyOpen',open));
+    if(s?.phase==='completed'){const sum=controller.summary();entry.append(el('p','daily-note',sum.preview?`上次预习拼完 ${sum.warmup} / ${s.words.length} 词，其中不看提示 ${sum.clean} 词`:`本次完成 ${sum.completed} / ${s.words.length} 词 · 学习记录已保留`));}
     // Keep mounted report/collection nodes and the native details open state on repaint.
     for(const host of extraHosts) entry.append(host);
   }
@@ -50,25 +50,36 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
     if(controller.saved()===false)screen.append(el('p','daily-warning','本次进度没能保存，刷新会丢失。继续练习仍然有效。','dailySaveWarning'));
   }
   function renderSelection() {
-    header('选择今日词表');
-    screen.append(el('p','daily-note','选学校今天要默写的单元，也可以粘贴词表。每次最多 16 词；余下词会留到后续练习。'));
-    const label=el('label','daily-label',bookById(getBook()).label+' · 教材单元');label.htmlFor='dailyUnit';
+    header('单词预习');
+    screen.append(el('p','daily-note','选一册、选一个单元，把这个单元的词从头到尾过一遍。看中文，用字母盘拼英文；提示不限次数，不会的词也可以直接跳过。'));
+    if(!selectionBook||!BOOKS.some(b=>b.id===selectionBook))selectionBook=getBook();
+    const bookLabel=el('label','daily-label','教材册');bookLabel.htmlFor='dailyBook';
+    const bookSelect=el('select','daily-select',undefined,'dailyBook');
+    for(const b of BOOKS){const o=el('option','',b.label);o.value=b.id;bookSelect.append(o);}
+    bookSelect.value=selectionBook;
+    const label=el('label','daily-label','单元（全部开放，随便选）');label.htmlFor='dailyUnit';
     const select=el('select','daily-select',undefined,'dailyUnit');
-    for(const {n} of bookUnits(getBook())) { const o=el('option','',n?`Unit ${n}`:'我粘贴的词表');o.value=String(n);select.append(o); }
-    select.value=selectionUnit;select.onchange=()=>{selectionUnit=select.value;};screen.append(label,select);
-    const customLabel=el('label','daily-label','当日默写词表（每行：英文 中文）');customLabel.htmlFor='dailyCustomText';
+    const fillUnits=()=>{select.replaceChildren();for(const {n} of bookUnits(selectionBook)) { const o=el('option','',n?`Unit ${n}`:'我粘贴的词表');o.value=String(n);select.append(o); }
+      if(![...select.options].some(o=>o.value===selectionUnit))selectionUnit='1';select.value=selectionUnit;};
+    fillUnits();
+    bookSelect.onchange=()=>{selectionBook=bookSelect.value;fillUnits();};
+    select.onchange=()=>{selectionUnit=select.value;};screen.append(bookLabel,bookSelect,label,select);
+    const message=el('p','daily-note','','dailyImportMessage');
+    if(controller.invalid())screen.append(el('p','daily-warning','旧的练习进度无法恢复，原存档仍然保留。'),button('丢弃无法恢复的练习进度','dailyDiscard',()=>{if(confirm('只丢弃无法恢复的练习进度？已学词、自由远征与收藏都会保留。')){controller.discard();renderSelection();}},true));
+    else screen.append(button('开始预习','dailyStart',()=>{if(controller.start({unit:Number(select.value),bookId:selectionBook}))render();else message.textContent='没有可预习的词，请先保存词表';}),message);
+    const more=el('details','daily-custom');more.append(el('summary','','用自己的词表预习'));
+    const customLabel=el('label','daily-label','词表（每行：英文 中文）');customLabel.htmlFor='dailyCustomText';
     const text=el('textarea','daily-text',undefined,'dailyCustomText');text.rows=4;text.placeholder='cat 猫\nlook after 照顾';
     // The reusable parser's saved custom list is read via an explicit controller getter.
     text.value=controller.customWords().map(w=>w.w+' '+w.z).join('\n');
-    const message=el('p','daily-note','','dailyImportMessage');
-    screen.append(customLabel,text,button('保存并使用这份词表','dailyImport',()=>{
+    more.append(customLabel,text,button('保存并使用这份词表','dailyImport',()=>{
       const result=controller.importWords(text.value);
       message.textContent=result.words.length?`已保存 ${result.words.length} 词${result.bad?`；${result.bad} 行格式未识别，请检查` : ''}`:'没有识别出词，请按“英文 中文”逐行填写';
       if(result.words.length){selectionUnit='0';select.value='0';}
       if(controller.saved()===false)message.textContent+='；本机保存失败，刷新会丢失';
-    },true),message);
-    if(controller.invalid())screen.append(el('p','daily-warning','旧每日进度无法恢复，原存档仍然保留。'),button('丢弃无法恢复的每日进度','dailyDiscard',()=>{if(confirm('只丢弃无法恢复的每日进度？已学词、自由远征与收藏都会保留。')){controller.discard();renderSelection();}},true));
-    else screen.append(button('开始热身','dailyStart',()=>{if(controller.start({unit:Number(select.value),bookId:getBook()}))render();else message.textContent='没有可练习的词，请先保存词表';}));
+    },true));
+    more.open=true;
+    screen.append(more);
   }
   function render() {
     if(!active()){paintEntry();return;}
@@ -76,7 +87,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
     hintAnswer='';
     if(s.phase==='completed') { renderCompleted(); paintEntry(); return; }
     if(s.paused) {
-      header(s.pauseReason==='time-budget'?'今天先到这里':'每日默写已暂停');
+      header(s.pauseReason==='time-budget'?'今天先到这里':s.mode==='preview'?'预习已暂停':'每日默写已暂停');
       screen.append(el('p','daily-note',s.pauseReason==='time-budget'?'已练习约 15 分钟。结束本次，已完成的词照常保留；未完成词留到后续练习。':'已完成和当前拼写都保留。继续时接着练，停留在这里不会计时。'));
       if(s.pauseReason!=='time-budget')screen.append(button('继续练习','dailyResume',()=>controller.resume()));
       screen.append(button('结束本次','dailyFinish',()=>controller.finish(),true));return;
@@ -85,21 +96,23 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
       header('准备正式默写');
       screen.append(el('p','daily-note',`已热身 ${s.warmupDone.length} 词。热身只记练习，不记掌握。接下来只有中文释义，用完整键盘默写。`),button('开始正式默写','dailyFormal',()=>controller.beginFormal()));return;
     }
-    header(s.phase==='warmup'?'热身':'正式默写');
+    const preview=s.mode==='preview';
+    header(s.phase==='warmup'?(preview?'单词预习':'热身'):'正式默写');
     const summary=controller.summary(), word=s.words[s.index];
     screen.append(el('p','daily-note',`第 ${s.index+1} / ${s.words.length} 词 · 已练习 ${Math.floor(summary.elapsedMs/60000)} 分钟`, 'dailyProgress'));
-    if(s.remaining)screen.append(el('p','daily-note',`今日选 ${s.words.length} 词；余下 ${s.remaining} 词保留到后续练习`,'dailySelectionInfo'));
+    if(s.remaining)screen.append(el('p','daily-note',preview?`本次 ${s.words.length} 词；词表里余下 ${s.remaining} 词下次接着预习`:`今日选 ${s.words.length} 词；余下 ${s.remaining} 词保留到后续练习`,'dailySelectionInfo'));
     if(s.phase==='formal') {
       const encounter=s.encounters.find(e=>s.index>=e.start&&s.index<e.end);
       const panel=el('div','daily-encounter');
       const sprite=el('div','daily-monster');sprite.innerHTML=pixelMonsterSVG(encounter.boss?BOSS:ENEMIES[encounter.index%ENEMIES.length],encounter.boss,false,{anim:false});
       panel.append(sprite,el('p','daily-note',`${encounter.boss?'首领':'战斗 '+(encounter.index+1)} · ${s.encounters.length} 场中的第 ${encounter.index+1} 场。练完本组词即可前进，无限时攻击；拼错不扣血。`,'dailyEncounter'));screen.append(panel);
-    } else screen.append(el('p','daily-note','从字母盘选字母热身，每个词练一次。'));
+    } else screen.append(el('p','daily-note',preview?'看中文，从字母盘选字母拼出英文。卡住了就点提示，次数不限。':'从字母盘选字母热身，每个词练一次。'));
     screen.append(el('p','daily-prompt',word.z,'dailyPrompt'));
     const input=el('p','daily-input',s.attempt.input||'…','dailyInput');input.setAttribute('aria-live','polite');input.setAttribute('aria-label','当前拼写');screen.append(input);
     const feedback=el('p','daily-feedback',s.attempt.feedback,'dailyFeedback');feedback.setAttribute('aria-live','polite');screen.append(feedback);
     if(s.attempt.completed) {
-      screen.append(el('p','daily-note',s.phase==='warmup'?'热身完成':s.results.at(-1)?.eligible?'一次拼对，已记入默写掌握':'已完成，留到后续复习'),button('下一个','dailyNext',()=>controller.next()));
+      const done=s.phase==='warmup'?(preview?(s.attempt.hints?'拼完了，用了 '+s.attempt.hints+' 次提示，下次试试不看提示':'不看提示拼对，记为学会'):'热身完成'):s.results.at(-1)?.eligible?'一次拼对，已记入默写掌握':'已完成，留到后续复习';
+      screen.append(el('p','daily-note',done,'dailyDoneNote'),button(s.index+1>=s.words.length?'完成预习':'下一个','dailyNext',()=>controller.next()));
     } else if(s.phase==='formal') {
       const keys=el('div','',undefined,'dailyKeys');screen.append(keys);keyboard.render(keys,word);
       const hint=el('p','daily-note','','dailyHintAnswer');hint.setAttribute('aria-live','polite');
@@ -109,11 +122,26 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
       const bank=controller.letters(),keys=el('div','daily-bank',undefined,'dailyWarmupKeys');
       bank.letters.forEach((ch,i)=>{const b=button(ch.toUpperCase(),undefined,()=>controller.input(ch),true);b.disabled=bank.used[i];b.dataset.key=ch;keys.append(b);});screen.append(keys);
       screen.append(button('退格','dailyUndo',()=>controller.input('Backspace'),true));
+      if(preview){
+        const tools=el('div','daily-tools');
+        tools.append(button('提示一个字母','dailyHint',()=>controller.hint(),true),button('跳过这个词','dailySkip',()=>controller.skip(),true));
+        screen.append(tools);
+      }
     }
     screen.append(button('暂停 / 保存','dailyPause',()=>controller.pause(),true));
   }
   function renderCompleted() {
-    header('今日完成'); const s=state(),summary=controller.summary();
+    const s=state(),summary=controller.summary();
+    if(summary.preview){
+      header('预习完成');
+      const result=el('div','daily-summary',undefined,'dailySummary');
+      result.append(el('p','',`拼完 ${summary.warmup} / ${summary.planned} 词`),el('p','',`不看提示拼对 ${summary.clean} 词（记为学会）`),
+        el('p','',`跳过 ${summary.skipped} 词 · 用时 ${Math.floor(summary.elapsedMs/60000)} 分 ${Math.floor(summary.elapsedMs/1000)%60} 秒`));
+      if(summary.reason!=='pool-exhausted')result.append(el('p','daily-note',`中途结束，余下 ${summary.planned-summary.warmup-summary.skipped} 词没过。`));
+      screen.append(result,button('再预习一个单元','dailyAgain',()=>renderSelection()),button('回主页','dailyDoneHome',home,true));
+      const extra=el('div','',undefined,'dailyCompletionExtra');screen.append(extra);return;
+    }
+    header('今日完成');
     const result=el('div','daily-summary',undefined,'dailySummary');
     result.append(el('p','',`正式完成 ${summary.completed} / ${summary.planned} 词`),el('p','',`留到复习 ${summary.deferred} 词（未拼完）`),el('p','',`一次拼对 ${summary.firstTry} / ${summary.assessed}${summary.assessed?`（${Math.round(summary.firstTry/summary.assessed*100)}%）`:''}`),el('p','daily-note','正确率包含正式拼完的词，以及已经出错或使用帮助的未完成尝试；热身不计。'),el('p','',`热身 ${summary.warmup} 词 · 练习 ${Math.floor(summary.elapsedMs/60000)} 分 ${Math.floor(summary.elapsedMs/1000)%60} 秒`));
     if(summary.reason!=='pool-exhausted')result.append(el('p','daily-note',`本次结束，${summary.planned-summary.completed} 个未完成词留到后续练习。`));

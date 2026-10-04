@@ -1,3 +1,4 @@
+// 2026-10 起界面新开的是预习；这里显式开旧版默写会话，守住旧存档恢复后的默写界面与掌握规则。
 import { test, expect } from './game-harness.js';
 const newOnly = info => test.skip(info.project.metadata.target === 'legacy', 'Home layout is new');
 
@@ -64,7 +65,7 @@ test('keyboard toggles practice without moving atlas or losing mounted reports o
   const summary = page.locator('#dailyEntry > summary');
   await summary.focus(); await page.keyboard.press('Enter');
   await expect(page.locator('#dailyOpen')).toBeVisible();
-  await expect(page.locator('#dailyOpen')).toHaveText('开始练习');
+  await expect(page.locator('#dailyOpen')).toHaveText('开始预习');
   await expect(page.locator('#dailyPartner')).toBeVisible();
   await expect(page.locator('#dailyHomeReport')).toBeVisible();
   const before = await game.saved();
@@ -85,7 +86,7 @@ test('paused practice remains recoverable after reload while the bottom entry st
   await page.locator('#dailyEntry > summary').click();
   await page.locator('#dailyOpen').click();
   await page.locator('#dailyCustomText').fill('cat 猫');
-  await page.locator('#dailyImport').click(); await page.locator('#dailyStart').click();
+  await page.locator('#dailyImport').click(); await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
   await page.keyboard.type('c'); await page.locator('#dailyPause').click();
   const before = await game.saved();
   await game.reload();
@@ -93,7 +94,7 @@ test('paused practice remains recoverable after reload while the bottom entry st
   await expect(page.locator('#dailyOpen')).not.toBeVisible();
   expect((await game.saved()).dailySession).toEqual(before.dailySession);
   await page.locator('#dailyEntry > summary').click();
-  await expect(page.locator('#dailyOpen')).toHaveText('继续练习');
+  await expect(page.locator('#dailyOpen')).toHaveText('继续预习');
   await page.locator('#dailyOpen').click(); await page.locator('#dailyResume').click();
   await expect(page.locator('#dailyInput')).toHaveText('c');
   await page.keyboard.type('at'); await expect(page.locator('#dailyInput')).toHaveText('cat');

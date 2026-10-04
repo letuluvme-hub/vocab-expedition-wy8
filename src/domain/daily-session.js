@@ -1,8 +1,12 @@
 // Daily learning state and selection. Explicit, serializable inputs; no platform IO.
 import { dictationWordKey, createDictationAttempt } from './dictation.js';
 import { learningKey, knownBookId, DEFAULT_BOOK_ID } from './learning-identity.js';
+// 预习模式（2026-10）：一次过完整个单元（教材单元最多 55 词），不再限时。
+// 旧版每日默写（mode 缺省）一次最多 16 词、15 分钟检查点；旧存档里的会话照样能恢复。
 export const DAILY_WORD_LIMIT = 16;
+export const PREVIEW_WORD_LIMIT = 60;
 export const DAILY_TIME_BUDGET_MS = 15 * 60 * 1000;
+export const PREVIEW_NO_CHECKPOINT_MS = Number.MAX_SAFE_INTEGER;
 export const DAILY_SESSION_VERSION = 1;
 const phases = new Set(['warmup', 'formal-ready', 'formal', 'completed']);
 const unique = words => {
@@ -15,7 +19,7 @@ const unique = words => {
 };
 export function selectDailyWords({ words = [], dueWords = [], mastered = [], cursor = 0, limit = DAILY_WORD_LIMIT, carry = [] } = {}) {
   const pool = unique(words);
-  const cap = Math.max(1, Math.min(DAILY_WORD_LIMIT, Math.floor(limit) || DAILY_WORD_LIMIT));
+  const cap = Math.max(1, Math.min(PREVIEW_WORD_LIMIT, Math.floor(limit) || DAILY_WORD_LIMIT));
   const due = unique(dueWords);
   const masteredKeys = new Set((Array.isArray(mastered) ? mastered : []).map(w => learningKey(w)));
   const at = pool.length ? ((Math.floor(cursor) || 0) % pool.length + pool.length) % pool.length : 0;
@@ -46,27 +50,35 @@ export function dailyEncounters(count) {
   }
   return result;
 }
-export function createDailySession(selection, { id, unit, now, bookId = DEFAULT_BOOK_ID } = {}) {
+export function createDailySession(selection, { id, unit, now, bookId = DEFAULT_BOOK_ID, mode = 'dictation' } = {}) {
+  const preview = mode === 'preview';
   if (!knownBookId(bookId)) return null;
   const words = unique(selection.words);
   if (!words.length) return null;
-  return { schemaVersion: DAILY_SESSION_VERSION, id: String(id), unit, createdAt: now,
+  return { schemaVersion: DAILY_SESSION_VERSION, id: String(id), unit, createdAt: now, ...(preview ? { mode: 'preview' } : {}),
     ...(bookId !== DEFAULT_BOOK_ID ? { bookId } : {}),
     words, reviewKeys: selection.reviewKeys || [], remaining: selection.remaining || 0,
     phase: 'warmup', index: 0, attempt: createDictationAttempt({ ...words[0], w: words[0].w.toLowerCase().replace(/[^a-z]/g, '') }, { phase: 'warmup' }),
-    warmupDone: [], results: [], encounters: dailyEncounters(words.length),
+    warmupDone: [], ...(preview ? { cleanDone: [], skipped: [] } : {}), results: [], encounters: dailyEncounters(words.length),
     paused: false, pauseReason: null, elapsedMs: 0, activeSince: now,
-    nextCheckpointMs: DAILY_TIME_BUDGET_MS, completionNotified: false, reason: null };
+    nextCheckpointMs: preview ? PREVIEW_NO_CHECKPOINT_MS : DAILY_TIME_BUDGET_MS, completionNotified: false, reason: null };
 }
 export function restoreDailySession(raw) {
   if (!raw || typeof raw !== 'object' || raw.schemaVersion !== DAILY_SESSION_VERSION || !phases.has(raw.phase)) return null;
   if (raw.bookId !== undefined && !knownBookId(raw.bookId)) return null;
-  if (typeof raw.id !== 'string' || !raw.id || !Array.isArray(raw.words) || !raw.words.length || raw.words.length > DAILY_WORD_LIMIT || unique(raw.words).length !== raw.words.length) return null;
+  if (typeof raw.id !== 'string' || !raw.id || !Array.isArray(raw.words) || !raw.words.length || raw.words.length > (raw.mode === 'preview' ? PREVIEW_WORD_LIMIT : DAILY_WORD_LIMIT) || unique(raw.words).length !== raw.words.length) return null;
   if (!Number.isInteger(raw.index) || raw.index < 0 || raw.index > raw.words.length || !Array.isArray(raw.warmupDone) || !Array.isArray(raw.results) || !Number.isFinite(raw.elapsedMs) || raw.elapsedMs < 0) return null;
   if ((raw.phase === 'warmup' || raw.phase === 'formal-ready') && raw.results.length) return null;
   if (!Array.isArray(raw.encounters) || !Number.isFinite(raw.nextCheckpointMs) || raw.nextCheckpointMs < 0) return null;
   const wordKeys = new Set(raw.words.map(w => learningKey(w)));
   if (raw.warmupDone.some(w => !wordKeys.has(learningKey(w))) || new Set(raw.warmupDone).size !== raw.warmupDone.length) return null;
+  // 预习新增的两份可选记录：不看提示拼完的词、跳过的词。出现就必须是本次词表里的不重复身份。
+  for (const field of ['cleanDone', 'skipped']) {
+    const list = raw[field];
+    if (list === undefined) continue;
+    if (!Array.isArray(list) || list.some(k => typeof k !== 'string' || !wordKeys.has(k)) || new Set(list).size !== list.length) return null;
+  }
+  if (raw.mode !== undefined && raw.mode !== 'preview') return null;
   const resultKeys = new Set();
   for (const [index, r] of raw.results.entries()) {
     if (!r || typeof r.key !== 'string' || r.key !== learningKey(raw.words[index]) || !wordKeys.has(r.key) || resultKeys.has(r.key) || typeof r.eligible !== 'boolean') return null;
@@ -112,6 +124,7 @@ export function dailySummary(session, now) {
     deferred: session.results.filter(r => r.deferred === true).length,
     assessed: session.results.length + partialFailed, warmup: session.warmupDone.length,
     firstTry: session.results.filter(r => r.eligible).length,
+    preview: session.mode === 'preview', clean: (session.cleanDone || []).length, skipped: (session.skipped || []).length,
     wrong,
     reason: session.reason, finished: session.phase === 'completed' };
 }
