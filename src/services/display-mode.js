@@ -5,7 +5,8 @@
 // 浏览器就整页按手机断点排版再等比放大铺满平板；设成 1024 宽就走电脑分栏。
 // 既有断点、覆盖顺序一条都不用动。
 //
-// 只是展示偏好：不进 wy8a_rogue_v1 存档，单独一个本机键，读写失败一律退回「自动」。
+// 只是展示偏好：不进 wy8a_rogue_v1 存档，单独一个本机键。读不出来按「自动」；
+// 存不进去（存储被禁用）时本次打开照样生效，下次打开回到自动。
 import { deviceProfile } from './device.js';
 
 export const DISPLAY_KEY = 'wy8a_display_v1';
@@ -59,7 +60,14 @@ function isIPadOS(env) {
   return /Macintosh/i.test(nav.userAgent || '') && Number(nav.maxTouchPoints) > 1;
 }
 
+// deviceProfile().desktop 看的是当前窗口宽度，非触屏电脑把窗口拉窄也会变成 false，
+// 所以先要求真有触屏，再排除命中电脑判定的触屏笔记本（它们的浏览器忽略 meta viewport）。
+function hasTouch(env) {
+  return Number(env.navigator?.maxTouchPoints) > 0;
+}
+
 export function isTabletLike(env = globalThis) {
+  if (!hasTouch(env)) return false;
   if (deviceProfile(env).desktop && !isIPadOS(env)) return false;
   return screenSize(env).short >= TABLET_MIN_SIDE;
 }

@@ -49,6 +49,8 @@ test('only touch devices with a short side of 600+ count as tablets', () => {
   assert.equal(isTabletLike(fakeEnv({ w: 390, h: 844, ua: 'iPhone Mobile' })), false);
   // 电脑浏览器忽略 meta viewport，给它选项也不起作用。
   assert.equal(isTabletLike(fakeEnv({ w: 1920, h: 1080, ua: 'Mozilla/5.0 (Windows NT 10.0)', fine: true, touch: 0 })), false);
+  // 非触屏电脑把窗口拉窄：desktop 媒体查询不命中，但没有触屏就不算平板。
+  assert.equal(isTabletLike(fakeEnv({ w: 1920, h: 1080, ua: 'Mozilla/5.0 (Windows NT 10.0)', fine: false, touch: 0 })), false);
   // iPadOS Safari 报 Macintosh UA，接了触控板还是平板。
   assert.equal(isTabletLike(fakeEnv({ w: 820, h: 1180, ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', fine: true, touch: 5 })), true);
 });
@@ -68,6 +70,15 @@ test('preference lives in its own key, falls back to auto, and never touches the
   assert.equal(doc.meta.attrs.content, AUTO_VIEWPORT);
   assert.equal(storage.getItem('wy8a_rogue_v1'), '{"runs":3}');
   assert.equal(readDisplayMode({ localStorage: { getItem() { throw new Error('blocked'); } } }), 'auto');
+});
+
+test('blocked storage still applies the choice for this visit and comes back as auto next time', () => {
+  const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); }, removeItem() { throw new Error('blocked'); } };
+  const doc = fakeDoc();
+  const mode = createDisplayMode({ env: fakeEnv({ storage: blocked }), doc });
+  assert.equal(mode.set('phone'), 'width=480,viewport-fit=cover');
+  assert.equal(mode.get(), 'phone');
+  assert.equal(createDisplayMode({ env: fakeEnv({ storage: blocked }), doc: fakeDoc() }).get(), 'auto');
 });
 
 test('rewrites the viewport only when it changes, and follows rotation', () => {

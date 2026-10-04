@@ -24,11 +24,11 @@
 
 ## 谁能看到
 
-触屏设备且屏幕短边 ≥ 600 CSS 像素才算平板。iPadOS Safari 报桌面 UA、接触控板还会命中 `pointer:fine`，所以「Macintosh + maxTouchPoints > 1」也算平板。电脑浏览器忽略 meta viewport，给了选项也不起作用，所以不给。
+有触屏（`navigator.maxTouchPoints > 0`）、没命中电脑判定、屏幕短边 ≥ 600 CSS 像素，三条都满足才算平板。只看电脑判定不够，它看的是当前窗口宽度，非触屏电脑把窗口拉窄也会漏过来。iPadOS Safari 报桌面 UA、接触控板还会命中 `pointer:fine`，所以「Macintosh + maxTouchPoints > 1」也算平板。电脑浏览器忽略 meta viewport，给了选项也不起作用，所以不给。
 
 ## 存在哪
 
-本机 `localStorage` 的 `wy8a_display_v1`，值是 `phone` 或 `desktop`；选回自动就删掉这个键。不进 `wy8a_rogue_v1` 学习存档，清档不影响它，读写失败一律按自动处理。非平板设备上即使存了值也不生效。
+本机 `localStorage` 的 `wy8a_display_v1`，值是 `phone` 或 `desktop`；选回自动就删掉这个键。不进 `wy8a_rogue_v1` 学习存档，清档不影响它。读不出来按自动处理；存不进去（存储被禁用）时，点了当次照样生效，下次打开回到自动。非平板设备上即使存了值也不生效。
 
 ## 顺带修的中间宽度战斗页
 
