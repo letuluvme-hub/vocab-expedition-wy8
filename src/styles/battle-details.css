@@ -1,0 +1,40 @@
+/* This sheet belongs only to combat details. The seven archived sheets stay frozen. */
+#s-fight #fActionDock {display:flex;align-items:center;gap:6px;flex:none;margin-top:3px;min-width:0;}
+#s-fight #fActionDock #fItems {flex:1;min-width:0;display:flex;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;overflow-y:hidden;overscroll-behavior:contain;margin:0;padding:1px 1px 2px;scrollbar-width:none;}
+#s-fight #fActionDock #fItems::-webkit-scrollbar {display:none;}
+#s-fight #fActionDock .item {flex:0 0 64px;min-width:64px;max-width:64px;min-height:44px;padding:3px 2px;border-radius:9px;}
+#s-fight #fActionDock .item .ic {font-size:16px;line-height:18px;}
+#s-fight #fActionDock .item .pxicon {width:18px;height:18px;}
+#s-fight #fActionDock .item .nm {display:block;font-size:9px;line-height:12px;letter-spacing:0;}
+#s-fight #fActionDock .item .ct {top:1px;right:1px;padding:0 2px;font-size:9px;}
+#s-fight #fActionDock .item .kb {top:1px;left:2px;}
+#s-fight #fActionDock .none {padding:6px 0;line-height:1.4;font-size:10px;letter-spacing:0;}
+#s-fight #fDetailsOpen {flex:none;max-width:60px;min-height:44px;padding:5px;border:1px solid #22d3ee60;border-radius:10px;color:#eaffff;background:#123346;font-family:inherit;font-weight:700;font-size:11px;line-height:1.4;cursor:pointer;}
+#s-fight #fBattleDetails {position:fixed;z-index:3000;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:max(8px,calc((100vw - 680px)/2));right:max(8px,calc((100vw - 680px)/2));display:flex;flex-direction:column;min-height:0;border:1px solid #6ccade70;border-radius:14px;background:#101323;box-shadow:0 8px 24px #0008;overflow:hidden;}
+#s-fight #fBattleDetails[hidden] {display:none;}
+#s-fight #fBattleDetails header {flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:#163041;}
+#s-fight #fBattleDetails h2 {margin:0;font-size:14px;line-height:1.4;color:#e8faff;}
+#s-fight #fDetailsClose {flex:none;min-height:44px;padding:6px 10px;border:1px solid #a3e4ed70;border-radius:9px;background:#1e4a5a;color:white;font-family:inherit;font-weight:700;font-size:12px;line-height:1.4;cursor:pointer;}
+#s-fight #fBattleDetails .battleDetailsPaused {flex:none;font-size:11px;line-height:1.4;color:#b3e1e8;margin:0;padding:6px 10px;border-bottom:1px solid #ffffff18;}
+#s-fight #fDetailsBody {flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 10px 10px;scrollbar-width:thin;scrollbar-color:rgba(206,196,226,.3) transparent;}
+#s-fight #fDetailsBody::-webkit-scrollbar {width:6px;height:6px;}
+#s-fight #fDetailsBody::-webkit-scrollbar-track {background:transparent;}
+#s-fight #fDetailsBody::-webkit-scrollbar-thumb {background:rgba(206,196,226,.3);border-radius:6px;}
+#s-fight #fDetailsBody::-webkit-scrollbar-button {display:none;}
+#s-fight #fDetailsMechanism {font-size:12px;line-height:1.6;color:#cbd6e9;border-bottom:1px solid #ffffff18;padding:2px 0;}
+#s-fight #fDetailsMechanism p {margin:8px 0;}
+#s-fight #fBattleDetails .equip {margin:0;border:0;background:transparent;box-shadow:none;}
+#s-fight #fBattleDetails .equip > summary {display:none;}
+#s-fight #fBattleDetails .eq-body {padding:0;}
+#s-fight #fBattleDetails .eq-row {padding:10px 0;}
+@media(max-width:640px),(pointer:coarse) {
+ #s-fight #fDetailsBody {scrollbar-width:none;}
+ #s-fight #fDetailsBody::-webkit-scrollbar {display:none;}
+}
+@media(forced-colors:active) {
+ #s-fight #fDetailsBody {scrollbar-color:auto;}
+}
+@media(min-width:640px) and (max-height:480px) {
+ #s-fight #fActionDock {grid-column:1;grid-row:5;align-self:end;}
+ #s-fight .fmid {grid-row:2 / 5;}
+}

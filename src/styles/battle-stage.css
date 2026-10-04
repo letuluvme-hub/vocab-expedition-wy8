@@ -23,12 +23,48 @@
 #s-fight .fmid .q { margin-top:8px; }
 #s-fight .q .tagsm { margin:3px 0;justify-content:center; }
 #s-fight .bankbar,#s-fight .bank,#s-fight .tools,#s-fight #fHintShared { flex:none; }
+/* Mobile budget: compact context above, meaning in the middle, controls below. */
+@media(max-width:640px) {
+ #s-fight #fBattleStage {--pcw:46px;--pch:57px;--msw:50px;}
+ #s-fight #fBattleStage .hud {margin:0;padding:2px 0 4px;}
+ #s-fight #fBattleStage .hudrow + .hudrow {margin-top:3px!important;}
+ #s-fight #fBattleStage .bar {height:16px;}
+ #s-fight #fBattleStage .bar .t {font-size:10px;}
+ #s-fight #fBattleStage .hlab {width:24px;padding:0;font-size:10px;line-height:16px;}
+ #s-fight #fBattleStage .hudmsg {min-height:0;margin-top:2px;font-size:10px;}
+ #s-fight #fBattleStage .hudmsg:not(.on) {display:none;}
+ #s-fight #fBattleStage .vsrow {min-height:66px;padding:3px 2px 4px;align-items:center;}
+ #s-fight #fBattleStage #fAv {--avatar:38px;}
+ #s-fight #fBattleStage .myside {gap:0;}
+ #s-fight #fBattleStage .myname {margin:0;font-size:10px;line-height:12px;}
+ #s-fight #fBattleStage .fname {margin-bottom:2px;font-size:12px;}
+ #s-fight #fBattleStage .foeAtkTxt {font-size:10px;}
+ #s-fight .fmid .q {margin-top:5px;padding:9px 8px;}
+ #s-fight .q .zh {font-size:clamp(20px,6vw,25px);line-height:1.2;letter-spacing:.3px;}
+ #s-fight .q .cat {margin-bottom:5px;}
+ #s-fight .q .tagsm {margin:2px 0;gap:3px;}
+ #s-fight .q .tg {padding:1px 5px;font-size:9px;}
+ #s-fight .slots {margin-bottom:3px;}
+ #s-fight .combo:empty {display:none;}
+ #s-fight .comboMs {margin:2px 0;}
+ #s-fight .bankbar {margin:2px 0 0;gap:4px;flex-wrap:nowrap;}
+ #s-fight .bankbar .bkbtn {padding:4px 6px;min-height:30px;font-size:10px;letter-spacing:0;gap:3px;}
+ #s-fight #fHintShared {font-size:10px;margin:1px 0 2px;}
+ #s-fight .bank.kb {gap:4px;margin:3px auto;}
+ #s-fight .bank.kb .kbrow {gap:4px;padding-left:0;}
+ #s-fight .bank.kb .key {width:var(--kbw);height:44px;min-height:44px;aspect-ratio:auto;font-size:19px;}
+ #s-fight .bank.grid {gap:4px;margin:3px auto;}
+ #s-fight .bank.grid .key {height:44px;min-height:44px;aspect-ratio:auto;font-size:18px;}
+ #s-fight .tools {margin-top:4px;gap:5px;}
+ #s-fight .tools .tool {min-height:44px;padding:5px 2px;font-size:11px;}
+ #s-fight .tools .tool small {font-size:8px;letter-spacing:0;}
+}
 @media(max-height:620px) {
- #s-fight #fBattleStage { --pcw:50px;--pch:62px;--msw:54px; }
- #s-fight #fBattleStage .vsrow { min-height:68px;padding-bottom:3px; }
- #s-fight #fBattleStage #fAv { --avatar:43px; }
+ #s-fight #fBattleStage { --pcw:38px;--pch:46px;--msw:44px; }
+ #s-fight #fBattleStage .vsrow { min-height:60px;padding-top:1px;padding-bottom:2px; }
+ #s-fight #fBattleStage #fAv { --avatar:36px; }
  #s-fight #fBattleStage .hudmsg { min-height:14px;margin-top:2px; }
- #s-fight .bankbar { margin-top:4px;gap:4px; }
+ #s-fight .bankbar { margin-top:1px;gap:4px; }
  #s-fight .tools { margin-top:5px; }
 }
 @media(max-height:480px) {

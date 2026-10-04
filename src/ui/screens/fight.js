@@ -24,6 +24,7 @@ import { HERO_DEFAULT, heroById } from '../components/hero.js';
 import { paintHpBar } from '../components/hp-bar.js';
 import { fitPhraseSlots } from '../components/phrase-slots.js';
 import { createEquipmentPanel } from '../components/equipment-panel.js';
+import { createBattleDetails } from '../components/battle-details.js';
 import { createFoeAttackMeter } from '../components/foe-attack-meter.js';
 import { createComboMilestoneTrack } from '../components/combo-milestones.js';
 import { createWordOffer } from '../components/word-offer.js';
@@ -32,7 +33,7 @@ import { FOE_ART_SCALE_MAX } from '../../data/balance.js';
 
 const itemById = id => ITEMS.filter(x => x.id === id)[0];
 
-export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow, getFoeAttackFact, onChooseWord }) {
+export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem, paintSayBtn, getFoeAttackWindow, getFoeAttackFact, onChooseWord, onOpenDetails, onCloseDetails }) {
   const $ = id => document.getElementById(id);
   const isKbMode = () => !!getDB().kbMode;
   const isKbUpper = () => !!getDB().kbUpper;
@@ -40,9 +41,10 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
   const comboRate = () => calculateComboRate(getRun());
   // 「装备与能力」只读面板：挂在道具栏后面，自己在 #fItems 旁边建 <details>。
   // 它读的是同一批 G/B 快照，不做任何结算；这里每帧调用也不会重复生效。
-  const equipmentPanel = createEquipmentPanel({ getRun, getBattle });
+  const details = createBattleDetails({getRun,getBattle,onOpen:onOpenDetails,onClose:onCloseDetails});
+  const equipmentPanel = createEquipmentPanel({ getRun, getBattle, getMount:details.getMount });
   // 蓄力条（清单 13）：只读 battle.foeAttack 这个事实，自己不排期、不改状态。
-  const foeAttackMeter = createFoeAttackMeter({ $ });
+  const foeAttackMeter = createFoeAttackMeter({ $, compact:true });
   // 战意条：只读 run.milestones 与 battle.combo，自己不发放任何奖励。
   // 容器缺席时组件安静返回 null（未接线的测试台 / 旧页面），不影响其余渲染。
   const comboTrack = createComboMilestoneTrack({ $ });
@@ -165,7 +167,7 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     // 怪种机制（石化词素等）：必须让玩家**看得见**才谈得上「针对性应对」。
     // 只读 foe.n 解析（domain/foe-traits.js），没登记的怪不占位、不改布局。
     const trait = foeTraits(B.foe);
-    if (trait) { add(trait.tag, 'bad'); add(trait.tip, 'ok'); }
+    if (trait) add(trait.tag, 'bad');
     // slots
     const sl = $('fSlots'); sl.innerHTML = '';
     const tgt = norm(B.word.w);
@@ -274,6 +276,8 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     comboTrack.paint(B.combo, G.milestones);
     renderItems();
     equipmentPanel.renderEquipmentPanel();
+    details.render();
+    if(details.isOpen())foeAttackMeter.pause();
     return B.keyEls;
   }
 

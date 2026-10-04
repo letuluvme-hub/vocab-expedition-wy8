@@ -404,8 +404,8 @@ test('drawLetters noise count follows floor, elite bonus and hero noise', () => 
 });
 
 /* ================= 布局 ================= */
-test('bankCols keeps the legacy breakpoints', () => {
-  assert.deepEqual([1, 6, 7, 9, 10, 12, 13, 16, 17, 30].map(bankCols), [3, 3, 4, 4, 4, 4, 5, 5, 6, 6]);
+test('bankCols keeps small-bank breakpoints and fits large banks into three rows', () => {
+  assert.deepEqual([1, 6, 7, 9, 10, 12, 13, 16, 17, 22, 23, 26, 30].map(bankCols), [3, 3, 4, 4, 4, 4, 5, 5, 6, 6, 9, 9, 9]);
 });
 
 test('bankRows in grid mode keeps the original row-major order', () => {

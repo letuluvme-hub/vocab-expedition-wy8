@@ -259,11 +259,11 @@ async function renderTags(foe) {
   return { tags: reg.get('fTags').children.map(c => c.textContent), name: reg.get('fName').textContent };
 }
 
-test('UI：有机制的怪把机制写在标签行上；没机制的怪不多占一个标签', async () => {
+test('UI：怪种只显示短标签，完整机制在暂停详情；普通怪不占标签', async () => {
   const stone = await renderTags(byName('石化词素'));
   const trait = FOE_TRAITS['石化词素'];
   assert.ok(stone.tags.includes(trait.tag), '石化词素必须显出「硬化」：' + stone.tags);
-  assert.ok(stone.tags.some(t => /×0\.75/.test(t) && /×1\.5/.test(t)), '必须写清两档倍率：' + stone.tags);
+  assert.deepEqual(stone.tags,[trait.tag], '倍率长说明不再占拼写区高度');
   assert.match(stone.name, /石化词素/);
   // 没有机制的怪：标签行一个都不许多（否则每场战斗都在占玩家的注意力）。
   const plain = await renderTags(byName('词灵'));

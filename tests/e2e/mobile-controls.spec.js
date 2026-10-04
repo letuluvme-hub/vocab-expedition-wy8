@@ -14,7 +14,7 @@ for(const device of ['phone','android','desktop']){
   if(device!=='desktop'){
    for(const hint of await page.locator('#fItems .kb, .keyShortcutHint').all())await expect(hint).toBeHidden();
   }
-  await page.locator('#fEquipment > summary').click();
+  await page.locator('#fDetailsOpen').click();
   const rows=await page.locator('#fEquipment .eq-row').evaluateAll(nodes=>nodes.map(r=>{
    const h=r.querySelector('.eq-h').getBoundingClientRect(), d=r.querySelector('.eq-d').getBoundingClientRect();
    return{left:d.left,right:d.right,top:d.top,hBottom:h.bottom,width:d.width,rowWidth:r.getBoundingClientRect().width};

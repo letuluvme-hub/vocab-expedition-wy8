@@ -123,18 +123,21 @@ export function equipmentModel(G, B) {
 }
 
 /* ---------------- 渲染：只读快照 → DOM ---------------- */
-export function createEquipmentPanel({ getRun, getBattle }) {
+export function createEquipmentPanel({ getRun, getBattle, getMount }) {
   let host = null;   // 复用同一个 <details>：重建会把玩家刚展开的面板收起来
 
   function build() {
+    const mount = getMount?.();
+    if (getMount && !mount) return null;
     const anchor = document.getElementById('fItems');
-    if (!anchor || !anchor.parentElement) return null;   // 不在战斗页就安静退出
+    if (!mount && (!anchor || !anchor.parentElement)) return null;
     const el = document.createElement('details');
     el.id = 'fEquipment';
     el.className = 'equip';
     el.appendChild(document.createElement('summary'));
     el.appendChild(document.createElement('div'));        // body
-    anchor.parentElement.insertBefore(el, anchor.nextSibling);
+    if (mount) { el.open = true; mount.appendChild(el); }
+    else anchor.parentElement.insertBefore(el, anchor.nextSibling);
     host = el;
     return el;
   }

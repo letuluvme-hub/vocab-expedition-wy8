@@ -4,8 +4,8 @@ async function openDetails(game,page,info){
  test.skip(info.project.metadata.target==='legacy','The independently scrolling stage belongs to the current game');
  await game.open();await game.start();await game.fight();
  await page.evaluate(()=>{const t=window.__gameTest;t.G.relics=t.RELICS.map(r=>r.id);t.G.bag=Object.fromEntries(t.ITEMS.map(i=>[i.id,3]));t.renderFight()});
- await page.locator('#fEquipment > summary').click();
- const details=page.locator('#s-fight .fmid');
+ await page.locator('#fDetailsOpen').click();await expect(page.locator('#fBattleDetails')).toBeVisible();expect(await page.evaluate(()=>window.__gameTest.progress.isPaused())).toBe(true);
+ const details=page.locator('#fDetailsBody');
  expect(await details.evaluate(n=>n.scrollHeight-n.clientHeight)).toBeGreaterThan(100);
  return details;
 }
@@ -17,10 +17,12 @@ async function checkScroll(details,page,touch=false){
  else {await details.hover();await page.mouse.wheel(0,300)}
  await expect.poll(()=>details.evaluate(n=>n.scrollTop)).toBeGreaterThan(before);
  await page.locator('#fEquipment .eq-row').last().scrollIntoViewIfNeeded();
- for(const id of ['fAv','fPc','fMy','fEn','tPause']){
-  const r=await page.locator('#'+id).boundingBox();expect(r.y,id).toBeGreaterThanOrEqual(0);expect(r.y+r.height,id).toBeLessThanOrEqual(page.viewportSize().height);
+ for(const id of ['fAv','fPc','fMy','fEn']){
+  const r=await page.locator('#'+id).boundingBox();expect(r.y,id).toBeGreaterThanOrEqual(0);expect(r.y+r.height,id).toBeLessThanOrEqual((await page.locator('#fBattleDetails').boundingBox()).y);
  }
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('#fDetailsClose').click();await expect(page.locator('#fBattleDetails')).toBeHidden();expect(await page.evaluate(()=>window.__gameTest.progress.isPaused())).toBe(false);
+ const hit=await page.locator('#tPause').evaluate(n=>{const r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))});expect(hit).toBe(true);
  await page.locator('#tPause').click();await expect(page.locator('#s-pause')).toBeVisible();
 }
 

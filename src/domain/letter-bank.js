@@ -38,7 +38,7 @@ export function drawLetters(run, battle, qword, random = Math.random) {
 
 // 列数：唯一来源，渲染与导航共用
 export function bankCols(n) {
-  return n <= 6 ? 3 : n <= 9 ? 4 : n <= 12 ? 4 : n <= 16 ? 5 : 6;
+  return n <= 6 ? 3 : n <= 9 ? 4 : n <= 12 ? 4 : n <= 16 ? 5 : n < 23 ? 6 : 9;
 }
 
 // 把 letters 算成 [[行内字母索引,...], ...]，行内顺序 = 视觉从左到右

@@ -276,18 +276,21 @@ test('a second battle after retreat still has a live countdown', async ({ game, 
   await expect.poll(fillRatio,{timeout:2500}).toBeLessThan(first-0.1);
 });
 
-test('蓄力条的文案如实描述机制（可用字母，重复不算）', async ({ game }) => {
+test('蓄力默认只显示状态与秒数，暂停详情如实描述打断机制', async ({ game }) => {
   await game.open();
   await game.start();
   await game.fight({ enemyHp: 10_000 });
   await game.page.waitForFunction(() => window.__gameTest.B.foeAttack.phase === 'telegraph', null, { timeout: 15_000 });
-  const txt = await game.page.locator('#fFoeAtk').innerText();
+  await expect(game.page.locator('#fFoeAtk')).not.toContainText('重复已试字母');
+  await game.page.locator('#fDetailsOpen').click();
+  const txt = await game.page.locator('#fDetailsMechanism').innerText();
   expect(txt).toContain('蓄力时尝试一个可用字母可打断');
   expect(txt).toContain('重复已试字母不算');
   // 绝不许出现剧透词或骗人的「按任意键」。
   expect(txt).not.toMatch(/任意|随便按/);
   const word = (await game.state()).B.word;
   expect(txt.toLowerCase()).not.toContain(word.toLowerCase());
+  await game.page.locator('#fDetailsClose').click();
 });
 /* ============================================================
  * 下面两条是本次定向修补的垂直验收：真实 Chrome、真实墙钟。

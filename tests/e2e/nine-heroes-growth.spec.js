@@ -26,7 +26,7 @@ test('formal textbook mastery grants frozen attack growth; practice history does
  expect(await page.evaluate(()=>window.__gameTest.G.growth.bonusAttackPct)).toBe(40);const before=(await game.state()).B.enHp;
  await page.evaluate(()=>{window.__gameTest.DB.dictationMastered=window.__gameTest.WORDS.map(w=>w.w)});
  await page.locator('#tPause').click();await page.reload();await page.locator('#continueRun').click();expect(await page.evaluate(()=>window.__gameTest.G.growth.bonusAttackPct)).toBe(40);
- await page.locator('#fEquipment > summary').click();await expect(page.locator('#fEquipment')).toContainText('攻击 +40%');await page.locator('#fEquipment > summary').click();
+ await page.locator('#fDetailsOpen').click();await expect(page.locator('#fEquipment')).toContainText('攻击 +40%');await page.locator('#fDetailsClose').click();
  await page.keyboard.type('litre');expect(before-(await game.state()).B.enHp).toBeGreaterThan(100);
 });
 for(const [hero,word,hp] of [['warrior','factory',85],['berserker','presentation',30]]) {

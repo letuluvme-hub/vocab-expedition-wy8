@@ -31,7 +31,7 @@ test('ranger reward ledger and visible budget survive backspace, pause, and refr
   await page.locator('#tPause').click(); await page.reload(); await page.locator('#continueRun').click();
   await page.keyboard.press('l');
   expect(await page.evaluate(() => [window.__gameTest.B.myHp, window.__gameTest.B.enHp])).toEqual(first);
-  await page.locator('#fEquipment > summary').click();
+  await page.locator('#fDetailsOpen').click();
   await expect(page.locator('#fEquipment')).toContainText('本场已回血 1/18');
 });
 
@@ -84,10 +84,10 @@ for (const width of [320, 390]) {
     await game.open({ saved: { hero: 'ranger' } });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await game.start(); await game.fight({ word: 'litre' });
-    await page.locator('#fEquipment > summary').click();
+    await page.locator('#fDetailsOpen').click();
     await expect(page.locator('#fEquipment')).toContainText('每场最多 18');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.locator('#fEquipment > summary').click();
+    await page.locator('#fDetailsClose').click();
     await game.clickLetter('l');
     expect((await game.state()).B.input).toEqual(['l']);
   });

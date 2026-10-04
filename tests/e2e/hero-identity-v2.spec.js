@@ -16,7 +16,7 @@ for(const hero of ['healer','pyromancer']) test(`${hero} uses the displayed new-
 test('six-letter pyromancer card estimate equals actual total damage',async({game,page},info)=>{
  newOnly(info);await game.open({saved:{hero:'pyromancer'}});await game.start();await game.fight({word:'desert',enemyHp:100000});
  await page.evaluate(()=>{const t=window.__gameTest;t.B.offer=[t.B.word,...t.G.pool.filter(w=>w.w!==t.B.word.w).slice(0,2)];t.renderFight()});
- await page.locator('#fEquipment > summary').click();await expect(page.locator('#fEquipment')).toContainText('本词当前大招加成 +40%');
+ await page.locator('#fDetailsOpen').click();await expect(page.locator('#fEquipment')).toContainText('本词当前大招加成 +40%');await page.locator('#fDetailsClose').click();
  const predicted=Number((await page.locator('#fOffer .wcCard.on').innerText()).match(/⚔(\d+)/)[1]);
  const before=await page.evaluate(()=>window.__gameTest.B.enHp);await page.keyboard.type('desert');
  expect(before-await page.evaluate(()=>window.__gameTest.B.enHp)).toBe(predicted);

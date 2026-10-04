@@ -9,7 +9,7 @@ test('healer wins on a second map grow beyond30 and reload retains the new map b
  await expect(page.locator('#oNext')).toBeVisible();await page.locator('#oNext').click();await expect(page.locator('#s-map')).toBeVisible();
  await page.locator('#mPause').click();await page.reload();await page.locator('#continueRun').click();
  await game.fight({word:'desert',enemyHp:1});
- await page.locator('#fEquipment > summary').click();await expect(page.locator('#fEquipment')).toContainText('本图成长 +0/30');await page.locator('#fEquipment > summary').click();
+ await page.locator('#fDetailsOpen').click();await expect(page.locator('#fEquipment')).toContainText('本图成长 +0/30');await page.locator('#fDetailsClose').click();
  await page.keyboard.type('desert');await expect(page.locator('#s-pick')).toBeVisible();await page.locator('#pSkip').click();await expect(page.locator('#s-map')).toBeVisible();
  expect(await page.evaluate(()=>window.__gameTest.G.maxhp)).toBe(100);
  await page.locator('#mPause').click();await page.reload();await page.locator('#continueRun').click();
