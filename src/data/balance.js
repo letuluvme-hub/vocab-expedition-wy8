@@ -100,9 +100,9 @@ export const WORD_DMG_CAP_ANCHOR_BASE = 13;
 //             全池权重和 634，传说约 1.3% 的单次抽取、稀有合计约 23.7%。
 //   order  —— 展示与排序用的固定档序，别用对象的键序。
 export const RELIC_RARITY = {
-  common:    { label: '普通', price: 60,  weight: 62 },
-  rare:      { label: '稀有', price: 110, weight: 30 },
-  legendary: { label: '传说', price: 175, weight: 8 },
+  common:    { label: '普通', price: 80,  weight: 62 },
+  rare:      { label: '稀有', price: 150, weight: 30 },
+  legendary: { label: '传说', price: 240, weight: 8 },
 };
 export const RELIC_RARITY_ORDER = ['common', 'rare', 'legendary'];
 
@@ -119,6 +119,28 @@ export const LEGACY_ITEM_SHOP_PRICES = Object.freeze({
 
 // 只限制商店卷轴积累的下一场额外提示；不改写旧存档已有额度。
 export const SHOP_HINT_LIMIT = 6;
+
+// ============ 商店价格随地图递增 + 后期高价商品（2026-10）============
+// 一次远征连打多张地图后金币会攒到几千，商店还是开局的价。
+// 普通商品与遗物按「第几张地图」涨价：每多一张图 +25%，第 21 张图起封顶（×6）。
+// 规则在 domain/shop-pricing.js。
+export const SHOP_PRICE_STEP = 0.25;
+export const SHOP_PRICE_MAX_STEPS = 20;
+export const SHOP_BASE_PRICES = Object.freeze({ potion: 45, scroll: 40, whet: 70 });
+
+// 高价商品：固定标价，不乘地图倍率。
+//   hintTome / hintCodex —— 本次远征之后每场战斗的基础提示 +1 / +3（写进 run.hm，
+//     随快照保存，换图、跨单元都保留；新开一次远征回到角色自带的提示数）。
+//   grail —— 生命上限 +20 并回满。
+//   relicChest —— 随机一件还没有的遗物（按稀有度加权）。
+export const PREMIUM_SHOP = Object.freeze({
+  hintTome:   { price: 1000, hints: 1 },
+  hintCodex:  { price: 2000, hints: 3 },
+  grail:      { price: 1500, maxhp: 20 },
+  relicChest: { price: 1200 },
+});
+// 买来的永久提示最多把基础提示抬到这个数（角色自带的也算在内）。
+export const PERMANENT_HINT_MAX = 12;
 
 // ============ 组合技数值 ============
 // 组合技刻意只挑 3-5 组有主题的搭配（见 src/domain/relic-rules.js），

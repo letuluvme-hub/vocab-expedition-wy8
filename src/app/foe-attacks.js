@@ -69,12 +69,14 @@ export function createFoeAttackController({
   const getG = () => (state && typeof state.getRun === 'function' ? state.getRun()
     : (state ? state.G : null));
   const difficulty = () => { const G = getG(); return G ? G.difficulty : undefined; };
+  // 第几张地图：同一次远征里越往后怪物越凶（segmentMultipliers），缺字段按第 1 张。
+  const segments = () => { const G = getG(); return G && G.campaign ? G.campaign.segments : undefined; };
   // ★ 本场战斗用哪一档：**起手时算一次**（base × 本局难度），之后不因换词重算。
   //   未缩放的档案仍然取自 domain/foe-attack.js 的 foeAttackProfile —— 单一来源。
-  const profile = () => scaleFoeAttackProfile(foeAttackProfile(foeAttackKind(getB() || {})), difficulty());
+  const profile = () => scaleFoeAttackProfile(foeAttackProfile(foeAttackKind(getB() || {})), difficulty(), segments());
   // 本场战斗的档位在 start() 时定死一次，中途不重算：
   // 否则一个中途改 boss 标记的旧档会把正在进行的蓄力按另一档重排。
-  let cfg = scaleFoeAttackProfile(foeAttackProfile('normal'), difficulty());
+  let cfg = scaleFoeAttackProfile(foeAttackProfile('normal'), difficulty(), segments());
   let dueAt = 0;            // 绝对到期时刻：**只在内存里**，绝不落盘
   // 暂停时冻结的剩余时间。pause() 采、resume() 用；null = 没暂停。
   // ★ 用自己的 pausedRemaining 而不是靠 frozenNow() 临时判断：

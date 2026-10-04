@@ -173,6 +173,9 @@ test('★ 同轮跨单元/续段走真实路径：unit 真变，轮号/次数/�
     //   两只怪的血量，断言就只是在看随机数脸色。钉死随机源。
     const realRandom = Math.random;
     Math.random = () => 0.5;
+    // 只比逐轮倍率：地图倍率（第几张图，feature-late-run）两次都按第 1 张图算，不然取整会串。
+    const keptSegments = t.G.campaign.segments;
+    t.G.campaign.segments = 1;
     try {
       t.enterNode(battles[0]);
       const scaled = t.B.enMax;
@@ -184,6 +187,7 @@ test('★ 同轮跨单元/续段走真实路径：unit 真变，轮号/次数/�
       return { scaled, baseline, mult: kept.hpMultiplier };
     } finally {
       Math.random = realRandom;
+      t.G.campaign.segments = keptSegments;
     }
   });
   expect(hp.baseline, '基线血量必须为正').toBeGreaterThan(0);

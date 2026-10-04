@@ -243,24 +243,39 @@ test('one real run walks unit 1 to 3 keeping every resource, and reaches 6 the s
   expect(back.gold).toBe(before.gold);
   expect((await game.state()).DB.runs).toBe(1);
 
-  // 一路走到本册最后一个单元：Unit 6 学完后只说「本册完成」，绝无「下一单元」。
+  // 一路走到本册最后一个单元：Unit 6 学完后顺延到八下 Unit 1（2026-10 起），同一次远征。
   for (const from of [4, 5, 6]) {
     await finishUnitByTyping(game, page, from);
     if (from === 6) {
-      await expect(page.locator('#lcBtnNext')).toBeHidden();
-      await expect(page.locator('#lcNext')).toContainText('本册词汇已完成');
+      await expect(page.locator('#lcBtnNext')).toHaveText('继续 八下 Unit 1');
+      await expect(page.locator('#lcNext')).toContainText('八下 Unit 1');
       await expect(page.locator('#lcNext')).not.toContainText(/击败|战胜|通关|胜利/);
+      const last = await camState(page);
+      expect(last.unit).toBe(6);
+      expect(last.segments).toBe(6);
+      await page.locator('#lcBtnNext').click();
       continue;
     }
     await expect(page.locator('#lcBtnNext')).toHaveText('继续 Unit ' + (from + 1));
     await page.locator('#lcBtnNext').click();
     await expect(page.locator('#s-map')).toBeVisible();
   }
-  const last = await camState(page);
-  expect(last.unit).toBe(6);
-  expect(last.segments).toBe(6);
-  expect(last.id).toBe(id);
+  await expect(page.locator('#s-map')).toBeVisible();
+  const crossed = await page.evaluate(() => {
+    const G = window.__gameTest.G;
+    return { unit: G.unit, bookId: G.bookId, segments: G.campaign.segments, id: G.id, gold: G.gold,
+      books: [...new Set(G.pool.map(w => w.bookId))] };
+  });
+  expect(crossed).toEqual({ unit: 1, bookId: 'wy8b', segments: 7, id, gold: before.gold, books: ['wy8b'] });
+  await expect(page.locator('#mRound')).toHaveText(/第 7 图/);
   expect((await game.state()).DB.runs).toBe(1);
+  // 跨册之后刷新：仍在八下 Unit 1，同一次远征。
+  await game.reload();
+  await page.locator('#continueRun').click();
+  await expect(page.locator('#s-map')).toBeVisible();
+  const again = await page.evaluate(() => ({ unit: window.__gameTest.G.unit, bookId: window.__gameTest.G.bookId,
+    segments: window.__gameTest.G.campaign.segments }));
+  expect(again).toEqual({ unit: 1, bookId: 'wy8b', segments: 7 });
 });
 
 test('a historically all-mastered save cannot skip units through a triple click', async ({ game, page }, testInfo) => {

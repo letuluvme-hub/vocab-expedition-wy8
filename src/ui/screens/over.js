@@ -38,8 +38,11 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   //   next() 对单元 0 会返回教材里的 Unit 2，所以这里自己把 custom 挡掉。
   const custom = G.unit === 0;
   const nextUnit = custom ? null : (campaign && campaign.next ? campaign.next(G.unit) : null);
-  const lastByCatalog = !nextUnit && !custom && G.unit > 0;
-  const nextOpen = win && unitComplete && nextUnit != null && campaign.isUnlocked(nextUnit);
+  // 跨册顺延 / 全册循环（runtime 的 runCampaign 给出 cross）：本册最后一个单元学完后接着去哪。
+  const cross = !custom && campaign && campaign.cross ? campaign.cross : null;
+  const lastByCatalog = !nextUnit && !custom && G.unit > 0 && !cross;
+  const nextOpen = win && unitComplete && (cross ? true : nextUnit != null && campaign.isUnlocked(nextUnit));
+  const nextName = cross ? cross.label : unitName(nextUnit);
   const continueOpen = win && !!uc && !unitComplete && (uc.total > 0 || custom);
   const bookLast = win && unitComplete && lastByCatalog;
 
@@ -57,8 +60,8 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   const next = $('oNext');
   if (nextOpen) {
     next.hidden = false;
-    next.textContent = '继续 ' + unitName(nextUnit);
-    next.title = '带着当前的金币、道具和遗物进入 ' + unitName(nextUnit) + '（同一轮学习，不算新开一次远征）';
+    next.textContent = (cross && cross.loop ? '随机复习 ' : '继续 ') + nextName;
+    next.title = '带着当前的金币、道具和遗物进入 ' + nextName + '（同一轮学习，不算新开一次远征）';
     next.onclick = onNextUnit ? () => { onNextUnit(); } : null;
   } else if (continueOpen) {
     const left = uc && uc.remaining ? uc.remaining : 0;
@@ -80,7 +83,8 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   $('oText').textContent = win
     ? '你击败了词汇之王，完成了' + rewardScope(G.unit, G.bookId) + '的本次远征（' + rewardRoundLine(G.reward || {}) + '）！'
       + (bookLast ? '本册词汇已完成，可以返回主页选择单元。'
-        : nextOpen ? (unitName(nextUnit) + ' 的词汇已解锁，可以带着现有物资继续。')
+        : nextOpen ? (cross && cross.loop ? ('全部单元都学过一遍了，下一张图随机复习 ' + nextName + '。')
+          : (nextName + ' 的词汇已解锁，可以带着现有物资继续。'))
           : continueOpen ? ('本单元还有 ' + uc.remaining + ' 个词没完成，完成后才能进入下一个单元。')
             : (!uc && lastByCatalog ? '已到本册最后一个单元，可以返回主页选择单元。' : ''))
     : '你倒在了第 ' + G.floor + ' 层。那些还没记住的词，还在等着你。';

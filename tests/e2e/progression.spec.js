@@ -96,7 +96,7 @@ test('BOSS victory collects one reward card and next unit starts without stale b
   expect((await game.state()).DB.rewards[0]).toEqual(win.DB.rewards[0]);
 });
 
-test('last unit victory hides next-unit action in computed layout', async ({ game, page }, testInfo) => {
+test('last unit victory offers the next book (legacy: hides next-unit action)', async ({ game, page }, testInfo) => {
   // Unit 6 默认锁着：先按旧存档迁移口径把 Unit 1..6 的词都记为已掌握，
   // Unit 6 因此解锁；打完它就是本册最后一个单元。
   await game.open({ saved: { mastered: unlockAll(6), dictationMastered: unlockAll(6) } });
@@ -104,10 +104,15 @@ test('last unit victory hides next-unit action in computed layout', async ({ gam
   await defeatBoss(game, page, testInfo);
   await page.locator('#pPicks .pick').first().click();
   await expect(page.locator('#s-over')).toBeVisible();
-  await expect(page.locator('#oNext')).toBeHidden();
-  expect(await page.locator('#oNext').evaluate(el => getComputedStyle(el).display)).toBe('none');
-  await expect(page.locator('#oText')).toContainText(testInfo.project.metadata.target === 'legacy'
-    ? '已到本册最后一个单元' : '本册词汇已完成');
+  if (testInfo.project.metadata.target === 'legacy') {
+    await expect(page.locator('#oNext')).toBeHidden();
+    expect(await page.locator('#oNext').evaluate(el => getComputedStyle(el).display)).toBe('none');
+    await expect(page.locator('#oText')).toContainText('已到本册最后一个单元');
+  } else {
+    // 2026-10 起八上最后一个单元打完，同一次远征顺延到八下 Unit 1（docs/feature-late-run.md）。
+    await expect(page.locator('#oNext')).toHaveText('继续 八下 Unit 1');
+    await expect(page.locator('#oText')).toContainText('八下 Unit 1');
+  }
   await expect(page.locator('#oReward')).toContainText('Unit 6');
   if (testInfo.project.metadata.target === 'legacy') {
     await page.locator('#oAgain').click();
