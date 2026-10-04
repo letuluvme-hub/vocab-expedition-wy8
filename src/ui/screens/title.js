@@ -51,7 +51,7 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
       select.value=book.id;select.onchange=()=>{onBook?.(select.value);renderTitle()};host.appendChild(label);host.appendChild(select);
     }
     document.title=book.pageTitle||('词汇远征 · '+book.label);
-    const sub=$('s-title')?.querySelector?.('.sub');if(sub)sub.textContent=book.publisher+' · '+book.label+' · 收集单词卡，开启你的词汇远征';
+    const sub=$('s-title')?.querySelector?.('.sub');if(sub)sub.textContent='看中文，拼英文，让你的角色出招打怪。';
     const box = $('units'); box.innerHTML = '';
     const curUnit = getUnit();
     units.forEach(u => {

@@ -72,6 +72,7 @@ import { createAudioCompatibility } from '../ui/components/audio-compatibility.j
 import { growthSummary, GROWTH_VERSION } from '../domain/mastery-growth.js';
 import { createMasteryGrowth } from '../ui/components/mastery-growth.js';
 import { createKeyboardTip } from '../ui/components/keyboard-tip.js';
+import { createHomeStart } from '../ui/components/home-start.js';
 /* 逐轮难度（清单 10）：规则全在 domain/round-difficulty.js，这里只做接线 ——
    开局派生一次存进 run.difficulty，战斗里读它，绝不在换词/换单元时重算。 */
 import { deriveRoundDifficulty, scaleEnemyHealth } from '../domain/round-difficulty.js';
@@ -1333,6 +1334,7 @@ $('mQuit').onclick=()=>{ if(confirm('放弃这次远征？进度不会保存')){
 function renderHeroes(){return titleScreen.renderHeroes()}
 function renderTitle(){
   titleScreen.renderTitle();
+  homeStartView.paint();
   dailyView?.paintEntry();
   dailyReportView?.paint();
   dailyCollectionView?.paint();
@@ -1365,10 +1367,10 @@ const state={get DB(){return DB},get G(){return G},get B(){return B}};
 // 描述里只有 id 与展示字段，没有闭包，也没有 DOM。
 const publishEncounter=d=>{ ENCOUNTER=d };
 const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,getCampaign:()=>campaignState(curBook),getBook:()=>curBook,
-  onBook:id=>{curBook=bookById(id).id;curUnit=1;DB.bookId=curBook;saveDB();commit(false);masteryGrowthView?.paint();dailyCollectionView?.paint();},
-  onHero:id=>{DB.hero=id;saveDB();commit(false)},
+  onBook:id=>{curBook=bookById(id).id;curUnit=1;DB.bookId=curBook;saveDB();commit(false);masteryGrowthView?.paint();dailyCollectionView?.paint();homeStartView.paint();},
+  onHero:id=>{DB.hero=id;saveDB();commit(false);homeStartView.paint()},
   // 选中的单元必须真的解锁：锁住的按钮根本不会回调，这里是第二道。
-  onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit }});
+  onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit;homeStartView.paint() }});
 const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
 const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
   getFoeAttackWindow:()=>foeAttackCtl.window(),
@@ -1637,9 +1639,11 @@ dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),atl
   getBook:()=>curBook,getCards:(unit,bookId)=>dailyCollection.cards(unit,bookId),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
 });
 dailyCollectionView.paint();
-$('startRun').textContent='开始远征';
-// 主操作常驻视口底部（styles/home-cta.css）：给它所在那一行一个宿主 id，不改 index.html 骨架。
+$('startRun').textContent='开始游戏';
+// Keep the existing start action, with its home row moved above the choices.
 if($('startRun').parentElement) $('startRun').parentElement.id='startRow';
+const homeStartView=createHomeStart({getDB:()=>DB,getBook:()=>curBook,getUnit:()=>curUnit,allWords,
+  onDismiss:()=>{DB.homeTutorialSeen=true;saveDB();commit(false)}});
 const titleSub=$('s-title').querySelector('.sub');
 if(titleSub)titleSub.textContent=bookById(curBook).publisher+' · '+bookById(curBook).label+' · 收集单词卡，开启你的词汇远征';
 // Refresh the clock and accumulate active time through the timing port.
@@ -1688,7 +1692,7 @@ $('continueRun').onclick=()=>{
     } else toast(out.message||'没有可以继续的远征');
   }
 };
-$('startRun').onclick=()=>{ startRunFromUi() };
+$('startRun').onclick=()=>{ homeStartView.dismiss();startRunFromUi() };
 $('toRelics').onclick=()=>{
   const box=$('rlBox'); box.innerHTML='';
   // 同一块版面同时展示：档位 + 标价 + 玩家已凑出的组合技。
