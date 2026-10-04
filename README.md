@@ -23,6 +23,10 @@
 
 主页还显示原创像素伙伴「墨芽」、单词图鉴、连续打卡和可复制的家长「今日记录」。完整规则、上海日期、跨天复习阶梯、30 天日报及旧档迁移见 [docs/feature-daily-dictation.md](docs/feature-daily-dictation.md)。收集和纯外观奖励保存在本机，断签不清收藏；补签每周一次，不伪造练习日报。真实学生的 10–15 分钟完成率、主动使用与学校默写提升尚待使用数据验证。
 
+## 平板显示方式
+
+平板主页有「显示方式」切换：自动、手机版式、电脑版式，靠改 meta viewport 宽度实现，选择存本机，不进学习存档。手机和电脑上不出现。详见 [docs/feature-display-mode.md](docs/feature-display-mode.md)。
+
 ## 开发
 
 需要 Node.js 22.12+（推荐 24 LTS）。

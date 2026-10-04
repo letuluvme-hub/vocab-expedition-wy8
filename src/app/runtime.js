@@ -1,5 +1,8 @@
 import {heroUnlockState,availableHeroId,recordHeroProgress} from '../domain/hero-unlocks.js';
 import { applyDevicePresentation } from '../services/device.js';
+import { createDisplayMode } from '../services/display-mode.js';
+import { createDisplaySettings } from '../ui/components/display-settings.js';
+import '../styles/display-settings.css';
 import { createDailyCollection } from './daily-collection.js';
 import { createDailyCollectionView } from '../ui/components/daily-collection.js';
 import '../styles/daily-collection.css';
@@ -92,6 +95,9 @@ const growthFact=(mastered,words,hero)=>{
 
 // Transitional coordinator: preserve original event ordering during extraction.
 export function startGame() {
+// 平板显示方式要在首屏排版前改好 viewport，否则会先按自动排一遍再跳。
+const displayMode=createDisplayMode();
+displayMode.apply();
 applyDevicePresentation();
 const lifecycle=createLifecycle();
 
@@ -1117,6 +1123,13 @@ const keyboardTipView=createKeyboardTip({
   onDismiss:()=>{ DB.keyboardTipSeen=true; saveDB(); commit(false); },
 });
 keyboardTipView.mount(document.getElementById('keyboardTipHost'));
+// 平板主页的「显示方式」：偏好只存本机 wy8a_display_v1，不进学习存档。
+const displaySettingsView=createDisplaySettings({
+  getMode:()=>displayMode.get(),
+  eligible:()=>displayMode.eligible(),
+  onSelect:mode=>{ displayMode.set(mode); sfx.ui() },
+});
+displaySettingsView.mount(document.getElementById('displaySettings'));
 window.addEventListener('resize',()=>{ applyDevicePresentation(); keyboardTipView.paint(); });
 // 音色是异步到货的（getVoices() 首次返回空数组），所以等 voiceschanged 再重画一次
 // 设置区 —— 不用 setInterval 轮询，既不空转也不会吊住 Node 测试进程。

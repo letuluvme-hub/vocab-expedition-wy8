@@ -18,6 +18,9 @@
   <!-- 首次进入的一次性提示（建议用电脑键盘）。看过后写进存档，此后再不出现。
        留在主页文档流里，绝不浮动、绝不压住战斗页。 -->
   <div id="keyboardTipHost"></div>
+  <!-- 平板显示方式（自动 / 手机版式 / 电脑版式）。只在平板上出现，
+       由 src/ui/components/display-settings.js 画；实际切换靠改 meta viewport。 -->
+  <div id="displaySettings"></div>
   <div class="book-picker" id="textbookPicker"></div>
   <div class="lbl">选择本册范围</div>
   <div class="units" id="units"></div>
@@ -282,4 +285,4 @@
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>
-</html>
+</html>
