@@ -151,6 +151,10 @@ export function createFightScreen({ getRun, getBattle, getDB, onPress, onUseItem
     $('fName').textContent = B.foe.n + (B.boss ? '（首领）' : B.elite ? '（精英）' : '');
     paintOffer();
     $('fZh').textContent = B.word.z;
+    // Long meanings stay complete; only their mobile typography changes.
+    // Clear the flag when selecting a shorter word so its usual size returns.
+    if (Array.from(String(B.word.z || '')).length > 24) $('fZh').dataset.dense = 'true';
+    else delete $('fZh').dataset.dense;
     // 字符数按 norm() 的字母数算（否则 keep an eye on 会显示「14 字符」，
     // 而槽位只有 11 个，对不上）；词组额外标一个「词组」标签。
     // ★ 长度与 isPhrase 都先算成局部变量再拼进文案：信息栏绝不能回显单词本身。
