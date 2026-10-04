@@ -54,7 +54,8 @@ export function createFoeAttackController({
   foeAttackHit, commit, renderFight, toast,
   frozen = false,          // 词汇完成 / 奖励 / 结算屏：怪不再主动攻击
   mutate,                  // 最外层事务边界（runtime 的 mutate）：伤害链上的重入由它收口
-  onTelegraph,            // Optional warning once on a new charge, never on UI ticks
+  onTelegraph,            // Entry cue, once per charge
+  onWarningPulse,         // Short countdown cue, owned by the frozen UI cadence
   paintAttack,             // UI 节拍专用端口：只 paint 蓄力条，不整屏渲染
 }) {
   // runtime 的 state 是**取值函数**（createProgressController 用同一个形态）：
@@ -81,6 +82,7 @@ export function createFoeAttackController({
   //   非暂停场景把 due-now 冻结住，恢复后蓄力凭空不动。
   let pausedRemaining = null;
   // UI 节拍的排期代号：stop/start/换战斗时 +1，让在途的那次自我作废。
+  let warningRemaining = null;
   let tickGeneration = 0;
   let ticking = false;
   // 排期代号：每次重新排期 +1。
@@ -115,6 +117,7 @@ export function createFoeAttackController({
     if (!B) return false;
     const entering = next.phase === FOE_PHASE.TELEGRAPH && (!B.foeAttack || B.foeAttack.phase !== FOE_PHASE.TELEGRAPH);
     B.foeAttack = next;
+    warningRemaining = next.phase === FOE_PHASE.TELEGRAPH ? phaseMs(next.phase, cfg) : null;
     if (entering && live() && onTelegraph) { try { onTelegraph(); } catch (_) { /* Audio failure must not stop attacks. */ } }
     const ms = phaseMs(next.phase, cfg);
     dueAt = now() + ms;
@@ -197,6 +200,17 @@ export function createFoeAttackController({
     if (pausedRemaining !== null) return;
     if (!live()) { stopTick(); return; }
     paintTick();
+    const B = getB();
+    if (B?.foeAttack?.phase === FOE_PHASE.TELEGRAPH && onWarningPulse) {
+      const left = remainingNow();
+      const urgency = Math.max(0, Math.min(1, 1 - left / cfg.telegraphMs));
+      const interval = urgency < .5 ? 1000 : urgency < .8 ? 500 : 250;
+      if (warningRemaining === null) warningRemaining = left;
+      if (left > 0 && warningRemaining - left >= interval) {
+        warningRemaining = left;
+        try { onWarningPulse(urgency); } catch (_) { /* Sound never blocks combat. */ }
+      }
+    }
     if (!ticking) return;
     const mine = tickGeneration;
     lifecycle.scheduleBattle(() => { if (mine !== tickGeneration || !ticking) return; tick(); },
@@ -346,6 +360,7 @@ export function createFoeAttackController({
     }
     cfg = profile();          // 档位仍以当前 battle 的 boss/elite 为准
     B.foeAttack = fact;
+    warningRemaining = fact.phase === FOE_PHASE.TELEGRAPH ? fact.remainingMs : null;
     // attack 相位是「瞬间」：它本身没有下一次排期，所以恢复时直接推进到 recover，
     // 避免把一个 0 毫秒的相位原样挂上、什么都不发生。
     if (fact.phase === FOE_PHASE.ATTACK) {

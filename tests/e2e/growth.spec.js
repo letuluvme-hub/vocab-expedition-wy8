@@ -45,10 +45,10 @@ test('a new round really raises max hp by the growth bonus, and only at the new 
   await game.open({ saved: { dictationMastered: realWords(40) } });
   await game.start();
 
-  // 学者基础 70-10=60，40 词 = +2 → 62。开局满血。
+  // 学者基础 70+10=80，40 词 = +2 → 82。开局满血。
   const s = await game.state();
-  expect(s.G.maxhp, '新一局真的把成长加进了生命上限').toBe(62);
-  expect(s.G.hp, '开局满血：加的是上限不是凭空回血').toBe(62);
+  expect(s.G.maxhp, '新一局真的把成长加进了生命上限').toBe(82);
+  expect(s.G.hp, '开局满血：加的是上限不是凭空回血').toBe(82);
   expect(s.G.heroId).toBe('scholar');
 });
 
@@ -58,7 +58,7 @@ test('reaching 20 words mid-run does not change this round max hp; the next roun
   await game.start();
 
   let s = await game.state();
-  expect(s.G.maxhp, '19 词还没到门槛').toBe(60);
+  expect(s.G.maxhp, '19 词还没到门槛').toBe(80);
 
   // 真实地整词拼完一个词（走 typeLetter → pressKey），跨过 20 词门槛。
   // 这词必须是**不在**已种入的 19 词里、且属于 Unit 1（否则拼完也不计数）。
@@ -76,8 +76,8 @@ test('reaching 20 words mid-run does not change this round max hp; the next roun
   }, word);
   expect((await game.state()).DB.dictationMastered).toHaveLength(20);
   s = await game.state();
-  expect(s.G.maxhp, '本局中途达到门槛绝不改本局上限').toBe(60);
-  expect(s.G.hp).toBe(60);
+  expect(s.G.maxhp, '本局中途达到门槛绝不改本局上限').toBe(80);
+  expect(s.G.hp).toBe(80);
 
   // 放弃这一局，再开一轮：这一次才生效。
   await page.evaluate(() => window.__gameTest.endRun(false));
@@ -85,15 +85,15 @@ test('reaching 20 words mid-run does not change this round max hp; the next roun
   await expect(page.locator('#s-map')).toBeVisible();
 
   s = await game.state();
-  expect(s.G.maxhp, '只有新开一轮才拿到 +1').toBe(61);
-  expect(s.G.hp).toBe(61);
+  expect(s.G.maxhp, '只有新开一轮才拿到 +1').toBe(81);
+  expect(s.G.hp).toBe(81);
 });
 
 test('pause then reload restores the same growth instead of recomputing it', async ({ game, page }, testInfo) => {
   newOnly(testInfo, 'Mastery growth is a new regression guard');
   await game.open({ saved: { dictationMastered: realWords(40) } });
   await game.start();
-  expect((await game.state()).G.maxhp).toBe(62);
+  expect((await game.state()).G.maxhp).toBe(82);
 
   await game.fight({ word: 'litre', enemyHp: 10_000 });
   await page.locator('#tPause').click();
@@ -108,9 +108,9 @@ test('pause then reload restores the same growth instead of recomputing it', asy
   await expect(page.locator('#s-fight')).toBeVisible();
 
   const s = await game.state();
-  expect(s.G.maxhp, '恢复必须原样尊重盘上的 62，不按当前 DB 重算').toBe(62);
+  expect(s.G.maxhp, '恢复必须原样尊重盘上的 82，不按当前 DB 重算').toBe(82);
   // 恢复出来的血量仍是真实战况（本局战斗刚开始，没掉血）。
-  expect(s.B.myHp).toBe(62);
+  expect(s.B.myHp).toBe(82);
 });
 
 test('crossing into the next unit adds nothing on top of the growth bonus', async ({ game, page }, testInfo) => {
@@ -120,7 +120,7 @@ test('crossing into the next unit adds nothing on top of the growth bonus', asyn
   await game.start();
 
   const before = await game.state();
-  expect(before.G.maxhp, '开局已经带上 +2').toBe(62);
+  expect(before.G.maxhp, '开局已经带上 +2').toBe(82);
   expect(before.G.unit).toBe(1);
 
   // 走真实的「词池抽干 → 词汇完成检查点」路径：把 Unit 1 备到只剩最后一个词，
@@ -149,8 +149,8 @@ test('crossing into the next unit adds nothing on top of the growth bonus', asyn
 
   const s = await game.state();
   expect(s.G.unit, '真的过渡到 Unit 2').toBe(2);
-  expect(s.G.maxhp, '跨单元不再额外增加，仍是 62').toBe(62);
-  expect(s.G.hp, '也不额外回血').toBe(62);
+  expect(s.G.maxhp, '跨单元不再额外增加，仍是 82').toBe(82);
+  expect(s.G.hp, '也不额外回血').toBe(82);
   expect(s.DB.runs, '跨单元不算新开一轮').toBe(1);
 });
 

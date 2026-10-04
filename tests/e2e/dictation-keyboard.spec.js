@@ -81,7 +81,7 @@ test('a legacy all-practiced save with completion stamps gains no formal growth 
   await expect(page.locator('#units [data-unit="2"]')).toBeDisabled();
   await expect(page.locator('#sMaster')).toHaveText('0');
   await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/467');
-  await game.start(); expect((await game.state()).G.maxhp).toBe(60);
+  await game.start(); expect((await game.state()).G.maxhp).toBe(80);
   const saved = await game.saved(); expect(saved.mastered).toEqual(original);
   expect(saved.dictationMastered).toEqual([]); expect(saved.future).toEqual({ keep: 1 });
 });

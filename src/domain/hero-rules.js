@@ -40,7 +40,7 @@ export function heroFinisherMultiplier(run, battle) {
   const q = encodeWordQ(battle?.wordQ);
   const perfect = q && q.wrong === 0 && q.hint === 0 && q.listen === 0 && q.revealed === 0;
   switch (run?.heroId) {
-    case 'scholar': return perfect ? 1 + HERO_BALANCE.scholarPerfectBonus : 1;
+    case 'scholar': return 1;
     case 'warrior': return points(battle?.shield) > 0 ? 1 + HERO_BALANCE.warriorShieldBonus : 1;
     case 'scout': return battle?.wordsDone === 0 ? HERO_BALANCE.scoutFirstFinisherMultiplier : 1;
     case 'lucky': return 1 + Math.min(HERO_BALANCE.luckyDamageCap, Math.floor(points(run.gold) / HERO_BALANCE.luckyGoldStep) * HERO_BALANCE.luckyDamageStep);

@@ -1,3 +1,4 @@
+import {heroUnlockState,availableHeroId,recordHeroProgress} from '../domain/hero-unlocks.js';
 import { applyDevicePresentation } from '../services/device.js';
 import { createDailyCollection } from './daily-collection.js';
 import { createDailyCollectionView } from '../ui/components/daily-collection.js';
@@ -365,7 +366,8 @@ const HERO_VOICE_DEFAULT={rate:0.9, pitch:1.0, prefer:null};
 
 /* 兼容老存档：DB.hero 缺失时回退到第一位，绝不让 undefined 渗进数值计算 */
 
-const curHeroId=()=> heroById(DB.hero||HERO_DEFAULT).id;
+const curHeroId=()=> availableHeroId(DB,DB.hero||HERO_DEFAULT);
+const heroProgress=(metric,amount=1)=>{if(recordHeroProgress(DB,metric,amount))saveDB()};
 const curHero  =()=> heroById(curHeroId());
 /* 当前角色的音色参数（永远返回完整对象，缺字段自动补默认） */
 const heroVoice = id => heroById(id).voice || HERO_VOICE_DEFAULT;
@@ -684,6 +686,7 @@ function startFight(n){
   if(boss){ B.hints+=2; B.enHp=B.enMax }   // +40 的首领加值已经含在 foeHpMax 里
   G.shopHints=0;   // 商店买的提示本场用完后清零
   const opening=heroOpeningGrant(G,B);
+  heroProgress('healing',opening.heal);
   B.myHp+=opening.heal; B.shield+=opening.shield;
   if(opening.heal || opening.shield) lifecycle.scheduleBattle(()=>toast('💚 开场治疗：生命 +'+opening.heal+'，护盾 +'+opening.shield),260);
   ENCOUNTER=null; setPhase(PHASE.BATTLE);
@@ -1134,7 +1137,7 @@ function winFight(){
     isCurrent:()=>B===wonBattle&&!!B.won&&!B.finished&&PHASE_STATE===PHASE.REWARD&&!progress.isPaused()}),260);
   burst(innerWidth/2,innerHeight*0.4,B.foe.tint,44,7);
   ring(innerWidth/2,innerHeight*0.4,'#ffce4d');
-  G.kills++;
+  G.kills++;heroProgress('kills');
   let g=25+(B.boss?120:B.elite?60:0)+Math.floor(G.floor*4);
   if(B.boss) g+=50;
   // 聚宝盆单件 +25；凑成「点金术」（聚宝盆 + 学者之书）后抬到 +45。
@@ -1142,7 +1145,7 @@ function winFight(){
   // 铁血循环（永动电池 + 锻造台）：战斗胜利额外回一点血。
   //   加在 B.myHp 上 —— 加在 G.hp 上会被 finishNode 的结转整个覆盖掉。
   const winHeal = winHealBonus(G.relics);
-  if(winHeal>0) B.myHp=Math.min(G.maxhp,B.myHp+winHeal);
+  if(winHeal>0){const healed=Math.min(winHeal,G.maxhp-B.myHp);B.myHp+=healed;heroProgress('healing',healed)}
   // goldGain 内部已把金币加进 G.gold，这里只算最终数额用于文案
   const beforeGold=G.gold;
   goldGain(battleGoldBase(g,B));
@@ -1368,7 +1371,8 @@ const state={get DB(){return DB},get G(){return G},get B(){return B}};
 const publishEncounter=d=>{ ENCOUNTER=d };
 const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,getCampaign:()=>campaignState(curBook),getBook:()=>curBook,
   onBook:id=>{curBook=bookById(id).id;curUnit=1;DB.bookId=curBook;saveDB();commit(false);masteryGrowthView?.paint();dailyCollectionView?.paint();homeStartView.paint();},
-  onHero:id=>{DB.hero=id;saveDB();commit(false);homeStartView.paint()},
+  getHeroUnlock:id=>heroUnlockState(DB,id),
+  onHero:id=>{if(!heroUnlockState(DB,id).unlocked)return;DB.hero=id;saveDB();commit(false);homeStartView.paint()},
   // 选中的单元必须真的解锁：锁住的按钮根本不会回调，这里是第二道。
   onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit;homeStartView.paint() }});
 const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
@@ -1511,7 +1515,7 @@ const wordEventId=()=>{
   }
   return base+':x'+newRoundId();     // 到顶 / 脏值：一次性身份，绝不重复
 };
-const onWholeWordComplete=()=>{ streakFeedback.complete({eventId:wordEventId(),complete:true,correct:true}) };
+const onWholeWordComplete=()=>{ heroProgress('words');if(B?.wordQ && ['wrong','hint','listen','revealed'].every(k=>B.wordQ[k]===0))heroProgress('cleanWords');streakFeedback.complete({eventId:wordEventId(),complete:true,correct:true}) };
 const onSpellingMistake=()=>{ streakFeedback.mistake({eventId:wordEventId()}) };
 /* 蓄力自主攻击控制器（清单 13）。必须建在 combat 之后 —— 它要调 combat.enemyHit。
    frozen 用函数而不是常量：词汇完成屏、奖励屏、结算屏上怪都不该再主动攻击，
@@ -1520,6 +1524,7 @@ const foeAttackCtl=createFoeAttackController({
   state, lifecycle, now:()=>Date.now(),
   foeAttackHit:d=>combat.enemyHit(d),
   onTelegraph:()=>sfx.foeWarning(),
+  onWarningPulse:urgency=>sfx.foeWarningPulse(urgency),
   // 相位变化时提交一次快照（同一个入口，与 DB 记录同一次 save）。
   commit:()=>commit(true),
   renderFight:()=>renderFight(),
@@ -1539,12 +1544,13 @@ const combat=createCombatController({state,ports:{$,norm,clamp,rnd,hasR,itemById
   creditWord,onWordWrong,centerOf,heroPoint,toast,sfx,TTS,burst,floatTxt,flash,ring,animHero,
   wordFinisher,foeCry,renderFight,nextWord,winFight,loseFight,finishNode,saveDB,
   onWholeWordComplete,onSpellingMistake,
+  onDamage:amount=>heroProgress('damage',amount),onHeal:amount=>heroProgress('healing',amount),
   scheduleBattle:lifecycle.scheduleBattle,
   // 有效字母尝试 → 蓄力打断（清单 13）。只在 pressKey 真正接受输入后调用。
   notifyLetterAttempted:()=>foeAttackCtl.notifyLetterAttempted()}});
 const encounters=createEncounterController({state,ports:{$,clamp,pick,shuffle,rnd,has,hasR,goldGain,applyRelicInit,
   sfx,toast,advance,endRun:endRunNow,finishNode,show,scheduleRun:lifecycle.scheduleRun,scheduleBattle:lifecycle.scheduleBattle,
-  publishEncounter,setPhase,
+  publishEncounter,setPhase,onHeal:amount=>heroProgress('healing',amount),
   // ★ 事务边界：商店购买、营火/事件选择、领奖这些副作用都在这里收尾提交。
   //   少了它，「扣了钱/给了遗物」只改内存，玩家刷新就白嫖一次。
   mutate:fn=>mutate(fn),
@@ -1625,6 +1631,7 @@ dailyController=createDailyDictationController({
   getDB:()=>DB, getWords:(unit,bookId)=>allWords(unit,bookId || curBook),
   persist:()=>{saveDB();return commit(false)},
   ...dailyPorts,
+  onAttempt:payload=>{dailyPorts.onAttempt?.(payload);if(payload.result?.completed){heroProgress('words');if(payload.result.eligible)heroProgress('cleanWords')}},
   onChange:()=>{dailyView?.render();dailyReportView?.paint();dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
 });
 dailyView=createDailyDictationScreen({controller:dailyController,show,getBook:()=>curBook,

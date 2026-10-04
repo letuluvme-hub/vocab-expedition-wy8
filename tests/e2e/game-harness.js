@@ -92,6 +92,9 @@ export const test = base.extend({
           // Only seed once: reloading must read the save written by the actual app.
           if (!sessionStorage.getItem('__e2e_seeded')) {
             localStorage.setItem(key, JSON.stringify({
+              // Existing combat/role scenarios start with their unlock prerequisites met.
+              // Unlock tests explicitly override heroStats with zero counters.
+              heroStats: {words:1000,cleanWords:1000,kills:1000,damage:100000,healing:10000},
               runs: 0, wins: 0, mastered: [], best: 0, custom: [], ...saved,
               // voice 放在 saved 之后：默认关（静音、只走文字通道），但调用方
               // 显式要求「开着朗读」时必须真的开 —— 否则那条优先级测试是假绿。

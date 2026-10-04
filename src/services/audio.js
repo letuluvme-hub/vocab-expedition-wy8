@@ -207,8 +207,13 @@ const sfx={
   /* Short rising double pulse: monster starts charging, not the impact. */
   foeWarning(){
     if(AU.muted || AU.vol<=0) return;
-    tone(440,.10,'triangle',.11,660,{cut:2400});
-    tone(660,.13,'triangle',.12,880,{delay:.14,cut:2800});
+    tone(440,.10,'triangle',.18,660,{cut:2400});
+    tone(660,.13,'triangle',.20,880,{delay:.14,cut:2800});
+  },
+  foeWarningPulse(urgency=0){
+    if(AU.muted || AU.vol<=0) return;
+    const u=Math.max(0,Math.min(1,urgency));
+    tone(660+220*u,.08,'triangle',.18+.08*u,null,{cut:3000,send:0});
   },
   /* 答对一个字母：噪声 click + 音高随连击沿五声音阶上行的三角波，音量随连击微增 */
   good(){

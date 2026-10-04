@@ -45,3 +45,7 @@
 @import './book-picker.css';
 @import './battle-details.css';
 @import './home-start.css';
+
+@import './desktop-battle.css';
+
+@import './hero-unlocks.css';

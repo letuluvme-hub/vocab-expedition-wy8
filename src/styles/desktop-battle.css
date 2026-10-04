@@ -1,0 +1,28 @@
+/* Desktop combat uses the available width so the word never competes with
+   a tall keyboard for one narrow column. Input rows have explicit budgets. */
+@media(min-width:900px) and (min-height:481px) {
+ #app {max-width:1100px;}
+ #app > .screen {max-width:660px;margin-inline:auto;}
+ #app > #s-fight {max-width:none;width:100%;}
+ #s-fight.on {display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:184px 36px 24px minmax(0,1fr) 58px 64px;column-gap:20px;row-gap:4px;}
+ #s-fight #fBattleStage {grid-column:1 / -1;grid-row:1;--pcw:56px;--pch:68px;--msw:56px;}
+ #s-fight #fBattleStage .hud {margin:0;padding:4px 0;height:90px;}
+ #s-fight #fBattleStage .hudmsg {height:18px;min-height:18px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:2px;font-size:11px;}
+ #s-fight #fBattleStage .vsrow {height:90px;min-height:90px;padding:2px 4px;margin:0;}
+ #s-fight #fBattleStage #fAv {--avatar:48px;}
+ #s-fight #fBattleStage .myside {gap:0;}
+ #s-fight #fBattleStage .myname {margin-top:0;font-size:11px;}
+ #s-fight .fmid {grid-column:1;grid-row:2 / 5;}
+ #s-fight .fmid .q {margin:0;padding:14px 12px;}
+ #s-fight .q .zh {font-size:28px;letter-spacing:.5px;line-height:1.25;}
+ #s-fight .q .zh[data-dense="true"] {font-size:19px;letter-spacing:0;}
+ #s-fight #fActionDock {grid-column:1;grid-row:5;margin:0;align-self:center;}
+ #s-fight .bankbar {grid-column:2;grid-row:2;margin:0;flex-wrap:nowrap;gap:5px;}
+ #s-fight .bankbar .bkbtn {padding:5px 8px;font-size:11px;white-space:nowrap;}
+ #s-fight #fHintShared {grid-column:2;grid-row:3;margin:0;align-self:center;}
+ #s-fight #fBank {grid-column:2;grid-row:4 / 6;align-self:start;margin:0 auto;height:100%;min-height:0;max-height:100%;align-content:start;padding-top:8px;}
+ #s-fight #fBank.kb {--kbw:clamp(30px,4vw,44px)!important;}
+ #s-fight #fBank.grid .key,#s-fight #fBank.kb .key {height:48px;min-height:48px;}
+ #s-fight .tools {grid-column:1 / -1;grid-row:6;margin:0;padding:0;align-self:stretch;}
+ #s-fight .tools .tool {padding:6px;}
+}

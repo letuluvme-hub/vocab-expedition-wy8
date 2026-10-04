@@ -5,7 +5,8 @@ import { WORDS } from '../../src/data/words.js';
 // oNext 把玩家送进**同一轮**的下一段（物资继承、DB.runs 不加）。
 const unlockAll = n => WORDS.filter(w => w.u <= n).map(w => w.w);
 
-test('shop permits separate repeat purchases rejects rapid duplicates and still leaves', async ({ game, page }) => {
+test('shop permits separate repeat purchases rejects rapid duplicates and still leaves', async ({ game, page }, info) => {
+  const upgradedMax = info.project.metadata.target === 'legacy' ? 70 : 90;
   await game.open();
   await game.start();
   await page.evaluate(() => {
@@ -33,12 +34,12 @@ test('shop permits separate repeat purchases rejects rapid duplicates and still 
   const stone = page.locator('#rPicks .pick').filter({ hasText: '磨砺石' });
   await stone.click();
   expect((await game.state()).G.gold).toBe(5);
-  expect((await game.state()).G.maxhp).toBe(70);
-  expect((await game.state()).G.hp).toBe(70);
+  expect((await game.state()).G.maxhp).toBe(upgradedMax);
+  expect((await game.state()).G.hp).toBe(upgradedMax);
   await page.waitForTimeout(300);
   await stone.click();
   expect((await game.state()).G.gold).toBe(5);
-  expect((await game.state()).G.maxhp).toBe(70);
+  expect((await game.state()).G.maxhp).toBe(upgradedMax);
   await page.locator('#rPicks .pick').filter({ hasText: '离开商店' }).click();
   await expect(page.locator('#s-map')).toBeVisible();
   expect((await game.state()).G.floor).toBe(9);

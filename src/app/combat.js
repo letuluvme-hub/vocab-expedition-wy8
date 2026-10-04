@@ -25,7 +25,7 @@ export function createCombatController({ state, ports }) {
     scheduleBattle,
     /* 完整词连胜的可选接线（docs/feature-word-streak.md）。缺省成 no-op：
        没接上时战斗行为逐字不变。 */
-    onWholeWordComplete, onSpellingMistake } = ports;
+    onWholeWordComplete, onSpellingMistake, onDamage=()=>{}, onHeal=()=>{} } = ports;
   const wholeWordDone = w => { if (typeof onWholeWordComplete === 'function') { try { onWholeWordComplete(w); } catch (e) { /* 反馈失败不影响战斗 */ } } };
   const spellingWrong = ch => { if (typeof onSpellingMistake === 'function') { try { onSpellingMistake(ch); } catch (e) { /* 同上 */ } } };
 
@@ -50,6 +50,7 @@ export function createCombatController({ state, ports }) {
     // ★ 非完整词伤害：不传 allowFinish → 敌人永远留 1 血，单字母打不死。
     //   「最后一击必须拼完整词」这条规则的执行点就在这个默认参数上。
     const hit = applyDamage(B, d);
+    onDamage(hit.dealt);
     animHero('atk');                                   // ← 角色追加：每个正确字母都挥一下
     const av = $('fAv');
     if (av) {
@@ -167,6 +168,7 @@ export function createCombatController({ state, ports }) {
       const syn = synergyBonuses(G.relics);
       const reflect = syn.thornReflect || 5;
       const thorn = applyDamage(B, reflect);
+      onDamage(thorn.dealt);
       floatTxt(tc.x, tc.y, '荆棘 -' + thorn.dealt, '#3ddc84');
       if (syn.thornShield) {
         const gain = Math.min(syn.thornShield, thorn.dealt, Math.max(0, G.maxhp - B.shield));
@@ -263,7 +265,7 @@ export function createCombatController({ state, ports }) {
       // 先记账再发放：万一发放过程抛错，同一阶也不会被重复发第二次。
       G.milestones[m.id] = true;
       if (grant.shield) B.shield += grant.shield;
-      if (grant.heal) B.myHp = Math.min(G.maxhp, B.myHp + grant.heal);
+      if (grant.heal){const heal=Math.min(grant.heal,G.maxhp-B.myHp);B.myHp+=heal;onHeal(heal)}
       if (grant.hint) B.hints += grant.hint;
       toast(milestoneToast(m, grant));
       sfx.combo();
@@ -293,7 +295,7 @@ export function createCombatController({ state, ports }) {
       case 'leech':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
         { const heal = Math.min(ITEM_BALANCE.leechHeal, G.maxhp - B.myHp);
-          B.myHp += heal; msg = '🩸 獠牙回复了 ' + heal + ' 点生命'; }
+          B.myHp += heal; onHeal(heal); msg = '🩸 獠牙回复了 ' + heal + ' 点生命'; }
         break;
       case 'rage':
         B.usedThisFight[id] = (B.usedThisFight[id] | 0) + 1; G.bag[id]--;
@@ -438,7 +440,7 @@ export function createCombatController({ state, ports }) {
       };
       const healing = rangerHealAmount(G, B, { fresh, revealed });
       if (healing > 0) {
-        B.myHp += healing;
+        B.myHp += healing;onHeal(healing);
         B.heroHealed = (B.heroHealed || 0) + healing;
         const hp2 = centerOf($('fMy'));
         floatTxt(hp2.x, hp2.y - 4, '+' + healing, '#3ddc84');
@@ -476,7 +478,9 @@ export function createCombatController({ state, ports }) {
            之后才是致命判定 / 换词。连胜订阅者在这之前拿到事件，
            于是「最后一击赢下整场战斗」这一局同样能出里程碑播报。 */
         wholeWordDone(B.word.w);
+        const enemyHpBefore=Math.max(0,B.enHp);
         const fin = applyDamage(B, bonus, { allowFinish: true });
+        onDamage(Math.min(enemyHpBefore,fin.dealt));
         if (fin.lethal) { renderFight(); foeCry('die'); tryWin(); return; }
         B.combo = 0;          // 换词时连击结算：防止伤害跨词无限叠加
         nextWord();
