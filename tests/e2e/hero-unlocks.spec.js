@@ -6,8 +6,8 @@ test('fresh roles show conditions, cannot select a lock, scholar has beginner su
  await expect(page.locator('#heroes [data-hero="scholar"]')).toBeEnabled();
  await expect(page.locator('#heroes [data-hero="scholar"]')).toContainText('开荒推荐');
  for(const hero of ['warrior','scout','lucky','healer','ranger','berserker','pyromancer','assassin'])await expect(page.locator(`#heroes [data-hero="${hero}"]`)).toBeDisabled();
- await expect(page.locator('#heroes [data-hero="scout"]')).toContainText('下一位 · 完整拼词 0/20');
- await expect(page.locator('#heroes [data-hero="lucky"]')).toContainText('先解锁战士');
+ await expect(page.locator('#heroes [data-hero="scout"]')).toContainText('完整拼词 0/20');
+ await expect(page.locator('#heroes [data-hero="assassin"]')).toContainText('完整拼词 0/500');
  await game.start();await game.fight({word:'factory'});
  expect(await page.evaluate(()=>[window.__gameTest.G.heroId,window.__gameTest.G.maxhp,window.__gameTest.B.hints])).toEqual(['scholar',80,5]);
  await page.locator('#tHint').click();expect(await page.evaluate(()=>window.__gameTest.B.hintUsed)).toBe(2);
@@ -21,12 +21,12 @@ test('real complete word and kill count once, actual damage is capped and surviv
  await page.keyboard.type('factory');expect(await read()).toEqual({words:1,cleanWords:1,kills:1,damage:1,healing:0});
  await page.locator('#pSkip').click();await page.locator('#mPause').click();await page.reload();await page.locator('#continueRun').click();expect(await read()).toEqual({words:1,cleanWords:1,kills:1,damage:1,healing:0});
 });
-test('actual healing unlocks healer once lucky is unlocked; full-health item cannot inflate healing and locked progress remains readable on phone',async({game,page},info)=>{
- only(info);await page.setViewportSize({width:390,height:844});await game.open({saved:{heroStats:{...zero,words:50,healing:52},heroUnlocks:{scholar:zero,scout:zero,warrior:zero,lucky:zero}}});
- await expect(page.locator('#heroes [data-hero="healer"]')).toContainText('完整拼词 50/50 · 实际回血 52/60');await game.start();await game.fight({word:'factory'});
+test('actual healing unlocks healer; full-health item cannot inflate healing and locked progress remains readable on phone',async({game,page},info)=>{
+ only(info);await page.setViewportSize({width:390,height:844});await game.open({saved:{heroStats:{...zero,words:150,healing:72},heroUnlocks:{}}});
+ await expect(page.locator('#heroes [data-hero="healer"]')).toContainText('完整拼词 150/150 · 实际回血 72/80');await game.start();await game.fight({word:'factory'});
  await page.evaluate(()=>{const t=window.__gameTest;t.G.bag={leech:3};t.renderFight()});
- await page.locator('#fItems .item').first().click();expect(await page.evaluate(()=>window.__gameTest.DB.heroStats.healing)).toBe(52);
- await page.evaluate(()=>{const t=window.__gameTest;t.B.myHp=72;t.renderFight()});await page.locator('#fItems .item').first().click();expect(await page.evaluate(()=>window.__gameTest.DB.heroStats.healing)).toBe(60);
+ await page.locator('#fItems .item').first().click();expect(await page.evaluate(()=>window.__gameTest.DB.heroStats.healing)).toBe(72);
+ await page.evaluate(()=>{const t=window.__gameTest;t.B.myHp=72;t.renderFight()});await page.locator('#fItems .item').first().click();expect(await page.evaluate(()=>window.__gameTest.DB.heroStats.healing)).toBe(80);
  await page.locator('#tPause').click();await page.locator('#pzHome').click();await expect(page.locator('#heroes [data-hero="healer"]')).toBeEnabled();await page.locator('#heroes [data-hero="healer"]').click();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

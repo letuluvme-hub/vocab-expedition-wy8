@@ -35,11 +35,9 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
       b.setAttribute('aria-pressed', H.id === sel ? 'true' : 'false');
       b.innerHTML = pcHTML(H.id) + '<b>' + H.n + '</b><span class="hs">' + heroStatLines(H).join('<br>') + '</span>';
       const status=document.createElement('span');status.className='heroUnlock';
-      // 角色依次解锁：还轮不到的只写「先解锁谁」，轮到的那一位才显示进度（上一位解锁后新增的量）。
-      const progress=unlock.requirements.map(r=>r.label+' '+Math.min(r.current,r.target)+'/'+r.target).join(' · ');
-      status.textContent=H.id==='scholar'?'初始角色 · 开荒推荐':unlock.unlocked?'已解锁':unlock.waitingFor?'先解锁'+heroById(unlock.waitingFor).n:'下一位 · '+progress;
+      status.textContent=H.id==='scholar'?'初始角色 · 开荒推荐':unlock.unlocked?'已解锁':unlock.requirements.map(r=>r.label+' '+Math.min(r.current,r.target)+'/'+r.target).join(' · ');
       b.appendChild(status);if(!unlock.unlocked)b.className+=' heroLocked';b.disabled=!unlock.unlocked;
-      b.title=H.d+(unlock.unlocked?'':'\n解锁条件：'+(unlock.waitingFor?status.textContent+'，之后再':'')+'新增 '+progress);
+      b.title=H.d+(unlock.unlocked?'':'\n解锁条件：'+status.textContent);
       if(unlock.unlocked)b.onclick = () => { onHero(H.id); renderHeroes() };
       box.appendChild(b);
     });
