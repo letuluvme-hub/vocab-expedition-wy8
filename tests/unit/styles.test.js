@@ -56,7 +56,7 @@ const ADDED = [
   ['./book-picker.css', /^#textbookPicker\b/, '教材册选择'],
   ['./battle-details.css', /^#s-fight\b/, '战斗详情与常驻道具'],
   ['./home-start.css', /^#s-title\b/, '主页开始与一次性引导'],
-  ['./desktop-battle.css', /^#s-fight\b|^#app:has\(#s-fight\.on\)/, '电脑战斗分区'],
+  ['./desktop-battle.css', /^#s-fight\b|^#app\b/, '电脑战斗分区'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

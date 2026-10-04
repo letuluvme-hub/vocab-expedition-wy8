@@ -1,7 +1,9 @@
 /* Desktop combat uses the available width so the word never competes with
    a tall keyboard for one narrow column. Input rows have explicit budgets. */
 @media(min-width:900px) and (min-height:481px) {
- #app:has(#s-fight.on) {max-width:1100px;}
+ #app {max-width:1100px;}
+ #app > .screen {max-width:660px;margin-inline:auto;}
+ #app > #s-fight {max-width:none;width:100%;}
  #s-fight.on {display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:184px 36px 24px minmax(0,1fr) 58px 64px;column-gap:20px;row-gap:4px;}
  #s-fight #fBattleStage {grid-column:1 / -1;grid-row:1;--pcw:56px;--pch:68px;--msw:56px;}
  #s-fight #fBattleStage .hud {margin:0;padding:4px 0;height:90px;}
