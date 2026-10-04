@@ -236,6 +236,24 @@ test('过期的过渡（from 不是当前单元）没有任何副作用', () => 
   assert.equal(JSON.stringify({ ...run, done: [...run.done] }), snap);
 });
 
+test('late-run-1 的商店存档（id 不带价、卡面已涨价）按卡面价收费', () => {
+  const h = shop({ segments: 5, gold: 1000 });
+  assert.equal(h.ctrl.reopenEncounter({ kind: 'shop', options: [
+    { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · 90 金币', d: '' },
+    { id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买' }] }), true);
+  // 恢复后价格写进 id，之后再存档就不再依赖卡面文字。
+  assert.deepEqual(h.desc().options.map(o => o.id), ['shop:potion:90', 'shop:leave']);
+  h.click('shop:potion:90'); assert.equal(h.G.gold, 910);
+});
+
+test('八下开局：学完八下补八上，补完八上时八下已学完，直接进循环而不是绕回八下', () => {
+  const upper6 = upperRun(6);
+  const done = { wy8a: undefined, wy8b: undefined };
+  assert.equal(crossBookTarget(upper6, { unfinished: id => done[id] }).loop, true);
+  const partly = { wy8a: undefined, wy8b: 3 };
+  assert.deepEqual(crossBookTarget(upper6, { unfinished: id => partly[id] }), { bookId: 'wy8b', unit: 3, loop: false });
+});
+
 test('从八下开局学完八下，先补八上没完成的单元，不直接进循环', () => {
   const run = createRun(6, hero, wordsFor('wy8b', 6), () => .5, null, { bookId: 'wy8b' });
   const pending = { wy8a: 4, wy8b: undefined };
@@ -246,7 +264,8 @@ test('从八下开局学完八下，先补八上没完成的单元，不直接�
 test('八下 Unit 6 学完进入全册随机循环；同一张图抽到的单元固定', () => {
   const run = createRun(6, hero, wordsFor('wy8b', 6), () => .5, null, { bookId: 'wy8b' });
   run.roundId = 'round-x';
-  const t1 = crossBookTarget(run), t2 = crossBookTarget(run);
+  const allDone = { unfinished: () => undefined };
+  const t1 = crossBookTarget(run, allDone), t2 = crossBookTarget(run, allDone);
   assert.equal(t1.loop, true);
   assert.deepEqual(t1, t2, '按钮上写的和点下去进入的是同一个单元');
   assert.ok(!(t1.bookId === 'wy8b' && t1.unit === 6), '不抽到刚学完的单元');
@@ -260,7 +279,7 @@ test('八下 Unit 6 学完进入全册随机循环；同一张图抽到的单元
   const seen = new Set();
   for (let seg = 3; seg < 40; seg++) {
     run.campaign.segments = seg;
-    const t = crossBookTarget(run);
+    const t = crossBookTarget(run, allDone);
     assert.equal(t.loop, true, '进入循环之后一直随机');
     seen.add(t.bookId + ':' + t.unit);
   }

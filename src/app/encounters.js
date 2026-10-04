@@ -683,7 +683,13 @@ export function createEncounterController({ state, ports }) {
       const fixed = /^shop:(potion|scroll|whet)(?::([^:]+))?$/.exec(id);
       if (fixed) {
         if (fixed[2] !== undefined && !positiveInteger(fixed[2])) return null;
-        return fixedShopOption(G, fixed[1], fixed[2] === undefined ? SHOP_BASE_PRICES[fixed[1]] : Number(fixed[2]));
+        // 不带价格的 id 有两种旧存档：加价之前（卡面原价）和 late-run-1（id 没带价但卡面已经涨价）。
+        // 两种都按存档里卡面写的价收，读不到卡面才退回原价。
+        const shown = fixed[2] === undefined && desc && Array.isArray(desc.options)
+          ? /· (\d+) 金币$/.exec(((desc.options.find(o => o && o.id === id) || {}).t) || '') : null;
+        const price = fixed[2] !== undefined ? Number(fixed[2])
+          : (shown && positiveInteger(shown[1]) ? Number(shown[1]) : SHOP_BASE_PRICES[fixed[1]]);
+        return fixedShopOption(G, fixed[1], price);
       }
       table = premiumShopOptions();
       // 无价格 id 是旧快照，按历史表重建；带价格的新卡已在上方解析。
