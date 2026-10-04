@@ -65,8 +65,19 @@ test('equipment dialog freezes real charge, typing, hints and rewards; closing r
  for(const id of ['fMy','fEn','fAv','fPc']){const r=await page.locator('#'+id).boundingBox();expect(r.y).toBeGreaterThanOrEqual(0);expect(r.y+r.height).toBeLessThanOrEqual((await page.locator('#fBattleDetails').boundingBox()).y)}
  expect(await hit(page.locator('#fDetailsClose'))).toBe(true);
  await page.screenshot({path:info.outputPath('details.png')});
+ // Read immediately after the real resume, before rendering and the touch /
+ // browser round trips spend real running time. Preserve the original call.
+ await page.evaluate(()=>{
+  const t=window.__gameTest,resume=t.progress.resume;
+  t.progress.resume=function(...args){
+   const result=resume.apply(this,args);
+   window.__detailsResumeFact=t.foeAttack.captureFact();
+   t.progress.resume=resume;
+   return result;
+  };
+ });
  await page.locator('#fDetailsClose').tap();expect(await page.evaluate(()=>window.__gameTest.progress.isPaused())).toBe(false);
- const resumed=await page.evaluate(()=>window.__gameTest.foeAttack.captureFact());expect(resumed.phase).toBe('telegraph');expect(resumed.remainingMs).toBeGreaterThan(frozen.fact.remainingMs-180);expect(resumed.remainingMs).toBeLessThanOrEqual(frozen.fact.remainingMs);
+ const resumed=await page.evaluate(()=>window.__detailsResumeFact);expect(resumed.phase).toBe('telegraph');expect(resumed.remainingMs).toBeGreaterThan(frozen.fact.remainingMs-180);expect(resumed.remainingMs).toBeLessThanOrEqual(frozen.fact.remainingMs);
  await page.waitForTimeout(frozen.fact.remainingMs+150);
  expect((await game.state()).B.myHp).toBeLessThan(frozen.hp);
 });
