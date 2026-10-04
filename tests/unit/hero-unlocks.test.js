@@ -36,11 +36,25 @@ test('old saves keep every hero the legacy totals had unlocked and the next hero
  recordHeroProgress(db,'words',70);recordHeroProgress(db,'healing',100);assert.equal(heroUnlockState(db,'ranger').unlocked,true);assert.equal(heroUnlockState(db,'berserker').unlocked,false);
  const again=JSON.parse(JSON.stringify(db));initializeHeroProgress(again);assert.deepEqual(again.heroUnlocks,db.heroUnlocks);
 });
-test('dirty unlock records are cleaned and cannot unlock unknown heroes',async()=>{
+test('unknown unlock fields survive normalization and dirty records cannot unlock heroes',async()=>{
  const {initializeHeroProgress,heroUnlockState}=await rules();
- const db={heroStats:{words:0},heroUnlocks:{fake:{},assassin:'yes',__proto__x:{},scout:{words:-3,kills:'9'}}};initializeHeroProgress(db);
- assert.deepEqual(Object.keys(db.heroUnlocks).sort(),['scholar','scout']);assert.deepEqual(db.heroUnlocks.scout,{words:0,cleanWords:0,kills:0,damage:0,healing:0});
- assert.equal(heroUnlockState(db,'assassin').unlocked,false);
+ const db={heroStats:{words:0},heroUnlocks:{futureHero:{words:3},assassin:'yes',scout:{words:-3,kills:'9',note:'keep'}}};initializeHeroProgress(db);
+ assert.deepEqual(db.heroUnlocks.futureHero,{words:3});assert.equal(db.heroUnlocks.assassin,'yes');assert.deepEqual(db.heroUnlocks.scout,{words:-3,kills:'9',note:'keep'});
+ assert.equal(heroUnlockState(db,'assassin').unlocked,false);assert.equal(heroUnlockState(db,'scout').unlocked,true);
+ assert.deepEqual(heroUnlockState(db,'warrior').requirements.map(r=>r.current),[0,0]);
+ for(const id of ['futureHero','__proto__','toString'])assert.equal(heroUnlockState(db,id).unlocked,false);
+});
+test('out-of-order legacy unlocks keep a single counting frontier that starts when the gap closes',async()=>{
+ const {initializeHeroProgress,heroUnlockState,recordHeroProgress}=await rules();
+ const db={heroStats:{words:5,cleanWords:0,kills:15,damage:4000,healing:0}};initializeHeroProgress(db);
+ assert.deepEqual(Object.keys(db.heroUnlocks).sort(),['berserker','scholar','warrior']);
+ const counting=()=>HERO_UNLOCK_ORDER.filter(id=>{const s=heroUnlockState(db,id);return !s.unlocked&&!s.waitingFor});
+ assert.deepEqual(counting(),['scout']);
+ assert.equal(heroUnlockState(db,'lucky').waitingFor,'scout');assert.equal(heroUnlockState(db,'pyromancer').waitingFor,'ranger');
+ recordHeroProgress(db,'damage',6000);recordHeroProgress(db,'words',100);
+ assert.equal(heroUnlockState(db,'scout').unlocked,true);assert.equal(heroUnlockState(db,'pyromancer').unlocked,false);
+ assert.deepEqual(counting(),['lucky']);assert.equal(heroUnlockState(db,'lucky').requirements[0].current,0);
+ recordHeroProgress(db,'words',45);assert.equal(heroUnlockState(db,'lucky').unlocked,true);assert.deepEqual(counting(),['healer']);
 });
 test('old learning records migrate conservatively; dirty metrics and fake increments do not unlock',async()=>{
  const {initializeHeroProgress,recordHeroProgress}=await rules();const db={mastered:['Apple','apple','pear'],future:{keep:true}};initializeHeroProgress(db);assert.equal(db.heroStats.words,2);assert.equal(db.heroStats.kills,0);assert.equal(db.heroStats.damage,0);assert.equal(db.heroStats.healing,0);assert.deepEqual(db.future,{keep:true});const before=JSON.stringify(db.heroStats);for(const n of [-1,NaN,Infinity,'100',0])recordHeroProgress(db,'kills',n);assert.equal(JSON.stringify(db.heroStats),before);initializeHeroProgress(db);assert.equal(db.heroStats.words,2);
