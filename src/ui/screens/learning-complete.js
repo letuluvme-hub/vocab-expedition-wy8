@@ -71,9 +71,12 @@ export function createLearningCompleteScreen({ getRun, getBattle, db, getCampaig
     // ★ 自定义单元**绝不给**「下一单元」入口：progress.next(0) 返回的是教材里的
     //   Unit 2（自定义学完不解锁教材），照抄它会让玩家从自己的词表直接跳进课本。
     const nextUnit = custom ? null : (prog && prog.next ? prog.next(unit) : null);
+    // 跨册顺延 / 全册循环：本册最后一个单元学完后接着去哪（runtime 的 runCampaign 给出）。
+    const cross = !custom && prog && prog.cross ? prog.cross : null;
     // 正式默写全覆盖或远征整词完成（passed）都算本单元完成：两者都解锁下一单元。
     const complete = !!(uc && (uc.complete || uc.passed));
-    const nextOpen = complete && nextUnit != null && prog.isUnlocked(nextUnit);
+    const nextOpen = complete && (cross ? true : nextUnit != null && prog.isUnlocked(nextUnit));
+    const nextName = cross ? cross.label : 'Unit ' + nextUnit;
     const nextBtn = $('lcBtnNext');
     if (nextBtn) {
       nextBtn.hidden = !nextOpen;
@@ -81,14 +84,14 @@ export function createLearningCompleteScreen({ getRun, getBattle, db, getCampaig
       //   所以显式写 display：否则「继续下一单元」在词没学完时也会**真的显示出来**。
       nextBtn.style.display = nextOpen ? '' : 'none';
       nextBtn.disabled = !nextOpen;
-      nextBtn.textContent = nextOpen ? ('继续 Unit ' + nextUnit) : '继续下一单元';
+      nextBtn.textContent = nextOpen ? ((cross && cross.loop ? '随机复习 ' : '继续 ') + nextName) : '继续下一单元';
       nextBtn.title = nextOpen
-        ? '带着当前的金币、道具和遗物进入 Unit ' + nextUnit + '（同一轮学习，不算新开一次远征）'
+        ? '带着当前的金币、道具和遗物进入 ' + nextName + '（同一轮学习，不算新开一次远征）'
         : '完成本单元全部词汇后解锁下一个单元';
       nextBtn.onclick = nextOpen && onNext ? () => { onNext(); } : null;
     }
-    setText('lcNext', nextLine({ runCounts: c, uc, complete, nextUnit, nextOpen, custom,
-      bookLast: complete && nextUnit == null }));
+    setText('lcNext', nextLine({ runCounts: c, uc, complete, nextUnit, nextOpen, custom, cross,
+      bookLast: complete && nextUnit == null && !cross }));
     return { counts: c, unit: uc, nextOpen };
   }
 
@@ -99,7 +102,7 @@ export function createLearningCompleteScreen({ getRun, getBattle, db, getCampaig
  * 进度用**本局真实计数**（learningCounts，与检查点屏其它文案同源）；
  * 是否解锁用 campaign（跨局的 DB.mastered 口径）。两者在真实玩法里同步，
  * 但分开取值才不会在这一屏上出现两套互相矛盾的「已完成」。 */
-function nextLine({ runCounts, uc, complete, nextUnit, nextOpen, bookLast, custom }) {
+function nextLine({ runCounts, uc, complete, nextUnit, nextOpen, bookLast, custom, cross }) {
   const shown = runCounts && runCounts.total ? runCounts : uc;
   const prog = shown && shown.total
     ? ('本单元已完成 ' + shown.done + ' / ' + shown.total + ' 个词'
@@ -107,6 +110,8 @@ function nextLine({ runCounts, uc, complete, nextUnit, nextOpen, bookLast, custo
     : '本单元没有可练习的词';
   if (custom) return prog + (uc && uc.complete ? '。' : '，还可以继续添加自己的词。');
   if (bookLast) return prog + '。本册词汇已完成。';
+  if (nextOpen && cross) return prog + (cross.loop ? '。全部单元都学过一遍了，下一张图随机复习 ' + cross.label + '。'
+    : '。这一册学完了，可以带着现有物资接着学 ' + cross.label + '。');
   if (nextOpen) return prog + '。Unit ' + nextUnit + ' 已解锁，可以带着现有物资继续下一段学习。';
   if (complete) return prog + '。';
   return prog + '。完成本单元全部词汇后才会解锁下一个单元。';

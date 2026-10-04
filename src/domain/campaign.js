@@ -15,7 +15,7 @@
 import { generateMap } from './map.js';
 import { learningCounts, isPoolComplete } from './word-selection.js';
 import { advanceHealerMapGrowth } from './hero-rules.js';
-import { bookUnits } from '../data/books.js';
+import { BOOKS, bookUnits } from '../data/books.js';
 import { learningKey, wordBookId, DEFAULT_BOOK_ID, knownBookId } from './learning-identity.js';
 
 export const CUSTOM_UNIT = 0;
@@ -310,4 +310,75 @@ export function applyUnitSegment(run, { words, random = Math.random } = {}) {
   run.campaign.segments = (run.campaign.segments || 0) + 1;
   rebuildSegment(run, random);
   return { unit: run.unit, segment: run.campaign.segments };
+}
+
+/* ================= 跨册顺延与全册循环（2026-10）=================
+ * 一册的最后一个单元学完以后，同一次远征接着进下一册的第一个单元
+ * （八上 Unit 6 → 八下 Unit 1），金币、道具、遗物、轮号都带过去。
+ * 最后一册也学完了，就进入「全册随机循环」：每张新地图随机抽一册一个单元，
+ * 把这个单元在本次远征里的完成记录清掉重新练。
+ *
+ * 随机不用 Math.random：目标由 (roundId, 第几张图) 算出来，结算屏按钮上写的单元
+ * 和点下去真正进入的单元一定是同一个，刷新以后也不会变。 */
+const textbookUnits = bookId => bookUnits(bookId).map(u => u.n).filter(n => n > 0).sort((a, b) => a - b);
+
+function seedIndex(text, n) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) % n;
+}
+
+/* 当前单元学完后要去的「册 + 单元」。不该跨册时返回 null（交回普通的下一单元逻辑）。 */
+export function crossBookTarget(run, { books = BOOKS } = {}) {
+  if (!run || !Number.isInteger(run.unit) || run.unit === CUSTOM_UNIT) return null;
+  const bookId = run.bookId || DEFAULT_BOOK_ID;
+  const loop = !!(run.campaign && run.campaign.loop === true);
+  if (!loop) {
+    const mine = textbookUnits(bookId);
+    if (run.unit !== mine[mine.length - 1]) return null;
+    const at = books.findIndex(b => b.id === bookId);
+    const nextBook = at >= 0 ? books[at + 1] : null;
+    if (nextBook) {
+      const first = textbookUnits(nextBook.id)[0];
+      if (first) return { bookId: nextBook.id, unit: first, loop: false };
+    }
+  }
+  const all = [];
+  for (const b of books) for (const u of textbookUnits(b.id)) {
+    if (!(b.id === bookId && u === run.unit)) all.push({ bookId: b.id, unit: u });
+  }
+  if (!all.length) return null;
+  const segs = run.campaign && Number.isInteger(run.campaign.segments) ? run.campaign.segments : 1;
+  const pick = all[seedIndex(String(run.roundId || run.id || '') + ':' + segs, all.length)];
+  return { bookId: pick.bookId, unit: pick.unit, loop: true };
+}
+
+/* 跨册 / 循环过渡：换册、换词池、新地图，其余一律继承（同 applyUnitTransition 的口径）。
+ * words 必须全是目标册的词；from 必须等于当前单元，过期调用没有任何副作用。 */
+export function applyBookTransition(run, target, { from, words, random = Math.random } = {}) {
+  if (!run || !target || run.unit !== from) return null;
+  if (!knownBookId(target.bookId) || !Number.isInteger(target.unit) || target.unit <= 0) return null;
+  if (textbookUnits(target.bookId).indexOf(target.unit) < 0) return null;
+  if (!Array.isArray(words) || !words.length || words.some(w => wordBookId(w) !== target.bookId)) return null;
+  const fromBook = run.bookId || DEFAULT_BOOK_ID;
+  run.unit = target.unit;
+  if (target.bookId === DEFAULT_BOOK_ID) { delete run.bookId; delete run.scopeUnits; }
+  else { run.bookId = target.bookId; run.scopeUnits = textbookUnits(target.bookId); }
+  run.pool = words.slice();
+  const keys = new Set(run.pool.map(wordKey));
+  // 循环：这个单元在本次远征里重新练一遍，旧的完成记录清掉（掌握记录在 DB 里，不受影响）。
+  if (target.loop) run.done = new Set(Array.from(run.done || []).filter(d => !keys.has(learningKey(d))));
+  run.wrong = (run.wrong || []).filter(w => keys.has(wordKey(w)));
+  const segments = ((run.campaign && run.campaign.segments) || 0) + 1;
+  run.campaign = { startedUnit: target.unit, segments,
+    ...(target.bookId !== DEFAULT_BOOK_ID ? { bookId: target.bookId } : {}),
+    ...(target.loop || (run.campaign && run.campaign.loop === true) ? { loop: true } : {}) };
+  // 换了册：纪念卡和本轮完成单元都按新册重新记，旧册那张卡原样留在收藏里。
+  if (target.bookId !== fromBook) {
+    run.completedUnits = [];
+    run.reward = undefined;
+    run.rewardId = undefined;
+  }
+  rebuildSegment(run, random);
+  return { bookId: target.bookId, unit: run.unit, segment: segments, loop: !!run.campaign.loop };
 }

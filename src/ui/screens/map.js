@@ -81,6 +81,7 @@ export function createMapScreen({ getRun, onEnter, onToast, onNodeSound }) {
       });
     });
     $('mFloor').textContent = G.floor;
+    paintRoundLine(G);
     $('mGold').textContent = G.gold;
     paintHpBar('mHp', 'mHpS', 'mHpT', G.hp, G.shield, G.maxhp);
     const rb = $('mRelics'); rb.innerHTML = '';
@@ -104,3 +105,23 @@ export function createMapScreen({ getRun, onEnter, onToast, onNodeSound }) {
 
   return { mapMetrics, renderMap };
 }
+
+/* 顶栏「第 N 轮 · 第 M 图」：N = 第几次远征（run.roundNumber，与纪念卡同源），
+ * M = 这次远征打到第几张地图（campaign.segments；商店涨价、怪物变强都按它算）。
+ * 静态页面骨架不动，第一次画地图时插进楼层那一格的前面。旧存档没有轮号就只写图数。 */
+function paintRoundLine(G) {
+  const floor = document.getElementById('mFloor');
+  const box = floor && floor.parentElement;
+  if (!box) return;
+  let line = document.getElementById('mRound');
+  if (!line) {
+    line = document.createElement('span');
+    line.id = 'mRound';
+    box.insertBefore(line, box.firstChild);
+  }
+  const seg = G.campaign && Number.isInteger(G.campaign.segments) && G.campaign.segments > 0 ? G.campaign.segments : 1;
+  const round = Number.isInteger(G.roundNumber) && G.roundNumber > 0 ? G.roundNumber : 0;
+  line.innerHTML = (round ? '第 <b>' + round + '</b> 轮 · ' : '') + '第 <b>' + seg + '</b> 图 · ';
+  line.title = (round ? '这是你的第 ' + round + ' 次远征，' : '') + '本次远征打到第 ' + seg + ' 张地图；越往后怪物越强，商店也越贵';
+}
+

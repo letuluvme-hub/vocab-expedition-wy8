@@ -179,6 +179,8 @@ function encodeCampaign(c, unit) {
     startedUnit: isInt(c.startedUnit) && c.startedUnit > 0 ? c.startedUnit : unit,
     segments: isInt(c.segments) && c.segments > 0 ? c.segments : 1,
     ...(c.bookId !== undefined ? {bookId:c.bookId} : {}),
+    // loop：全部教材学完后的随机循环（domain/campaign.js 的 crossBookTarget）。只认 true。
+    ...(c.loop === true ? {loop:true} : {}),
   };
 }
 /* growth（docs/feature-mastery-growth.md）：**可选**的开局成长事实。

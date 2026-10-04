@@ -20,7 +20,7 @@ import { heroOpeningGrant, goldGainAmount, battleGoldBase } from '../domain/hero
 import { newRoundId, noteRoundUnitComplete } from './rounds.js';
 import { recordRoundUnitComplete } from '../domain/campaign.js';
 import { generateMap } from '../domain/map.js';
-import { drawWord as selectWord, isPoolComplete } from '../domain/word-selection.js';
+import { drawWord as selectWord, isPoolComplete, learningCounts } from '../domain/word-selection.js';
 import { offerWords, canSwitchWord, preferredOfferWord } from '../domain/word-choice.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
 import { createTitleScreen } from '../ui/screens/title.js';
@@ -54,7 +54,7 @@ import { foeHpMax } from '../domain/foe-stats.js';
 import { hpBarGeom } from '../domain/hp.js';
 import { canFinishFight } from '../domain/battle-rules.js';
 import { unlockProgress, canSelectUnit, recordUnitComplete, transitionNextUnit,
-  applyUnitTransition, applyUnitSegment, ensureProgress } from '../domain/campaign.js';
+  applyUnitTransition, applyUnitSegment, ensureProgress, crossBookTarget, applyBookTransition } from '../domain/campaign.js';
 import { wordComplete as isWordComplete, creditWordProgress, onWordWrongProgress } from '../domain/learning.js';
 import { createSpeech } from '../services/speech.js';
 import { createAudio } from '../services/audio.js';
@@ -353,6 +353,25 @@ const allWords = (u,bookId=curBook) => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,
    所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
 const campaignState = (bookId=curBook) => unlockProgress({bookId,units:bookUnits(bookId).map(u=>u.n),wordsFor:u=>allWords(u,bookId),
   dictationMastered:DB.dictationMastered,unitProgress:DB.unitProgress,bookUnitProgress:DB.bookUnitProgress});
+/* 正在进行的远征看到的主线视图：在 campaignState 之上加跨册顺延 / 全册循环。
+ *   cross —— 本单元学完后要去的「册 + 单元」（八上 Unit 6 → 八下 Unit 1，或循环里随机抽到的单元），
+ *            结算屏按钮上的文字和 nextUnit() 真正进入的单元都读它。
+ *   循环里单元的历史完成记录早就齐了，所以「本单元学完没有」改看本次远征的词池。 */
+const crossLabel = t => bookById(t.bookId).short + ' Unit ' + t.unit;
+function runCampaign(){
+  const base=campaignState(runBook());
+  const cross=G?crossBookTarget(G):null;
+  if(!cross) return base;
+  const view=Object.assign({},base,{cross:Object.assign({label:crossLabel(cross)},cross),next:()=>undefined});
+  if(G.campaign&&G.campaign.loop===true){
+    view.counts=u=>{
+      if(u!==G.unit) return base.counts(u);
+      const c=learningCounts(G), done=c.total-c.remaining, complete=c.total>0&&c.remaining===0;
+      return { total:c.total, done, remaining:c.remaining, complete, passed:complete };
+    };
+  }
+  return view;
+}
 
 /* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
    设计原则：每个道具都有明确代价，不能无脑全带。
@@ -650,7 +669,7 @@ function startFight(n){
   //   G.difficulty 缺失（旧存档）→ scaleEnemyHealth 按基线返回原值，
   //   于是旧档的怪物血量与节奏逐字不变。
   const { hpMax: foeBaseHpMax } = foeHpMax({ floor: G.floor, boss, elite, comboRate: comboRate(), base: e.base });
-  const hpMax = scaleEnemyHealth(foeBaseHpMax, G&&G.difficulty);
+  const hpMax = scaleEnemyHealth(foeBaseHpMax, G&&G.difficulty, G&&G.campaign&&G.campaign.segments);
   // 从词库按难度出题：越深越难
   const budget = boss?3:Math.min(3, 1+Math.floor(G.floor/3)+(elite?1:0));
   const drawn = drawWord(budget);
@@ -807,6 +826,8 @@ function nextUnit(){
   // ★ 先问来源相位：普通地图上的一次误调用、探针、连点都在这里被拒。
   const src=campaignSourceRefusal('next');
   if(src) return campaignRefuse(src);
+  const cross=crossBookTarget(G);
+  if(cross) return crossBookNext(cross);
   const facts=transitionNextUnit({run:G,progress:campaignState(runBook())});
   if(!facts.ok) return campaignRefuse(facts);
   // ★ facts.from 必须就是**当前**这一局的单元。领域层 applyUnitTransition 也会查这一条，
@@ -840,13 +861,40 @@ function nextUnit(){
   toast('Unit '+facts.from+' 的词汇已全部完成，进入 Unit '+facts.to+'（物资保留）');
   return true;
 }
+/* 跨册顺延 / 全册循环。闸门与 nextUnit 相同（来源相位已在调用方查过），
+ * 本单元必须真的学完；完成记录在换册**之前**按原册记，换册之后旧册那张纪念卡不再改。 */
+function crossBookNext(cross){
+  const view=runCampaign();
+  const uc=view.counts(G.unit);
+  if(!uc||!(uc.complete||uc.passed)) return campaignRefuse({reason:'incomplete'});
+  const words=wordsFor(cross.bookId,cross.unit);
+  if(!words.length) return campaignRefuse({reason:'phase'});
+  const from=G.unit, fromBook=runBook(), fromLabel=crossLabel({bookId:fromBook,unit:from});
+  carryLiveHp();
+  if(recordUnitComplete(DB,from,{bookId:fromBook})) saveDB();
+  if(recordRoundUnitComplete(G,from)) saveDB();
+  if(syncRoundCard(G,DB)) saveDB();
+  const applied=applyBookTransition(G,cross,{from,words});
+  if(!applied) return campaignRefuse({reason:'phase'});
+  curUnit=G.unit; curBook=runBook();
+  reopenRun();
+  lifecycle.resetBattle();
+  streakFeedback.resume();
+  B=null;
+  setPhase(PHASE.MAP);
+  show('s-map'); renderMap();
+  toast(applied.loop
+    ? ('全部单元都学过一遍了，随机复习 '+crossLabel(cross)+'（物资保留）')
+    : (fromLabel+' 学完了，接着进入 '+crossLabel(cross)+'（物资保留）'));
+  return true;
+}
 function continueUnit(){
   if(!G) return campaignRefuse({reason:'no-run'});
   // 「继续本单元词汇」只从**成功结算的 BOSS 局**出发：普通地图上不存在这个动作，
   // 一次连点的第二次调用会看到 result 已经变回 undefined，在这里被拒。
   const src=campaignSourceRefusal('continue');
   if(src) return campaignRefuse(src);
-  const uc=campaignState(runBook()).counts(G.unit);
+  const uc=runCampaign().counts(G.unit);
   if(uc && uc.complete){ toast('本单元词汇已经全部完成'); return false; }
   if(!allWords(G.unit,runBook()).length) return false;
   const applied=applyUnitSegment(G,{words:allWords(G.unit,runBook())});
@@ -1294,7 +1342,7 @@ function settleRun(win){
   ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
   // 成功结算只提供同轮续练与返回主页；战败才保留新开一轮的「再来一次」。
   // oNext 的可见性与文案由 over.js 按「本单元词汇是否完成」决定。
-  renderOver({run:G,db:DB,win,campaign:campaignState(runBook()),onTitle:renderTitle,show,
+  renderOver({run:G,db:DB,win,campaign:runCampaign(),onTitle:renderTitle,show,
     onAgain:()=>{ if(!G||typeof G.result!=='boolean')return; curUnit=G.unit;curBook=runBook(); startRunFromUi() },
     onNextUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.nextUnit() },
     onContinueUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.continueUnit() },
@@ -1401,7 +1449,7 @@ const pauseScreen=createPauseScreen({getRun:()=>G,
     renderTitle(); show('s-title');
   }});
 const learningCompleteScreen=createLearningCompleteScreen({getRun:()=>G,getBattle:()=>B,
-  db:DB,getCampaign:()=>campaignState(runBook()),
+  db:DB,getCampaign:()=>runCampaign(),
   // 「继续下一单元」= 同一轮学习跨单元：走 progress 的闸门与事务，不新建 run、不加次数。
   onNext:()=>{ progress.nextUnit() },
   // 「保存并返回主页」= 暂停式返回：不放弃这一局，进度留档，随时能继续。
