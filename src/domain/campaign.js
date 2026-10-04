@@ -328,8 +328,13 @@ function seedIndex(text, n) {
   return (h >>> 0) % n;
 }
 
-/* 当前单元学完后要去的「册 + 单元」。不该跨册时返回 null（交回普通的下一单元逻辑）。 */
-export function crossBookTarget(run, { books = BOOKS } = {}) {
+/* 当前单元学完后要去的「册 + 单元」。不该跨册时返回 null（交回普通的下一单元逻辑）。
+ * unfinished(bookId) 回答「这一册第一个还没完成的单元」（全完成返回 null / undefined）；
+ * 不传时当作什么都没完成，于是八上学完就去八下 Unit 1。
+ * 按「后面的册 → 绕回前面的册」找第一个还有没完成单元的册，学完的册直接跳过：
+ * 从八下开局学完八下，先补八上；八上补完时八下已经学过，不再绕回八下，直接进循环。
+ * 所有册都完成了才进入随机循环。 */
+export function crossBookTarget(run, { books = BOOKS, unfinished = id => textbookUnits(id)[0] } = {}) {
   if (!run || !Number.isInteger(run.unit) || run.unit === CUSTOM_UNIT) return null;
   const bookId = run.bookId || DEFAULT_BOOK_ID;
   const loop = !!(run.campaign && run.campaign.loop === true);
@@ -337,10 +342,11 @@ export function crossBookTarget(run, { books = BOOKS } = {}) {
     const mine = textbookUnits(bookId);
     if (run.unit !== mine[mine.length - 1]) return null;
     const at = books.findIndex(b => b.id === bookId);
-    const nextBook = at >= 0 ? books[at + 1] : null;
-    if (nextBook) {
-      const first = textbookUnits(nextBook.id)[0];
-      if (first) return { bookId: nextBook.id, unit: first, loop: false };
+    const order = at >= 0 ? [...books.slice(at + 1), ...books.slice(0, at + 1)] : books;
+    for (const b of order) {
+      const u = unfinished(b.id);
+      if (Number.isInteger(u) && u > 0 && !(b.id === bookId && u === run.unit)
+        && textbookUnits(b.id).indexOf(u) >= 0) return { bookId: b.id, unit: u, loop: false };
     }
   }
   const all = [];
