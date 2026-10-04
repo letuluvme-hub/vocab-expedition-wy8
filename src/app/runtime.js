@@ -1520,6 +1520,7 @@ const foeAttackCtl=createFoeAttackController({
   state, lifecycle, now:()=>Date.now(),
   foeAttackHit:d=>combat.enemyHit(d),
   onTelegraph:()=>sfx.foeWarning(),
+  onWarningPulse:urgency=>sfx.foeWarningPulse(urgency),
   // 相位变化时提交一次快照（同一个入口，与 DB 记录同一次 save）。
   commit:()=>commit(true),
   renderFight:()=>renderFight(),
