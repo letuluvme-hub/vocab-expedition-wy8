@@ -1,0 +1,9 @@
+/* 主页「显示方式」：只作用于 #displaySettings 及其子元素，追加在最后。
+   只在平板上出现（组件按 eligible() 设 hidden），留在主页文档流里。 */
+#displaySettings {margin:4px 0 12px;}
+#displaySettings[hidden] {display:none;}
+#displaySettings-root {display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 8px;padding:8px 10px;border:1px solid #ffffff1a;border-radius:12px;background:#ffffff08;}
+#displaySettings .dset-hd {font-size:12px;color:var(--mut);margin-right:2px;white-space:nowrap;}
+#displaySettings .dset-btn {min-height:44px;padding:6px 14px;border:1px solid #ffffff1f;border-radius:10px;background:#ffffff0d;color:var(--mut);font:inherit;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;white-space:nowrap;}
+#displaySettings .dset-btn[aria-pressed="true"] {border-color:#22d3ee90;background:#123346;color:#ecfaff;font-weight:700;}
+#displaySettings .dset-btn:active {transform:scale(.96);}
