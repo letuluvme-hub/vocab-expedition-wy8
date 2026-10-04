@@ -566,14 +566,19 @@ export function createSpeech({ heroVoice, curHeroId, rnd, voiceLines: VOICE_LINE
       T.on=!!b;
       try{ onChange(T.on) }catch(e){}
       if(!T.on){ T.stop(); T.report('disableChannel',CHANNEL.SPEECH) }
-      else T.report('enableChannel',CHANNEL.SPEECH);
+      else {
+        T.report('enableChannel',CHANNEL.SPEECH);
+        // The owner has now restored the player's preference. Reporting an
+        // absent API needs no gesture and never primes or speaks a sound.
+        if(!T.supported) T.report('noCapability',CHANNEL.SPEECH);
+      }
       return T.on;
     },
     toggle(){ return T.setOn(!T.on) }
   };
   // ★ 构造时**不**报 no-api：父层还没恢复存档里的偏好，
   //   一个本来就把朗读关掉的玩家不该一进游戏就被弹「浏览器不支持朗读」。
-  //   真正用到时（unlock / speak）再判，那时才知道玩家是不是自己想听。
+  //   恢复偏好（setOn）或真正使用（unlock / speak）时再判。
   if(supported){
     T.loadVoices();
     if(typeof synth.addEventListener==='function') synth.addEventListener('voiceschanged',()=>T.loadVoices());

@@ -47,9 +47,13 @@ export function volState(vol, muted) {
 
 /* 朗读行的图标 / 状态文字 / 说明 / tooltip / 是否禁用。
    supported=false → 禁用 + 一句解释，但绝不隐藏：玩家要知道自己为什么没声音。 */
-export function voiceState(supported, on) {
+export function voiceState(supported, on, status) {
   if (!supported) {
     return { icon: '🔇', text: '不可用', note: NO_SPEECH_NOTE, title: NO_SPEECH_NOTE, disabled: true };
+  }
+  if (on && (status === 'blocked' || status === 'unsupported')) {
+    const note = '语音朗读暂未成功，可在下方「声音使用帮助」查看浏览器打开方式（不影响游戏）';
+    return { icon: '🔇', text: '暂不可用', note, title: note, disabled: false };
   }
   return on
     ? { icon: '🗣', text: '开启', note: '', title: '单词朗读：开（点击关闭）', disabled: false }
@@ -102,7 +106,7 @@ export function createAudioSettings(opts = {}) {
     refs.volBtn.title = v.title;
     refs.volVal.textContent = v.text;
 
-    const s = voiceState(!!read(tts, 'supported', false), !!read(tts, 'on', false));
+    const s = voiceState(!!read(tts, 'supported', false), !!read(tts, 'on', false), read(tts, 'status', null));
     refs.voiceBtn.textContent = s.icon;
     refs.voiceBtn.title = s.title;
     refs.voiceBtn.disabled = s.disabled;

@@ -95,7 +95,11 @@ test('the fight listen button still reads the word out and still costs a hint', 
 
 test('listening in combat re-enables voice and keeps the home setting consistent', async ({ game, page }, testInfo) => {
   newOnly(testInfo);
-  await game.open();
+  // This case verifies preference restoration with a successful interface.
+  // A headless system without a voice engine now correctly says unavailable;
+  // actual failure status is covered by wechat-voice-once.spec.js instead.
+  await game.open({ speechStub: true });
+  await page.locator('#voiceBtn').click();
   await expect(page.locator('#voiceVal')).toHaveText('已关');
   await game.start();
   await game.fight({ word: 'litre' });

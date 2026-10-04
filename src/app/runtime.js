@@ -303,7 +303,10 @@ const mutate=fn=>{
    onStatus 回调里用 ?. 读，mount 之前的状态变化只更新数据不画，
    mount 时的那次 paint() 会把最新状态补上 —— 于是不存在 TDZ，也不丢状态。 */
 let audioCompatibility=null;
-const audioCapability=createAudioCapability({onStatus:()=>{ try{ audioCompatibility&&audioCompatibility.paint() }catch(e){} }});
+const audioCapability=createAudioCapability({onStatus:()=>{
+  try{ audioCompatibility&&audioCompatibility.paint() }catch(e){}
+  try{ audioSettings&&audioSettings.paint() }catch(e){}
+}});
 
 const { AU,sfx,tone,noise,arp,pnote,audioUnlock }=createAudio({getCombo:()=> (typeof B!=='undefined'&&B&&typeof B.combo==='number')?B.combo:0, capability:audioCapability});
 addEventListener('pointerdown',audioUnlock);
@@ -1015,7 +1018,8 @@ function syncVoiceBtn(){ /* no-op：主页设置区不再是浮动层 */ }
 const audioSettings=createAudioSettings({
   /* 音量与朗读是两个完全独立的 prefs，字段仍是 DB.vol / DB.mute / DB.voice。 */
   audio:{ vol:()=>AU.vol, muted:()=>AU.muted },
-  tts:{ supported:()=>!!(TTS&&TTS.supported), on:()=>!!(TTS&&TTS.on) },
+  tts:{ supported:()=>!!(TTS&&TTS.supported), on:()=>!!(TTS&&TTS.on),
+    status:()=>audioCapability.channelState(CHANNEL.SPEECH) },
   onVolumeStep:dir=>{ volStep=(volStep+dir+VOL_STEPS.length)%VOL_STEPS.length;
     AU.setVol(VOL_STEPS[volStep]); saveVol(); audioSettings.paint(); if(!AU.muted) sfx.ui() },
   onVoiceToggle:force=>{ TTS.unlock();
@@ -1032,6 +1036,14 @@ const audioSettings=createAudioSettings({
  * ★ 绝不顺手替玩家把静音/关掉的朗读开回来 —— 那是他的偏好，不是故障。 */
 audioCompatibility=createAudioCompatibility({
   capability:audioCapability,
+  getNoticeSeen:channel=>!!(DB.audioNoticeSeen && DB.audioNoticeSeen[channel]===true),
+  onNoticeSeen:channel=>{
+    if(channel!==CHANNEL.SFX && channel!==CHANNEL.SPEECH) return;
+    const previous=DB.audioNoticeSeen;
+    if(previous && previous[channel]===true) return;
+    DB.audioNoticeSeen={...(previous && typeof previous==='object' && !Array.isArray(previous)?previous:{}),[channel]:true};
+    saveDB();commit(false);
+  },
   onRetry:()=>{ try{ AU.unlock() }catch(e){} try{ TTS.unlock() }catch(e){} }
 });
 audioCompatibility.mount($('audioCompatibility'));

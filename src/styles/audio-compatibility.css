@@ -52,6 +52,16 @@
 #audioCompatibility-root .acomp-btn:active { background: rgba(255, 255, 255, 0.2); }
 #audioCompatibility-root .acomp-btn:focus-visible { outline: 2px solid #8ab4ff; outline-offset: 2px; }
 
+#audioCompatibility .acomp-help {
+  margin-top: 10px;
+  color: #c8d1df;
+  font-size: 13px;
+  line-height: 1.5;
+}
+#audioCompatibility .acomp-help[hidden] { display: none; }
+#audioCompatibility .acomp-help summary { cursor: pointer; padding: 10px 0; }
+#audioCompatibility .acomp-help-text { padding: 6px 0; overflow-wrap: anywhere; }
+
 /* 窄屏：提示条不横向溢出，按钮各占一行更好点 */
 @media (max-width: 420px) {
   #audioCompatibility-root { font-size: 13px; }
