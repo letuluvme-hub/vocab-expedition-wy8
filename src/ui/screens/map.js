@@ -95,7 +95,8 @@ export function createMapScreen({ getRun, onEnter, onToast, onNodeSound }) {
       d.onclick = () => onToast(r.n + '：' + r.d);
       rb.appendChild(d);
     });
-    $('mTip').textContent = G.avail.length ? '有 ' + G.avail.length + ' 个可选' : '';
+    $('mTip').textContent = (G.avail.length ? '有 ' + G.avail.length + ' 个可选' : '')
+      + (G.nextHint ? ' · 开场奖励已保留：下一场战斗自动揭示首字母' : '');
     // 呼吸提示音：只在「可选节点集合真的变了」时响一次（避免 resize 重绘反复触发）
     const sig = G.avail.map(n => n.x + ',' + n.y).join('|');
     if (sig && sig !== G.availSig) { G.availSig = sig; onNodeSound(); }

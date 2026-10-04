@@ -150,6 +150,7 @@ export const BASE_PURSE_GOLD = 25;
 // ★ 计数挂在 run 上（run.whetBuys），跟着快照走 —— 否则「暂停 → 刷新 → 继续」
 //   就能把这轮买满之后重新变回 0 次，和影分身当初的漏洞是同一个形状。
 export const WHET_MAX_PER_RUN = 2;
+export const WHET_MAX_PER_MAP = 1;
 
 
 // ============ 战斗奖励经济（docs/feature-word-choice.md 第二节）============

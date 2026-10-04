@@ -244,13 +244,17 @@ test('商店：买不起时金币显示不动（没扣钱就不该显示新数�
 test('磨砺石每轮限购：买满之后既不加血也不扣钱，并如实告知', () => {
   const h = encHarness();
   h.ctrl.showShop();
-  for (let i = 0; i < 2; i++) { clickCard(h, 'shop:whet'); clearCooldown(h); }
-  assert.equal(h.G.maxhp, 90, '两次是这一轮允许的上限');
+  clickCard(h, 'shop:whet'); clearCooldown(h);
+  assert.equal(h.G.maxhp, 80, '本图只能买一次');
   const gold = h.G.gold;
   clickCard(h, 'shop:whet');
-  assert.equal(h.G.maxhp, 90, '★ 超出限购时生命上限必须停住');
+  assert.equal(h.G.maxhp, 80, '★ 超出本图限购时生命上限必须停住');
   assert.equal(h.G.gold, gold, '★ 买不成就不许扣钱');
-  assert.match(lastToast(h), /本轮|已经买过/, '必须如实告诉玩家为什么买不成');
+  assert.match(lastToast(h), /本图|已经买过/, '必须如实告诉玩家为什么买不成');
+  clearCooldown(h);h.G.whetMapBuys=0;clickCard(h,'shop:whet');clearCooldown(h);
+  assert.equal(h.G.maxhp,90,'下一图可买第二块');
+  h.G.whetMapBuys=0;const finalGold=h.G.gold;clickCard(h,'shop:whet');
+  assert.equal(h.G.maxhp,90,'整次远征仍限制两块');assert.equal(h.G.gold,finalGold);
 });
 
 test('磨砺石的限购次数跟着快照走：刷新之后不会重新归零', () => {
@@ -349,5 +353,4 @@ test('赌局：凑不出 40 金币时不能押，也不许把钱扣成负数', (
   assert.equal(h.G.gold, 10, '押不起就不该有输赢');
   assert.match(h.lastToast(), /凑不出来|不够/, '要如实说明为什么押不了');
 });
-
 

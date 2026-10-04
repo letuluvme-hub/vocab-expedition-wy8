@@ -14,7 +14,7 @@ test('焰术师六字母触发，五字母不触发，新局生命58',()=>{
  for(const [w,m] of [['apple',1],['desert',1.4],['ice-cream',1.4]]) assert.equal(heroFinisherMultiplier(r,{word:{w},wordQ:clean}),m);
 });
 test('治愈师只在新远征半血起步，掌握成长先计入上限',()=>{
- const r=make();assert.equal(r.maxhp,65);assert.equal(r.hp,33);assert.deepEqual(r.healerGrowth,{version:1,gained:0});
+ const r=make();assert.equal(r.maxhp,65);assert.equal(r.hp,33);assert.deepEqual(r.healerGrowth,{version:2,segment:1,gained:0,totalGained:0});
  const grown=make('healer',{version:2,masteredAtStart:100,bonusHp:5,bonusAttackPct:40});assert.equal(grown.hp,35);assert.equal(grown.maxhp,70);
  assert.deepEqual(heroOpeningGrant(r,{myHp:r.hp,shield:0}),{heal:10,shield:0});
  for(const h of HEROES.filter(h=>h.id!=='healer')) assert.equal(make(h.id).hp,make(h.id).maxhp);
@@ -32,7 +32,7 @@ test('逃跑、跳过、战败和旧局不获得新治愈成长；重复Boss结�
  const r=make();finishBattleNode(r,fight(r,{boss:true}));assert.equal(r.maxhp,70);finishBattleNode(r,fight(r,{boss:true}));assert.equal(r.maxhp,70);
 });
 test('治愈成长的零值、胜利值和半血原样存取，旧局缺失不补填',()=>{
- const r=make();for(const gained of [0,5,30]) {r.healerGrowth.gained=gained;r.maxhp=65+gained;r.hp=23;const enc=snapshot(r);assert.ok(enc);const d=decodeSnapshot(JSON.parse(JSON.stringify(enc)));assert.equal(d.ok,true);assert.equal(d.value.run.hp,23);assert.deepEqual(d.value.run.healerGrowth,r.healerGrowth)}
+ const r=make();for(const gained of [0,5,30]) {r.healerGrowth.gained=gained;r.healerGrowth.totalGained=gained;r.maxhp=65+gained;r.hp=23;const enc=snapshot(r);assert.ok(enc);const d=decodeSnapshot(JSON.parse(JSON.stringify(enc)));assert.equal(d.ok,true);assert.equal(d.value.run.hp,23);assert.deepEqual(d.value.run.healerGrowth,r.healerGrowth)}
  delete r.healerGrowth;const enc=snapshot(r);assert.ok(!('healerGrowth' in enc.run));const d=decodeSnapshot(enc);assert.equal(d.value.run.healerGrowth,undefined);
 });
 test('伪造治愈额度和其他角色携带治愈成长拒绝保存及恢复',()=>{

@@ -67,14 +67,35 @@ export function battleGoldBase(base, battle) {
   return amount + Math.min(Math.round(amount * (mult - 1)), ITEM_BALANCE.greedBonusCap);
 }
 
-// 只属于新开治愈师远征的版本化额度。缺失代表旧局，不能刷新补填。
+// 缺失代表早于成长技能的旧局，不能补填。v1 是旧的整次远征额度；
+// v2 同时记录当前地图和累计成长，刷新只复制额度，不重发成长。
 export function validHealerGrowth(fact) {
-  return fact !== null && typeof fact === 'object' && fact.version === 1
+  const valid = fact !== null && typeof fact === 'object' && !Array.isArray(fact)
     && Number.isSafeInteger(fact.gained) && fact.gained >= 0
     && fact.gained <= HERO_BALANCE.healerGrowthCap
     && fact.gained % HERO_BALANCE.healerWinMaxHp === 0;
+  if (!valid) return false;
+  if (fact.version === 1) return true;
+  return fact.version === 2 && Number.isSafeInteger(fact.segment) && fact.segment > 0
+    && Number.isSafeInteger(fact.totalGained) && fact.totalGained >= fact.gained
+    && fact.totalGained <= fact.segment * HERO_BALANCE.healerGrowthCap
+    && fact.totalGained - fact.gained <= (fact.segment - 1) * HERO_BALANCE.healerGrowthCap
+    && fact.totalGained % HERO_BALANCE.healerWinMaxHp === 0;
+}
+export function healerGrowthFact(run, segment = run?.campaign?.segments || 1) {
+  const fact = run?.healerGrowth;
+  if (!Number.isSafeInteger(segment) || segment < 1) return null;
+  if (run?.heroId !== 'healer' || !validHealerGrowth(fact)) return null;
+  if (fact.version === 2) return fact.segment === segment ? {...fact} : null;
+  // v1 没有每图明细。保留累计与生命，仅为已经进入的后续地图开放额度。
+  return {version:2, segment, gained:segment === 1 ? fact.gained : 0, totalGained:fact.gained};
+}
+export function advanceHealerMapGrowth(run) {
+  const segment = run?.campaign?.segments;
+  const fact = healerGrowthFact(run, segment - 1);
+  if (fact) run.healerGrowth = {...fact,segment,gained:0};
 }
 export function healerWinGrowth(run) {
-  if (run?.heroId !== 'healer' || !validHealerGrowth(run.healerGrowth)) return 0;
-  return Math.min(HERO_BALANCE.healerWinMaxHp, HERO_BALANCE.healerGrowthCap - run.healerGrowth.gained);
+  const fact = healerGrowthFact(run);
+  return fact ? Math.min(HERO_BALANCE.healerWinMaxHp, HERO_BALANCE.healerGrowthCap - fact.gained) : 0;
 }

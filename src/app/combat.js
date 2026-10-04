@@ -169,7 +169,7 @@ export function createCombatController({ state, ports }) {
       const thorn = applyDamage(B, reflect);
       floatTxt(tc.x, tc.y, '荆棘 -' + thorn.dealt, '#3ddc84');
       if (syn.thornShield) {
-        const gain = Math.min(syn.thornShield, Math.max(0, G.maxhp - B.shield));
+        const gain = Math.min(syn.thornShield, thorn.dealt, Math.max(0, G.maxhp - B.shield));
         if (gain > 0) {
           B.shield += gain;
           floatTxt(vw() / 2, vh() * 0.35, '壁垒 +' + gain, '#22d3ee');

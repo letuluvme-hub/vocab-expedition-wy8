@@ -1,4 +1,5 @@
-import { validHealerGrowth } from './hero-rules.js';
+import { healerGrowthFact } from './hero-rules.js';
+import { WHET_MAX_PER_MAP } from '../data/balance.js';
 import { validGrowthFact } from './mastery-growth.js';
 /* 版本化进度快照：纯编解码，无 DOM / 无存储 / 无全局。
  *
@@ -290,7 +291,7 @@ function encodeRun(run) {
   // growth 是**可选**字段：合法时才写这个键，缺失时**整个键都不出现**
   // （写成 undefined 经 JSON.stringify 后也会消失，但内存态与落盘态会长出
   //   两个形状，深比较会因此恒假 —— 与 outcome 字段同一处理口径）。
-  if (run.healerGrowth !== undefined) out.healerGrowth = { version: 1, gained: run.healerGrowth.gained };
+  if (run.healerGrowth !== undefined) out.healerGrowth = healerGrowthFact(run);
   const growth = encodeGrowth(run.growth);
   if (growth) out.growth = growth;
   // difficulty（清单 10）同样是**可选**：合法才写，缺失（旧 run / 旧快照）
@@ -311,6 +312,7 @@ function encodeRun(run) {
   if (prophecyUsed) out.prophecyUsed = prophecyUsed;
   const whetBuys = encodeWhetBuys(run.whetBuys);
   if (whetBuys !== undefined) out.whetBuys = whetBuys;
+  if (run.whetMapBuys !== undefined) out.whetMapBuys = run.whetMapBuys;
   const qStats = encodeQStats(run.qStats);
   if (qStats) out.qStats = qStats;
   return out;
@@ -391,7 +393,8 @@ function encodeEncounter(e) {
 export function encodeSnapshot(env, { now = Date.now() } = {}) {
   const run = env && env.run;
   if (!run || typeof run.result === 'boolean') return null;
-  if (run.healerGrowth !== undefined && (run.heroId !== 'healer' || !validHealerGrowth(run.healerGrowth))) return null;
+  if (run.whetMapBuys !== undefined && (!num(run.whetMapBuys,0,WHET_MAX_PER_MAP) || !isInt(run.whetMapBuys) || run.whetMapBuys > (run.whetBuys || 0))) return null;
+  if (run.healerGrowth !== undefined && !healerGrowthFact(run)) return null;
   if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
   // difficulty（清单 10）同理：内存态有一份解不开的难度事实时**不写整份快照**，
   //   而不是写一份缺了难度的 —— 那会让玩家刷新回来发现怪物忽然变回基线档，
@@ -470,6 +473,7 @@ function validRun(r) {
   if (r.id !== undefined && r.id !== null && typeof r.id !== 'string') return false;
   if (!num(r.hp, 0, r.maxhp) || !num(r.maxhp, 1, 9999)) return false;
   if (!num(r.shield, 0, r.maxhp)) return false;
+  if (r.whetMapBuys !== undefined && (!num(r.whetMapBuys,0,WHET_MAX_PER_MAP) || !isInt(r.whetMapBuys) || r.whetMapBuys > (r.whetBuys || 0))) return false;
   if (!isInt(r.gold) || r.gold < 0) return false;
   if (!isInt(r.floor) || r.floor < 1 || !isInt(r.maxFloor) || r.maxFloor < 1) return false;
   if (!Array.isArray(r.relics) || r.relics.some(x => !isStr(x))) return false;
@@ -494,7 +498,7 @@ function validRun(r) {
   }
   // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
   // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
-  if (r.healerGrowth !== undefined && (r.heroId !== 'healer' || !validHealerGrowth(r.healerGrowth))) return false;
+  if (r.healerGrowth !== undefined && !healerGrowthFact(r)) return false;
   if (r.growth !== undefined && r.growth !== null && !validGrowth(r.growth)) return false;
 // wordStreak / wordEventSeq 同样可选：旧快照完全没有它们是合法的（解码后
   // 回落成 0）。一旦出现就必须形状合法 —— 「count 是字符串」「序号是负数」
@@ -562,7 +566,7 @@ function decodeRun(r, byId) {
     // growth：缺失就是 undefined（旧快照），**绝不由当前 DB 或 mastered 现算补填** ——
     //   恢复必须原样尊重盘上的 maxhp，否则「中途退出重进」会白赚一次上限。
     growth: encodeGrowth(r.growth),
-    ...(r.healerGrowth !== undefined ? { healerGrowth: {version:1,gained:r.healerGrowth.gained} } : {}),
+    ...(r.healerGrowth !== undefined ? { healerGrowth: healerGrowthFact(r) } : {}),
 // 旧快照缺这两个字段 → 规范回落（0 / 空身份），绝不从当前 DB 现算。
     wordStreak: decodeWordStreak(r.wordStreak),
     wordEventSeq: validWordEventSeq(r.wordEventSeq) ? r.wordEventSeq : 0,
@@ -582,6 +586,7 @@ function decodeRun(r, byId) {
     //   默认值就是「还没用 / 还没买过」，旧存档因此照常可玩。
     prophecyUsed: r.prophecyUsed === true,
     whetBuys: validWhetBuys(r.whetBuys) ? r.whetBuys : 0,
+    ...(r.whetMapBuys !== undefined ? {whetMapBuys:r.whetMapBuys} : {}),
     hp: r.hp, maxhp: r.maxhp, shield: r.shield, gold: r.gold,
     floor: r.floor, maxFloor: r.maxFloor,
     relics: r.relics.slice(), skipFree: r.skipFree, ghostUsed: r.ghostUsed,

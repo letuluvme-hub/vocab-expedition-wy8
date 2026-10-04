@@ -1,3 +1,4 @@
+import {whetRemaining,whetMapUsed} from '../domain/whet-limit.js';
 /* 事件 / 营火 / 商店 / 战斗奖励协调器。
  *
  * 与 combat 同样的规矩：只搬流程、不改文案与数值、不改结算顺序；
@@ -52,14 +53,16 @@ export function createEncounterController({ state, ports }) {
      共用它 —— 两份实现一旦漂移，恢复后就会出现「同一个按钮两套限购」。
      限购计数挂在 run 上（run.whetBuys），跟着快照走：只活在内存里的话，
      「暂停 → 刷新 → 继续」就能把这轮买满之后重新变回 0 次。 */
+  const whetDescription = G => '生命上限 +10，并回满生命（每图限 1 次，整次远征限 ' + WHET_MAX_PER_RUN + ' 次；本图还剩 ' + whetRemaining(G) + ' 次，远征还剩 ' + Math.max(0,WHET_MAX_PER_RUN - (G.whetBuys || 0)) + ' 次）';
   function buyWhetstone() {
     const S = state.G;
     const used = S.whetBuys | 0;
     if (used >= WHET_MAX_PER_RUN) {
       return '磨砺石本轮已经买过 ' + WHET_MAX_PER_RUN + ' 次了 —— 一块石头磨不出第二把刀。';
     }
+    if (!whetRemaining(S)) return '磨砺石本图已经买过 1 次了，下一张地图才能再次购买（整次远征最多 2 次）。';
     if (S.gold < 70) return '金币不够。';            // 买不成就不扣钱、不加上限
-    S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; S.whetBuys = used + 1;
+    S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; S.whetMapBuys = whetMapUsed(S) + 1; S.whetBuys = used + 1;
     return '你更强了。';
   }
 
@@ -380,7 +383,7 @@ export function createEncounterController({ state, ports }) {
     const G = state.G;
     if (o.id === 'shop:potion') o.d = G.hp >= G.maxhp ? '生命已满，无需购买（不会扣款）' : '回复 ' + Math.min(35, G.maxhp - G.hp) + ' 点生命';
     if (o.id === 'shop:scroll') o.d = '下一场战斗 +3 次提示 · 已积累 ' + (G.shopHints || 0) + '/' + SHOP_HINT_LIMIT + ' 次（最多还能买 ' + Math.max(0, Math.floor((SHOP_HINT_LIMIT - (G.shopHints || 0)) / 3)) + ' 份）';
-    if (o.id === 'shop:whet') o.d = '生命上限 +10，并回满生命（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 ' + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）';
+    if (o.id === 'shop:whet') o.d = whetDescription(G);
     const itemId = /^shop:item:([^:]+)(?::[^:]+)?$/.exec(o.id);
     const it = itemId && ITEMS.find(i => i.id === itemId[1]);
     if (it) o.d = '每次购买 3 件 · 当前库存 ' + (G.bag[it.id] | 0) + ' 件 · 每场最多使用 ' + it.max + ' 次。' + it.d;
@@ -406,8 +409,7 @@ export function createEncounterController({ state, ports }) {
       { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币',
         d: '下一场战斗 +3 次提示（卷轴最多积累 ' + SHOP_HINT_LIMIT + ' 次）', fn: buyHintScroll },
       { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
-        d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
-          + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone }
+        d: whetDescription(G), fn: buyWhetstone }
     ];
     const av = ownedRelics(G);
     if (av.length) {
@@ -616,8 +618,7 @@ export function createEncounterController({ state, ports }) {
         { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · 40 金币',
           d: '下一场战斗 +3 次提示（卷轴最多积累 ' + SHOP_HINT_LIMIT + ' 次）', fn: buyHintScroll },
         { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · 70 金币',
-          d: '生命上限 +10 并回满（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 '
-            + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）', fn: buyWhetstone },
+          d: whetDescription(G), fn: buyWhetstone },
       ];
       // 无价格 id 是旧快照，按历史表重建；带价格的新卡已在上方解析。
       for (const r of RELICS) table.push(legacyShopRelicOption(r));
