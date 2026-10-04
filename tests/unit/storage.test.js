@@ -96,7 +96,7 @@ test('initializeDB adds empty formal evidence to legacy defaults for absent or f
     kbMode: true, kbUpper: false, voice: true,
     // 2026-10-02：主页一次性键盘提示看没看过。旧档缺这个键 → 按「还没看过」
     // 处理，让老玩家也见一次。这是一次性说明，不是数据损坏，所以默认 false。
-    keyboardTipSeen: false, dictationMastered: [], reviewQueue: [], heroStats:{words:0,cleanWords:0,kills:0,damage:0,healing:0},
+    keyboardTipSeen: false, dictationMastered: [], reviewQueue: [], heroStats:{words:0,cleanWords:0,kills:0,damage:0,healing:0},heroUnlocks:{scholar:{words:0,cleanWords:0,kills:0,damage:0,healing:0}},
   };
   for (const value of [undefined, null, false, 0, '']) {
     assert.deepEqual(initializeDB(value), expected);
@@ -119,7 +119,7 @@ test('initializeDB preserves legacy fallback rules and adds formal evidence with
   assert.equal(initializeDB(db), db);
   assert.deepEqual(db, { runs: 8, wins: 3, best: 9, mastered, custom, rewards,
     kbMode: true, kbUpper: false, voice: false, hero: 'old', vol: 0.2, mute: true, unknown,
-    keyboardTipSeen: false, dictationMastered: [], reviewQueue: [], heroStats:{words:2,cleanWords:0,kills:0,damage:0,healing:0} });
+    keyboardTipSeen: false, dictationMastered: [], reviewQueue: [], heroStats:{words:2,cleanWords:0,kills:0,damage:0,healing:0},heroUnlocks:{scholar:{words:2,cleanWords:0,kills:0,damage:0,healing:0}} });
   assert.equal(db.mastered, mastered);
   assert.equal(db.custom, custom);
   assert.equal(db.rewards, rewards);
@@ -130,7 +130,7 @@ test('initializeDB preserves legacy fallback rules and adds formal evidence with
     const sparse = { mastered: value, custom: value, rewards: value };
     assert.deepEqual(initializeDB(sparse), {
       mastered: [], custom: [], rewards: [], kbMode: true, kbUpper: false, voice: true,
-      keyboardTipSeen: false, dictationMastered: [], reviewQueue: [],heroStats:{words:0,cleanWords:0,kills:0,damage:0,healing:0},
+      keyboardTipSeen: false, dictationMastered: [], reviewQueue: [],heroStats:{words:0,cleanWords:0,kills:0,damage:0,healing:0},heroUnlocks:{scholar:{words:0,cleanWords:0,kills:0,damage:0,healing:0}},
     });
     assert.equal(Object.hasOwn(sparse, 'runs'), false);
   }
@@ -138,5 +138,5 @@ test('initializeDB preserves legacy fallback rules and adds formal evidence with
   const odd = { mastered: 'AI', custom: { keep: true }, rewards: 'not an array',
     kbMode: 0, kbUpper: 'yes', voice: 'yes' };
   assert.deepEqual(initializeDB(odd), { mastered: 'AI', custom: { keep: true }, rewards: [],
-    kbMode: false, kbUpper: true, voice: true, keyboardTipSeen: false, dictationMastered: [], reviewQueue: [],heroStats:{words:0,cleanWords:0,kills:0,damage:0,healing:0} });
+    kbMode: false, kbUpper: true, voice: true, keyboardTipSeen: false, dictationMastered: [], reviewQueue: [],heroStats:{words:0,cleanWords:0,kills:0,damage:0,healing:0},heroUnlocks:{scholar:{words:0,cleanWords:0,kills:0,damage:0,healing:0}} });
 });
