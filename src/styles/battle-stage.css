@@ -25,6 +25,9 @@
 #s-fight .bankbar,#s-fight .bank,#s-fight .tools,#s-fight #fHintShared { flex:none; }
 /* Mobile budget: compact context above, meaning in the middle, controls below. */
 @media(max-width:640px) {
+ /* Grow only with content. Shrink and scroll on short screens, while the
+    item dock and keyboard remain outside this scroll area. */
+ #s-fight .fmid {flex:0 1 auto;}
  #s-fight #fBattleStage {--pcw:46px;--pch:57px;--msw:50px;}
  #s-fight #fBattleStage .hud {margin:0;padding:2px 0 4px;}
  #s-fight #fBattleStage .hudrow + .hudrow {margin-top:3px!important;}
@@ -41,6 +44,7 @@
  #s-fight #fBattleStage .foeAtkTxt {font-size:10px;}
  #s-fight .fmid .q {margin-top:5px;padding:9px 8px;}
  #s-fight .q .zh {font-size:clamp(20px,6vw,25px);line-height:1.2;letter-spacing:.3px;}
+ #s-fight .q .zh[data-dense="true"] {font-size:clamp(16px,4.6vw,18px);line-height:1.3;letter-spacing:0;}
  #s-fight .q .cat {margin-bottom:5px;}
  #s-fight .q .tagsm {margin:2px 0;gap:3px;}
  #s-fight .q .tg {padding:1px 5px;font-size:9px;}
