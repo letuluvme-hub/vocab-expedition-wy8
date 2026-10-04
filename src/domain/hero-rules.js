@@ -66,3 +66,15 @@ export function battleGoldBase(base, battle) {
   if (typeof mult !== 'number' || !Number.isFinite(mult) || mult <= 1) return amount;
   return amount + Math.min(Math.round(amount * (mult - 1)), ITEM_BALANCE.greedBonusCap);
 }
+
+// 只属于新开治愈师远征的版本化额度。缺失代表旧局，不能刷新补填。
+export function validHealerGrowth(fact) {
+  return fact !== null && typeof fact === 'object' && fact.version === 1
+    && Number.isSafeInteger(fact.gained) && fact.gained >= 0
+    && fact.gained <= HERO_BALANCE.healerGrowthCap
+    && fact.gained % HERO_BALANCE.healerWinMaxHp === 0;
+}
+export function healerWinGrowth(run) {
+  if (run?.heroId !== 'healer' || !validHealerGrowth(run.healerGrowth)) return 0;
+  return Math.min(HERO_BALANCE.healerWinMaxHp, HERO_BALANCE.healerGrowthCap - run.healerGrowth.gained);
+}

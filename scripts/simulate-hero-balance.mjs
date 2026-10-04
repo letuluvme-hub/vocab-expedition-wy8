@@ -22,7 +22,7 @@ import { foeHpMax } from '../src/domain/foe-stats.js';
 import { wordComplete, creditWordProgress } from '../src/domain/learning.js';
 import { canFinishFight } from '../src/domain/battle-rules.js';
 import { createWordQ } from '../src/domain/word-quality.js';
-import { heroOpeningGrant, goldGainAmount, battleGoldBase } from '../src/domain/hero-rules.js';
+import { heroOpeningGrant, goldGainAmount, battleGoldBase, healerWinGrowth } from '../src/domain/hero-rules.js';
 import { deriveRoundDifficulty, scaleEnemyHealth, scaleFoeAttackProfile } from '../src/domain/round-difficulty.js';
 import { createFoeAttackFact, foeAttackProfile, advanceFoeAttack, interruptFoeAttack } from '../src/domain/foe-attack.js';
 import { createCombatController } from '../src/app/combat.js';
@@ -321,13 +321,15 @@ function simulate(hero, profile, loadout, seed) {
     }
     G.hp = B.myHp; G.shield = B.shield;
     if (!B.won) break;
+    const growth = healerWinGrowth(G);
+    if (growth) { G.maxhp += growth; G.healerGrowth.gained += growth; }
     // No final +30 boss heal: the endpoint is the combat result before post-win
     // progression/rewards. It cannot affect whether the five fights were survived.
   }
   m.survived = m.wins === encounters.length ? 1 : 0;
   m.netDamage = m.hpLost - m.healed;
   m.finalHp = G.hp; m.finalShield = G.shield; m.finalGold = G.gold;
-  assert.equal(70 + (hero.mod.hp || 0) + knowledge.bonusHp + m.maxhpAdded + m.healed - m.hpLost, G.hp,
+  assert.equal((hero.id === 'healer' ? Math.ceil((70 + (hero.mod.hp || 0) + knowledge.bonusHp) / 2) : 70 + (hero.mod.hp || 0) + knowledge.bonusHp) + m.maxhpAdded + m.healed - m.hpLost, G.hp,
     'health accounting must reconcile including max-health purchases');
   assert.equal((hero.mod.gold || 0) + m.earnedGold - m.spentGold, G.gold, 'gold accounting');
   return m;
