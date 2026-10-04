@@ -5,7 +5,7 @@ for(const width of [320,390]) test(`shop stock and purchase limits stay truthful
  await page.evaluate(()=>{const t=window.__gameTest;t.G.gold=1000;t.G.hp=t.G.maxhp-5;const n=t.G.avail[0];n.type='shop';t.enterNode(n)});
  const stone=page.locator('[data-opt="shop:whet"]'),scroll=page.locator('[data-opt="shop:scroll"]');
  await expect(page.locator('[data-opt="shop:potion"]')).toContainText('回复 5 点生命');
- await stone.click();await expect(stone).toContainText('还剩 1 次');await page.waitForTimeout(300);
+ await stone.click();await expect(stone).toContainText('本图还剩 0 次');await expect(stone).toContainText('远征还剩 1 次');await page.waitForTimeout(300);
  await stone.click();await expect(stone).toContainText('还剩 0 次');
  await scroll.click();await expect(scroll).toContainText('已积累 3/6 次');
  const item=page.locator('#rPicks [data-cat="item"]').first(),id=(await item.getAttribute('data-opt')).split(':')[2];

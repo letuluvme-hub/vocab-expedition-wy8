@@ -90,7 +90,7 @@ const HERO_OVERRIDES = {
   warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；有护盾时整词大招 +20%；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
   scout: { d: '干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。', mod: { hp: -5, noise: -2 } },
   lucky: { d: '开局多 15 金币，金币收益 +20%；每携带 50 金币整词大招 +5%（最多 +20%）；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
-  healer: { d: '新远征半血起步；每次战斗胜利生命上限 +5，本轮累计最多 +30。每场开场回复 10 生命，溢出转为最多 4 护盾；基础生命上限 -5。', mod: { hp: -5, regen: 10 } },
+  healer: { d: '新远征半血起步；每次战斗胜利生命上限 +5，每张地图最多 +30，换图保留成长并重新开放额度。每场开场回复 10 生命，溢出转为最多 4 护盾；基础生命上限 -5。', mod: { hp: -5, regen: 10 } },
   ranger: { d: '未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。', mod: { hp: -20, leech: 1 } },
 };
 test('hero balance changes only registered descriptions and modifiers; identity and voice stay unchanged', async () => {
@@ -262,6 +262,8 @@ test('page skeleton preserves approved character parts and all existing controls
   const strip = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<script(?: [^>]*)?>[\s\S]*?<\/script>/, '').replace(/<link rel="stylesheet" href="\/src\/styles\/game.css">/, '').replace(/\s+/g,' ').trim();
   const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
   const comparable = backToLegacyBattleStage(backToLegacyHomeProgress(html))
+    // 主站页脚是已授权新增；其余主页结构仍逐字比较。
+    .replace(/  <footer class="note" style="margin-top:20px;text-align:center"><a id="mainSiteLink" href="https:\/\/fangtuo.top" style="color:var\(--acc2\)">返回方拓主站 · fangtuo.top<\/a><\/footer>\r?\n/,'')
     .replace('<span class="desktopHelp">','').replace('方向键不做任何事。</span>','方向键不做任何事。')
     .replace('QWERTY / 字母序</b>（字母序按 A–Z 排）','键盘布局</b>（按电脑 QWERTY 排）')
     .replace('A–Z 字母序 ↔ 标准 QWERTY 键盘三行','乱序网格 ↔ 标准 QWERTY 键盘三行')

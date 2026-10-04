@@ -14,6 +14,7 @@
 // 撇号是拼写的一部分，绝不剥掉 —— 剥掉会把 ice cream / icecream 折叠成同一个词。
 import { generateMap } from './map.js';
 import { learningCounts, isPoolComplete } from './word-selection.js';
+import { advanceHealerMapGrowth } from './hero-rules.js';
 
 export const CUSTOM_UNIT = 0;
 
@@ -229,6 +230,8 @@ export function transitionNextUnit({ run, progress }) {
 
 /* 新学习段：重新生成地图并把楼层重置到 1，但 maxFloor（历史最好层数）不许改小。 */
 function rebuildSegment(run, random) {
+  advanceHealerMapGrowth(run);
+  run.whetMapBuys = 0;
   run.rows = generateMap(random);
   run.cur = null;
   run.node = null;

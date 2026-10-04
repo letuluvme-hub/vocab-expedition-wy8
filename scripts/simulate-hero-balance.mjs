@@ -13,6 +13,8 @@ import { HEROES } from '../src/data/heroes.js';
 import { ENEMIES, BOSS } from '../src/data/enemies.js';
 import { ITEMS } from '../src/data/items.js';
 import { HERO_BALANCE, ITEM_BALANCE } from '../src/data/hero-balance.js';
+import {applyUnitSegment} from '../src/domain/campaign.js';
+import {whetRemaining} from '../src/domain/whet-limit.js';
 import { createRun } from '../src/domain/run.js';
 import { drawLetters } from '../src/domain/letter-bank.js';
 import { norm } from '../src/domain/text.js';
@@ -22,7 +24,7 @@ import { foeHpMax } from '../src/domain/foe-stats.js';
 import { wordComplete, creditWordProgress } from '../src/domain/learning.js';
 import { canFinishFight } from '../src/domain/battle-rules.js';
 import { createWordQ } from '../src/domain/word-quality.js';
-import { heroOpeningGrant, goldGainAmount, battleGoldBase, healerWinGrowth } from '../src/domain/hero-rules.js';
+import { heroOpeningGrant, goldGainAmount, battleGoldBase, healerWinGrowth, healerGrowthFact } from '../src/domain/hero-rules.js';
 import { deriveRoundDifficulty, scaleEnemyHealth, scaleFoeAttackProfile } from '../src/domain/round-difficulty.js';
 import { createFoeAttackFact, foeAttackProfile, advanceFoeAttack, interruptFoeAttack } from '../src/domain/foe-attack.js';
 import { createCombatController } from '../src/app/combat.js';
@@ -37,6 +39,7 @@ const numericArg = (key, fallback, minimum = 1) => {
 };
 const seedCount = numericArg('seeds', 256);
 const round = numericArg('round', 1);
+const segments = numericArg('segments', 1);
 const masteredCount = Math.min(259,numericArg('mastered',0,0));
 const knowledge = growthSummary(WORDS.slice(0,masteredCount).map(w=>w.w),WORDS);
 const profiles = [
@@ -47,10 +50,11 @@ const profiles = [
   { id: 'frequent', name: '频繁错误', uncertainWordRate: .70, secondClusterRate: .70,
     recallMinMs: 4000, recallSpanMs: 14000, letterMs: 800 },
 ];
-const encounters = [
+const mapEncounters = [
   { floor: 1, kind: 'normal' }, { floor: 3, kind: 'normal' },
   { floor: 5, kind: 'elite' }, { floor: 7, kind: 'normal' }, { floor: 9, kind: 'boss' },
 ];
+const encounters = Array.from({length:segments},()=>mapEncounters).flat();
 const loadouts = [
   { id: 'bare', name: '裸装、无补给' },
   { id: 'supply', name: '开局补给＋两次固定商店' },
@@ -207,7 +211,7 @@ function simulate(hero, profile, loadout, seed) {
   } });
   function visitShop() {
     encounterController.showShop();
-    const id = G.gold >= 70 && G.whetBuys < 2 ? 'shop:whet'
+    const id = G.gold >= 70 && whetRemaining(G) > 0 ? 'shop:whet'
       : G.gold >= 45 && G.maxhp - G.hp >= 15 ? 'shop:potion' : null;
     if (!id) return;
     const button = view.$('rPicks').children.find(value => value.dataset.opt === id);
@@ -244,7 +248,8 @@ function simulate(hero, profile, loadout, seed) {
     }
   }
   for (battleIndex = 0; battleIndex < encounters.length; battleIndex++) {
-    if (loadout.id === 'supply' && [2, 4].includes(battleIndex)) visitShop();
+    if (battleIndex > 0 && battleIndex % mapEncounters.length === 0) applyUnitSegment(G,{random:rng(mix(seed,battleIndex,0,31))});
+    if (loadout.id === 'supply' && [2,4].includes(battleIndex % mapEncounters.length)) visitShop();
     const { floor, kind } = encounters[battleIndex];
     G.floor = floor; G.maxFloor = floor;
     const boss = kind === 'boss', elite = kind === 'elite';
@@ -322,11 +327,12 @@ function simulate(hero, profile, loadout, seed) {
     G.hp = B.myHp; G.shield = B.shield;
     if (!B.won) break;
     const growth = healerWinGrowth(G);
-    if (growth) { G.maxhp += growth; G.healerGrowth.gained += growth; }
+    if (growth) { G.healerGrowth = healerGrowthFact(G); G.maxhp += growth; G.healerGrowth.gained += growth; G.healerGrowth.totalGained += growth; }
     // No final +30 boss heal: the endpoint is the combat result before post-win
     // progression/rewards. It cannot affect whether the five fights were survived.
   }
   m.survived = m.wins === encounters.length ? 1 : 0;
+  m.finalMaxhp = G.maxhp; m.healerGrowth = G.healerGrowth?.totalGained || 0;
   m.netDamage = m.hpLost - m.healed;
   m.finalHp = G.hp; m.finalShield = G.shield; m.finalGold = G.gold;
   assert.equal((hero.id === 'healer' ? Math.ceil((70 + (hero.mod.hp || 0) + knowledge.bonusHp) / 2) : 70 + (hero.mod.hp || 0) + knowledge.bonusHp) + m.maxhpAdded + m.healed - m.hpLost, G.hp,
@@ -341,7 +347,7 @@ const sourceFiles = ['src/app/combat.js', 'src/app/encounters.js', 'src/app/runt
   'src/data/heroes.js', 'src/data/hero-balance.js', 'src/data/items.js', 'src/domain/hero-rules.js',
   'src/domain/damage.js', 'src/domain/foe-stats.js', 'src/domain/foe-attack.js',
   'src/domain/round-difficulty.js', 'src/domain/run.js', 'src/domain/letter-bank.js',
-  'src/data/balance.js', 'src/domain/mastery-growth.js', 'scripts/simulate-hero-balance.mjs'];
+  'src/data/balance.js', 'src/domain/campaign.js', 'src/domain/whet-limit.js', 'src/domain/mastery-growth.js', 'scripts/simulate-hero-balance.mjs'];
 async function fingerprint() {
   const hash = createHash('sha256');
   for (const path of sourceFiles) hash.update(path).update(await readFile(new URL(`../${path}`, import.meta.url)));
@@ -365,7 +371,7 @@ for (const loadout of loadouts) for (const profile of profiles) for (const hero 
       rangerCapBattles: totals.rangerCapBattles, warriorCapBattles: totals.warriorCapBattles } });
 }
 assert.equal(await fingerprint(), sourceFingerprint, 'source changed during the simulation; rerun to get a valid report');
-const report = { simulation: 'controlled-five-fight-survival-not-full-map-clear-rate', seedCount,
+const report = { simulation: 'controlled-continuous-fights-not-full-map-clear-rate', segments, seedCount,
   seedRange: [0, seedCount - 1], round, masteredCount, knowledge, textbookEntries: WORDS.length,
   sourceFingerprint, profiles, encounters, rows };
 const f = value => value.toFixed(1);

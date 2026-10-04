@@ -2,7 +2,7 @@
 // 纯规则：不读 window / localStorage / 全局 G·B·DB，也不写任何 UI。
 // 搬自 runtime.js 的 newRun / buildMap 的状态部分 / advance / finishNode / endRun，
 // G/B/DB 换成显式参数，DOM 与存档写入留给调用方。
-import { healerWinGrowth } from './hero-rules.js';
+import { healerWinGrowth, healerGrowthFact } from './hero-rules.js';
 import { validGrowthFact } from './mastery-growth.js';
 import { clamp } from './math.js';
 import { generateMap } from './map.js';
@@ -62,7 +62,7 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
   const maxhp = baseMaxhp + bonus;         // ★ 成长只在这里加一次，之后本局不再重算
   const run = {
     unit, hp: hero?.id === 'healer' ? Math.ceil(maxhp / 2) : maxhp, maxhp,
-    ...(hero?.id === 'healer' ? { healerGrowth: { version: 1, gained: 0 } } : {}),
+    ...(hero?.id === 'healer' ? { healerGrowth: { version: 2, segment: 1, gained: 0, totalGained: 0 } } : {}),
     id: 'R' + (++RUN_SEQ).toString(36),     // 诊断标识：区分这一次和上一次远征
     countedStart: false,                    // 远征次数是否已记（同一 run 只能记一次）
     clearedRun: false,                      // 通关次数是否已记（同一 run 只能记一次）
@@ -118,6 +118,7 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     //   只活在内存里的话，刷新一次就能把买满一轮重新变回 0 次。
     //   0 与「缺失」同义，落盘时两者都不写这个键。
     whetBuys: 0,
+    whetMapBuys: 0,
     pool: (pool || []).slice(), kills: 0, att: 0, attOk: 0,
     qStats: createQStats(),
     // ★ 完整词连胜（docs/feature-word-streak.md）：**run 级**的计数与事件序号。
@@ -213,9 +214,12 @@ export function finishBattleNode(run, battle, db) {
   // ★ 先占住「本段已结算」再做任何副作用：即使后面抛错，重复回调也不会再发一次。
   if (battle.boss && battle.won) run.clearedSegment = true;
   battle.finished = true;
-  // finished / 段结算守卫先占位；只有真实胜利领取一次本轮成长。
+  // finished / 段结算守卫先占位；只有真实胜利领取一次本图成长。
   const growth = battle.won === true ? healerWinGrowth(run) : 0;
-  if (growth) { run.maxhp += growth; run.healerGrowth.gained += growth; }
+  if (growth) {
+    run.healerGrowth = healerGrowthFact(run);
+    run.maxhp += growth; run.healerGrowth.gained += growth; run.healerGrowth.totalGained += growth;
+  }
   const n = battle.node;
   if (n) n.done = true;
   run.hp = clamp(battle.myHp, 1, run.maxhp);   // 战斗中的生命结转回远征状态

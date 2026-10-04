@@ -118,6 +118,14 @@ test('荆棘壁垒的反弹照样打不死敌人 —— 组合技不许绕过「
   assert.equal(h.B.over, false, '半路绝不能判胜');
 });
 
+test('荆棘壁垒只转换实际反弹伤害，敌人一血时不凭空发盾', () => {
+  for (const [enemyHp, gain] of [[1,0],[3,2],[200,4]]) {
+    const h = harness({relics:['shield','thorn'],shield:10});h.B.enHp=enemyHp;
+    h.combat.pressKey(WRONG);
+    assert.equal(h.B.shield,gain, '原护盾先承受12点惩罚，回盾不超过实际反弹');
+  }
+});
+
 /* ---------------- 连击共鸣（combo + focus） ---------------- */
 
 test('只有专注头环：连击保留一半，但保留的连击不会变成伤害', () => {

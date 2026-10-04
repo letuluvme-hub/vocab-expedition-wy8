@@ -86,6 +86,12 @@ for (const restored of [false, true]) {
   });
 }
 
+test('同图第二块磨砺石不扣钱、不回满、不增加上限',()=>{
+ const h=harness();h.ctrl.showShop();h.click('shop:whet');h.G.hp=10;
+ const before=[h.G.gold,h.G.maxhp,h.G.hp];h.click('shop:whet');
+ assert.deepEqual([h.G.gold,h.G.maxhp,h.G.hp],before);
+});
+
 test('旧存档提示超过6次保留原数值；不能购买越过上限的半份卷轴', () => {
   for (const hints of [5, 6, 600]) {
     const h = harness();
@@ -256,7 +262,7 @@ for (const restored of [false, true]) {
     if (restored) h.ctrl.reopenEncounter(serialized(h.desc()));
     assert.match(h.button('shop:potion').innerHTML, /回复 5 点生命/);
     h.click('shop:whet');
-    assert.match(h.button('shop:whet').innerHTML, /还剩 1 次/);
+    assert.match(h.button('shop:whet').innerHTML, /本图还剩 0 次，远征还剩 1 次/);
     h.click('shop:whet');
     assert.match(h.button('shop:whet').innerHTML, /还剩 0 次/);
     const gold=h.G.gold; h.click('shop:whet'); assert.equal(h.G.gold,gold);

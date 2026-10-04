@@ -87,7 +87,7 @@ export function sampleRelicsWeighted(pool, count, rnd = Math.random) {
 export const SYNERGIES = [
   {
     id: 'thornwall', ic: '🌵', n: '荆棘壁垒', need: ['shield', 'thorn'],
-    d: '荆棘反弹提高到 8 点，并把其中 4 点转成护盾 —— 挨打本身变成回盾的循环',
+    d: '荆棘反弹提高到 8 点，实际反弹伤害中最多 4 点转成护盾；敌人剩 1 血时不回盾',
   },
   {
     id: 'resonance', ic: '⚡', n: '连击共鸣', need: ['combo', 'focus'],
