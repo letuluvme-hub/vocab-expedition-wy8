@@ -1,3 +1,4 @@
+import {initializeHeroProgress} from '../domain/hero-unlocks.js';
 export const STORAGE_KEY = 'wy8a_rogue_v1';
 
 // Additive migration: old practice evidence is retained, never grandfathered as
@@ -19,6 +20,7 @@ export function initializeDB(db) {
   //   旧档没有这个键 —— 按「还没看过」处理，让老玩家也见一次。
   //   这是**一次性说明**，不是数据损坏，所以默认 false 而不是 fail closed。
   db.keyboardTipSeen = !!db.keyboardTipSeen;
+  initializeHeroProgress(db);
   return db;
 }
 

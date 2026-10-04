@@ -57,6 +57,7 @@ const ADDED = [
   ['./battle-details.css', /^#s-fight\b/, '战斗详情与常驻道具'],
   ['./home-start.css', /^#s-title\b/, '主页开始与一次性引导'],
   ['./desktop-battle.css', /^#s-fight\b|^#app\b/, '电脑战斗分区'],
+  ['./hero-unlocks.css', /^#heroes\b/, '角色解锁进度'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

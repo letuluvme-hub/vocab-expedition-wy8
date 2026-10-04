@@ -25,7 +25,8 @@ import { pickCardHTML, CAT_LABEL } from '../ui/components/pick-card.js';
 
 export function createEncounterController({ state, ports }) {
   const { $, clamp, pick, shuffle, rnd, has, hasR, goldGain, applyRelicInit, sfx, toast,
-    advance, endRun, finishNode, show, scheduleRun, scheduleBattle } = ports;
+    advance, endRun, finishNode, show, scheduleRun, scheduleBattle, onHeal=()=>{} } = ports;
+  const healRun=(run,amount)=>{const heal=Math.max(0,Math.min(amount,run.maxhp-run.hp));run.hp+=heal;onHeal(heal)};
   // 造按钮的入口：Node 测试没有全局 document，所以走 ports 注入；浏览器里退回 document。
   const makeButton = ports.makeButton || (() => document.createElement('button'));
   // 暂停/恢复接线：把「当前展开的界面」交给 runtime 存进快照。
@@ -62,7 +63,7 @@ export function createEncounterController({ state, ports }) {
     }
     if (!whetRemaining(S)) return '磨砺石本图已经买过 1 次了，下一张地图才能再次购买（整次远征最多 2 次）。';
     if (S.gold < 70) return '金币不够。';            // 买不成就不扣钱、不加上限
-    S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; S.whetMapBuys = whetMapUsed(S) + 1; S.whetBuys = used + 1;
+    onHeal(Math.max(0,S.maxhp-S.hp));S.gold -= 70; S.maxhp += 10; S.hp = S.maxhp; S.whetMapBuys = whetMapUsed(S) + 1; S.whetBuys = used + 1;
     return '你更强了。';
   }
 
@@ -72,7 +73,7 @@ export function createEncounterController({ state, ports }) {
     if (S.gold < 45) return '金币不够。';
     if (S.hp >= S.maxhp) return '生命已满，无需购买疗伤药。';
     S.gold -= 45;
-    S.hp = Math.min(S.maxhp, S.hp + 35);
+    healRun(S,35);
     return '伤口愈合了。';
   }
 
@@ -128,7 +129,7 @@ export function createEncounterController({ state, ports }) {
     return { id, cat: 'heal', ic: '💚', t: '恢复生命', d: '回复 ' + amount + ' 点生命', fn: () => {
       const S = state.G, b = state.B;
       // 战斗生命是结转来源；写 G.hp 会被 finishNode 覆盖。
-      b.myHp = Math.min(S.maxhp, b.myHp + amount);
+      const heal=Math.max(0,Math.min(amount,S.maxhp-b.myHp));b.myHp+=heal;onHeal(heal);
       finishNode();
     } };
   }
@@ -172,13 +173,13 @@ export function createEncounterController({ state, ports }) {
     ] },
     { ic: '⛲', t: '神秘泉水', x: '一股清泉从石缝涌出，水面泛着微微的光。', o: [
       { id: 'spring:drink', cat: 'heal', ic: '💚', t: '喝一口', d: '回复 25 点生命', fn: () => {
-        const G = state.G; G.hp = Math.min(G.maxhp, G.hp + 25); return '伤口愈合了。';
+        const G = state.G; healRun(G,25); return '伤口愈合了。';
       } },
       { id: 'spring:flask', cat: 'boost', ic: '🔮', t: '灌满水壶', d: '获得 2 次免费提示（下一场战斗）', fn: () => {
         const G = state.G; G.nextHint = (G.nextHint || 0) + 2; return '水壶泛着微光，下场战斗会帮你。';
       } },
       { id: 'spring:bottle', cat: 'heal', ic: '🥾', t: '装进瓶子带走', d: '回复 10 点生命', fn: () => {
-        const G = state.G; G.hp = Math.min(G.maxhp, G.hp + 10); return '你还是带了点水。';
+        const G = state.G; healRun(G,10); return '你还是带了点水。';
       } }
     ] },
     { ic: '⚔️', t: '老兵的剑', x: '一位老兵递给你一把剑：「会用吗？」', o: [
@@ -192,7 +193,7 @@ export function createEncounterController({ state, ports }) {
     { ic: '📚', t: '遗忘之书', x: '一本书在你面前打开，书页上全是单词，却一个都读不懂。', o: [
       { id: 'book:study', cat: 'relic', ic: '🧠', t: '认真研读', d: '当前战斗下次的拼写正确率提升：回复 20 生命并获得遗物', fn: () => {
         const G = state.G;
-        G.hp = Math.min(G.maxhp, G.hp + 20);
+        healRun(G,20);
         const av = ownedRelics(G);
         if (av.length) {
           const r = drawRelic(av);
@@ -204,7 +205,7 @@ export function createEncounterController({ state, ports }) {
         return '你读懂了更多，知识就是力量。';
       } },
       { id: 'book:rest', cat: 'heal', ic: '😴', t: '合上书休息', d: '回复 15 点生命', fn: () => {
-        const G = state.G; G.hp = Math.min(G.maxhp, G.hp + 15); return '小憩片刻。';
+        const G = state.G; healRun(G,15); return '小憩片刻。';
       } }
     ] },
     { ic: '🎲', t: '命运的赌局', x: '一个蒙面人推来一枚硬币：「猜正反，赢了钱翻倍，输了归我。」', o: [
@@ -231,7 +232,7 @@ export function createEncounterController({ state, ports }) {
       { id: 'wisp:candy', cat: 'heal', ic: '🍬', t: '给它一颗糖', d: '花费 20 金币，获得 12 点生命', fn: () => {
         const G = state.G;
         if (G.gold < 20) return '你金币不够。';
-        G.gold -= 20; G.hp = Math.min(G.maxhp, G.hp + 12);
+        G.gold -= 20; healRun(G,12);
         return '它带你找到了一条捷径，你感觉好多了。';
       } },
       { id: 'wisp:teach', cat: 'event', ic: '📖', t: '教它拼写', d: '获得 30 金币的「学费」', fn: () => {
@@ -320,11 +321,11 @@ export function createEncounterController({ state, ports }) {
     const av = ownedRelics(G);
     const opts = [
       { id: 'rest:heal', cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
-        const R = state.G; R.hp = Math.min(R.maxhp, R.hp + healAmt); return '你睡了个好觉。';
+        const R = state.G; healRun(R,healAmt); return '你睡了个好觉。';
       } },
       { id: 'rest:map', cat: 'event', ic: '🧭', t: '研究地图', d: '回复 6 点生命并获得 40 金币', fn: () => {
         const R = state.G;
-        R.hp = Math.min(R.maxhp, R.hp + 6);
+        healRun(R,6);
         R.gold = goldGain(40);
         return '你规划了路线，还捡到了钱。';
       } }
@@ -590,10 +591,10 @@ export function createEncounterController({ state, ports }) {
       const healAmt = hasR('forge') ? 20 : 12;
       table = [
         { id: 'rest:heal', cat: 'heal', ic: '💚', t: '休息', d: '回复 ' + healAmt + ' 点生命', fn: () => {
-          const R = state.G; R.hp = Math.min(R.maxhp, R.hp + healAmt); return '你睡了个好觉。';
+          const R = state.G; healRun(R,healAmt); return '你睡了个好觉。';
         } },
         { id: 'rest:map', cat: 'event', ic: '🧭', t: '研究地图', d: '回复 6 点生命并获得 40 金币', fn: () => {
-          const R = state.G; R.hp = Math.min(R.maxhp, R.hp + 6); R.gold = goldGain(40);
+          const R = state.G; healRun(R,6); R.gold = goldGain(40);
           return '你规划了路线，还捡到了钱。';
         } },
       ];

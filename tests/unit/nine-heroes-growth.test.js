@@ -28,7 +28,7 @@ test('角色进攻条件：护盾、金币、半血、长词、无帮助与残�
  assert.equal(heroFinisherMultiplier(run('assassin'),battle({enHp:350})),1.6);
  for(const field of ['wrong','hint','listen','revealed'])assert.equal(heroFinisherMultiplier(run('assassin'),battle({wordQ:{...createWordQ(),[field]:1}})),1);
  assert.equal(heroFinisherMultiplier(run('assassin'),battle({wordQ:undefined})),1);
- assert.equal(heroFinisherMultiplier(run('scholar'),battle()),1.15);
+ assert.equal(heroFinisherMultiplier(run('scholar'),battle()),1);
 });
 test('攻击成长：每10教材掌握词+4%，150词封顶60%，去重及自定义词无收益',()=>{
  for(const [n,pct] of [[0,0],[9,0],[10,4],[20,8],[100,40],[150,60],[259,60]])assert.equal(growthSummary(WORDS.slice(0,n).map(w=>w.w),WORDS).bonusAttackPct,pct);

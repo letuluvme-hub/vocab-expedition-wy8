@@ -116,7 +116,7 @@ export function equipmentModel(G, B) {
   if (bat && hero.id === 'ranger') heroStatus = '本场已回血 ' + (bat.heroHealed || 0) + '/' + HERO_BALANCE.rangerBattleHealCap;
   if (bat && hero.id === 'warrior') heroStatus = '本场已获得守势护盾 ' + (bat.heroShieldGained || 0) + '/' + HERO_BALANCE.warriorBattleShieldCap;
   if (bat && hero.id === 'scout') heroStatus = (bat.wordsDone || 0) === 0 ? '先手大招待触发' : '本场先手大招已用';
-  if (bat && ['scholar','warrior','lucky','berserker','pyromancer','assassin'].includes(hero.id)) heroStatus += (heroStatus ? ' · ' : '') + '本词当前大招加成 +' + Math.round((heroFinisherMultiplier(run,bat) - 1) * 100) + '%';
+  if (bat && ['warrior','lucky','berserker','pyromancer','assassin'].includes(hero.id)) heroStatus += (heroStatus ? ' · ' : '') + '本词当前大招加成 +' + Math.round((heroFinisherMultiplier(run,bat) - 1) * 100) + '%';
   if (hero.id === 'healer') heroStatus = run.healerGrowth ? '本图成长 +' + run.healerGrowth.gained + '/' + HERO_BALANCE.healerGrowthCap + ' 生命上限 · 远征累计 +' + (run.healerGrowth.totalGained ?? run.healerGrowth.gained) : '本轮沿用旧局能力，无胜利成长';
   if (saved) heroLines.push('基础属性沿用本轮开局记录');
   return { hero, heroLines, heroStatus, relics, synergies, items, ghost, shield, count: 1 + relics.length + items.length };

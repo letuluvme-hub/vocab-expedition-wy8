@@ -2,7 +2,7 @@ import { test, expect } from './game-harness.js';
 const newOnly = info => test.skip(info.project.metadata.target === 'legacy', 'New balance rules');
 
 for (const [hero, hp, hints] of [
-  ['scholar', 60, 4], ['warrior', 85, 2], ['scout', 65, 3],
+  ['scholar', 80, 5], ['warrior', 85, 2], ['scout', 65, 3],
   ['lucky', 65, 3], ['healer', 65, 3], ['ranger', 50, 3],
 ]) {
   test(`${hero} starts with the displayed life and hint tradeoff`, async ({ game, page }, info) => {

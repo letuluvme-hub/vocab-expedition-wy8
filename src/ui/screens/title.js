@@ -9,7 +9,7 @@ import { renderRewardCard } from '../components/reward-card.js';
 import { canonicalMasteryKeys } from '../../domain/mastery-growth.js';
 
 export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHero, onUnit,
-  getBook=()=>DEFAULT_BOOK_ID, onBook }) {
+  getBook=()=>DEFAULT_BOOK_ID, onBook, getHeroUnlock }) {
   const $ = id => document.getElementById(id);
 
   /* 单元解锁（docs/feature-campaign.md）。getCampaign 不注入时**退回旧行为**：
@@ -22,15 +22,23 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
 
   function renderHeroes() {
     const box = $('heroes'); if (!box) return;
-    const sel = heroById(getDB().hero || HERO_DEFAULT).id;
+    const roleState=id=>getHeroUnlock?getHeroUnlock(id):{unlocked:true,requirements:[]};
+    const chosen=heroById(getDB().hero||HERO_DEFAULT).id;
+    const sel=roleState(chosen).unlocked?chosen:HERO_DEFAULT;
     box.innerHTML = '';
     HEROES.forEach(H => {
       const b = document.createElement('button');
       b.className = 'hcard' + (H.id === sel ? ' sel' : '');
+      const unlock=roleState(H.id);
+      b.setAttribute('data-hero',H.id);
       b.type = 'button';
       b.setAttribute('aria-pressed', H.id === sel ? 'true' : 'false');
       b.innerHTML = pcHTML(H.id) + '<b>' + H.n + '</b><span class="hs">' + heroStatLines(H).join('<br>') + '</span>';
-      b.onclick = () => { onHero(H.id); renderHeroes() };
+      const status=document.createElement('span');status.className='heroUnlock';
+      status.textContent=H.id==='scholar'?'初始角色 · 开荒推荐':unlock.unlocked?'已解锁':unlock.requirements.map(r=>r.label+' '+Math.min(r.current,r.target)+'/'+r.target).join(' · ');
+      b.appendChild(status);if(!unlock.unlocked)b.className+=' heroLocked';b.disabled=!unlock.unlocked;
+      b.title=H.d+(unlock.unlocked?'':'\n解锁条件：'+status.textContent);
+      if(unlock.unlocked)b.onclick = () => { onHero(H.id); renderHeroes() };
       box.appendChild(b);
     });
     const cur = heroById(sel);

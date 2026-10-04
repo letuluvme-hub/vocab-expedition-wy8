@@ -1,6 +1,6 @@
 export const HEROES=[
- {id:'scholar', n:'学者',   tag:'读万卷书', d:'每场多 1 次提示，主动提示一次揭示 2 个字母；无错误、无帮助的整词大招 +15%；生命上限 -10。',
-  mod:{hp:-10, hint:+1}, voice:{rate:0.85, pitch:1.05, prefer:'female'}},
+ {id:'scholar', n:'学者',   tag:'读万卷书', d:'生命上限 +10；每场多 2 次提示，主动提示一次揭示 2 个字母。适合第一次远征和学习新词。',
+  mod:{hp:+10, hint:+2}, voice:{rate:0.85, pitch:1.05, prefer:'female'}},
  {id:'warrior', n:'战士',   tag:'一人成军', d:'生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；有护盾时整词大招 +20%；每场少 1 次提示。',
   mod:{hp:+15, hint:-1}, voice:{rate:1.0,  pitch:0.6,  prefer:'male'}},
  {id:'scout',   n:'探险家', tag:'不走弯路', d:'干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。',

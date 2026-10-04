@@ -1,3 +1,4 @@
+import {availableHeroId} from '../../domain/hero-unlocks.js';
 import {bookById} from '../../data/books.js';
 import {heroById,HERO_DEFAULT} from './hero.js';
 
@@ -26,7 +27,7 @@ export function createHomeStart({getDB,getBook,getUnit,allWords,onDismiss}){
  function paint(){
   build();if(!row)return;
   const db=getDB(),unit=getUnit();
-  range.textContent='当前：'+bookById(getBook()).short+' · '+(unit===0?'我的词表':'Unit '+unit)+' · '+allWords(unit).length+' 词 · '+heroById(db.hero||HERO_DEFAULT).n;
+  range.textContent='当前：'+bookById(getBook()).short+' · '+(unit===0?'我的词表':'Unit '+unit)+' · '+allWords(unit).length+' 词 · '+heroById(availableHeroId(db,db.hero||HERO_DEFAULT)).n;
   guide.hidden=db.homeTutorialSeen===true&&!manual;
   const sub=$('s-title').querySelector('.sub');sub.textContent='看中文，拼英文，让你的角色出招打怪。';
  }
