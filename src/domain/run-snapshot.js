@@ -1,3 +1,4 @@
+import { validHealerGrowth } from './hero-rules.js';
 import { validGrowthFact } from './mastery-growth.js';
 /* 版本化进度快照：纯编解码，无 DOM / 无存储 / 无全局。
  *
@@ -289,6 +290,7 @@ function encodeRun(run) {
   // growth 是**可选**字段：合法时才写这个键，缺失时**整个键都不出现**
   // （写成 undefined 经 JSON.stringify 后也会消失，但内存态与落盘态会长出
   //   两个形状，深比较会因此恒假 —— 与 outcome 字段同一处理口径）。
+  if (run.healerGrowth !== undefined) out.healerGrowth = { version: 1, gained: run.healerGrowth.gained };
   const growth = encodeGrowth(run.growth);
   if (growth) out.growth = growth;
   // difficulty（清单 10）同样是**可选**：合法才写，缺失（旧 run / 旧快照）
@@ -389,6 +391,7 @@ function encodeEncounter(e) {
 export function encodeSnapshot(env, { now = Date.now() } = {}) {
   const run = env && env.run;
   if (!run || typeof run.result === 'boolean') return null;
+  if (run.healerGrowth !== undefined && (run.heroId !== 'healer' || !validHealerGrowth(run.healerGrowth))) return null;
   if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
   // difficulty（清单 10）同理：内存态有一份解不开的难度事实时**不写整份快照**，
   //   而不是写一份缺了难度的 —— 那会让玩家刷新回来发现怪物忽然变回基线档，
@@ -491,6 +494,7 @@ function validRun(r) {
   }
   // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
   // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
+  if (r.healerGrowth !== undefined && (r.heroId !== 'healer' || !validHealerGrowth(r.healerGrowth))) return false;
   if (r.growth !== undefined && r.growth !== null && !validGrowth(r.growth)) return false;
 // wordStreak / wordEventSeq 同样可选：旧快照完全没有它们是合法的（解码后
   // 回落成 0）。一旦出现就必须形状合法 —— 「count 是字符串」「序号是负数」
@@ -558,6 +562,7 @@ function decodeRun(r, byId) {
     // growth：缺失就是 undefined（旧快照），**绝不由当前 DB 或 mastered 现算补填** ——
     //   恢复必须原样尊重盘上的 maxhp，否则「中途退出重进」会白赚一次上限。
     growth: encodeGrowth(r.growth),
+    ...(r.healerGrowth !== undefined ? { healerGrowth: {version:1,gained:r.healerGrowth.gained} } : {}),
 // 旧快照缺这两个字段 → 规范回落（0 / 空身份），绝不从当前 DB 现算。
     wordStreak: decodeWordStreak(r.wordStreak),
     wordEventSeq: validWordEventSeq(r.wordEventSeq) ? r.wordEventSeq : 0,

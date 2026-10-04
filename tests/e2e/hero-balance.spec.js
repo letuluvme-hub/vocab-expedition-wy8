@@ -9,7 +9,7 @@ for (const [hero, hp, hints] of [
     newOnly(info); await game.open({ saved: { hero } }); await game.start();
     await game.fight({ word: 'litre' });
     expect(await page.evaluate(() => [window.__gameTest.G.maxhp, window.__gameTest.B.hints])).toEqual([hp, hints]);
-    if (hero === 'healer') expect((await game.state()).B.shield).toBe(4);
+    if (hero === 'healer') {expect((await game.state()).B.shield).toBe(0);expect((await game.state()).B.myHp).toBe(43);}
     if (hero === 'warrior') {
       await page.keyboard.type('litre'); expect((await game.state()).B.shield).toBe(2);
     }

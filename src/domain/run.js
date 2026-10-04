@@ -2,6 +2,7 @@
 // 纯规则：不读 window / localStorage / 全局 G·B·DB，也不写任何 UI。
 // 搬自 runtime.js 的 newRun / buildMap 的状态部分 / advance / finishNode / endRun，
 // G/B/DB 换成显式参数，DOM 与存档写入留给调用方。
+import { healerWinGrowth } from './hero-rules.js';
 import { validGrowthFact } from './mastery-growth.js';
 import { clamp } from './math.js';
 import { generateMap } from './map.js';
@@ -60,7 +61,8 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
   const bonus = g ? g.bonusHp : 0;
   const maxhp = baseMaxhp + bonus;         // ★ 成长只在这里加一次，之后本局不再重算
   const run = {
-    unit, hp: maxhp, maxhp,
+    unit, hp: hero?.id === 'healer' ? Math.ceil(maxhp / 2) : maxhp, maxhp,
+    ...(hero?.id === 'healer' ? { healerGrowth: { version: 1, gained: 0 } } : {}),
     id: 'R' + (++RUN_SEQ).toString(36),     // 诊断标识：区分这一次和上一次远征
     countedStart: false,                    // 远征次数是否已记（同一 run 只能记一次）
     clearedRun: false,                      // 通关次数是否已记（同一 run 只能记一次）
@@ -211,6 +213,9 @@ export function finishBattleNode(run, battle, db) {
   // ★ 先占住「本段已结算」再做任何副作用：即使后面抛错，重复回调也不会再发一次。
   if (battle.boss && battle.won) run.clearedSegment = true;
   battle.finished = true;
+  // finished / 段结算守卫先占位；只有真实胜利领取一次本轮成长。
+  const growth = battle.won === true ? healerWinGrowth(run) : 0;
+  if (growth) { run.maxhp += growth; run.healerGrowth.gained += growth; }
   const n = battle.node;
   if (n) n.done = true;
   run.hp = clamp(battle.myHp, 1, run.maxhp);   // 战斗中的生命结转回远征状态

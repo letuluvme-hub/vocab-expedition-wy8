@@ -1,0 +1,20 @@
+import {test,expect} from './game-harness.js';
+for(const width of [320,390]) test(`shop stock and purchase limits stay truthful after buying and refreshing at ${width}px`,async({game,page},info)=>{
+ test.skip(info.project.metadata.target==='legacy','Live shop stock belongs to the current game');
+ await page.setViewportSize({width,height:844});await game.open();await game.start();
+ await page.evaluate(()=>{const t=window.__gameTest;t.G.gold=1000;t.G.hp=t.G.maxhp-5;const n=t.G.avail[0];n.type='shop';t.enterNode(n)});
+ const stone=page.locator('[data-opt="shop:whet"]'),scroll=page.locator('[data-opt="shop:scroll"]');
+ await expect(page.locator('[data-opt="shop:potion"]')).toContainText('回复 5 点生命');
+ await stone.click();await expect(stone).toContainText('还剩 1 次');await page.waitForTimeout(300);
+ await stone.click();await expect(stone).toContainText('还剩 0 次');
+ await scroll.click();await expect(scroll).toContainText('已积累 3/6 次');
+ const item=page.locator('#rPicks [data-cat="item"]').first(),id=(await item.getAttribute('data-opt')).split(':')[2];
+ await expect(item).toContainText('每次购买 3 件');const before=await page.evaluate(id=>window.__gameTest.G.bag[id]||0,id);
+ await item.click();await expect(item).toContainText(`当前库存 ${before+3} 件`);
+ const gold=await page.evaluate(()=>window.__gameTest.G.gold);
+ await page.reload();await page.locator('#continueRun').click();
+ await expect(stone).toContainText('还剩 0 次');await expect(scroll).toContainText('已积累 3/6 次');
+ await expect(page.locator(`#rPicks [data-opt^="shop:item:${id}:"]`)).toContainText(`当前库存 ${before+3} 件`);
+ await stone.click();expect(await page.evaluate(()=>window.__gameTest.G.gold)).toBe(gold);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(game.errors).toEqual([]);
+});

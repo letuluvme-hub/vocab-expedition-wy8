@@ -90,7 +90,7 @@ const HERO_OVERRIDES = {
   warrior: { d: '生命上限 +15；每拼完一词获得 2 护盾，每场最多 6；有护盾时整词大招 +20%；每场少 1 次提示。', mod: { hp: 15, hint: -1 } },
   scout: { d: '干扰字母 -2（至少保留 2 个）；每场首个整词大招伤害 +50%；生命上限 -5。', mod: { hp: -5, noise: -2 } },
   lucky: { d: '开局多 15 金币，金币收益 +20%；每携带 50 金币整词大招 +5%（最多 +20%）；生命上限 -5，连击加成 -10%。', mod: { hp: -5, gold: 15, combo: 0.9 } },
-  healer: { d: '每场开场回复 10 生命，溢出治疗转为最多 4 护盾；生命上限 -5。', mod: { hp: -5, regen: 10 } },
+  healer: { d: '新远征半血起步；每次战斗胜利生命上限 +5，本轮累计最多 +30。每场开场回复 10 生命，溢出转为最多 4 护盾；基础生命上限 -5。', mod: { hp: -5, regen: 10 } },
   ranger: { d: '未借助提示的新字母答对回 1 生命，每场最多 18；本词出错、主动提示或听音后停止回血。生命上限 -20。', mod: { hp: -20, leech: 1 } },
 };
 test('hero balance changes only registered descriptions and modifiers; identity and voice stay unchanged', async () => {

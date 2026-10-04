@@ -1,7 +1,7 @@
 import {WORDS} from '../../src/data/words.js';
 import {test,expect} from './game-harness.js';
 const only=info=>test.skip(info.project.metadata.target==='legacy','Nine roles and attack growth');
-for(const [hero,hp] of [['berserker',60],['pyromancer',55],['assassin',55]]) {
+for(const [hero,hp] of [['berserker',60],['pyromancer',58],['assassin',55]]) {
  test(`${hero} selects a distinct silhouette, restores and predicts real long-word damage`,async({game,page},info)=>{
   only(info);await game.open({saved:{hero}});await expect(page.locator('#heroes .hcard')).toHaveCount(9);
   await game.start();await game.fight({word:'factory',enemyHp:100000});

@@ -375,6 +375,26 @@ export function createEncounterController({ state, ports }) {
     const el = $('rSub');
     if (el) el.textContent = '你的金币：' + ((state.G && state.G.gold) | 0) + ' 枚 —— 用金币强化自己';
   }
+  // 库存与额度来自实时远征；卡片 id 中的价格和上架组合保持原样。
+  function shopStock(o) {
+    const G = state.G;
+    if (o.id === 'shop:potion') o.d = G.hp >= G.maxhp ? '生命已满，无需购买（不会扣款）' : '回复 ' + Math.min(35, G.maxhp - G.hp) + ' 点生命';
+    if (o.id === 'shop:scroll') o.d = '下一场战斗 +3 次提示 · 已积累 ' + (G.shopHints || 0) + '/' + SHOP_HINT_LIMIT + ' 次（最多还能买 ' + Math.max(0, Math.floor((SHOP_HINT_LIMIT - (G.shopHints || 0)) / 3)) + ' 份）';
+    if (o.id === 'shop:whet') o.d = '生命上限 +10，并回满生命（本轮限 ' + WHET_MAX_PER_RUN + ' 次，还剩 ' + Math.max(0, WHET_MAX_PER_RUN - (G.whetBuys | 0)) + ' 次）';
+    const itemId = /^shop:item:([^:]+)(?::[^:]+)?$/.exec(o.id);
+    const it = itemId && ITEMS.find(i => i.id === itemId[1]);
+    if (it) o.d = '每次购买 3 件 · 当前库存 ' + (G.bag[it.id] | 0) + ' 件 · 每场最多使用 ' + it.max + ' 次。' + it.d;
+    return o;
+  }
+  function refreshShopCards(opts, buttons) {
+    opts.forEach((o, i) => {
+      shopStock(o);
+      // 仅换按钮内容，保留原按钮、价格闭包及 260ms 冷却。
+      buttons[i].innerHTML = pickCardHTML({ ...o, ic: esc(o.ic), t: esc(o.t), d: esc(o.d), tip: o.tip ? esc(o.tip) : o.tip });
+    });
+    publish(Object.assign({}, current(), describe('shop', opts, { gold: state.G.gold })));
+    refreshShopGold();
+  }
   function showShop() {
     const G = state.G;
     $('rTitle').textContent = '商店 🛒';
@@ -402,8 +422,11 @@ export function createEncounterController({ state, ports }) {
     opts.push({ id: 'shop:leave', cat: 'none', ic: '🚪', t: '离开商店', d: '什么都不买', leave: true, fn: () => '你空手离开了。' });
     const run = state.G, node = run && run.node;
     const now = () => Date.now();
+    const buttons = [];
     opts.forEach(o => {
+      shopStock(o);
       const b = cardButton(o);
+      buttons.push(b);
       b.onclick = () => {
         if (!canAct()) return;
         if (state.G !== run) return;                   // 旧商店界面不得操作新远征
@@ -426,8 +449,7 @@ export function createEncounterController({ state, ports }) {
           if (m) toast(m);
           // 买东西不推进层数：相位仍是 encounter，快照里带着「已扣钱」的 G 落盘。
           // 刷新后回到同一屏商店，钱已经扣过，不会免费重买。
-          if (publishEncounter) publishEncounter(current());
-          refreshShopGold();          // ★ 付完钱让顶部那个数字跟着变，否则看不出扣了多少
+          refreshShopCards(opts, buttons);
         });
       };
       sbox.appendChild(b);
@@ -694,8 +716,11 @@ export function createEncounterController({ state, ports }) {
       const sbox = $('rPicks');
       sbox.innerHTML = ''; sbox._kids = [];
       sbox._used = !!desc.chosenId && desc.kind !== 'shop';
+      const buttons = [];
       opts.forEach(o => {
+        if (desc.kind === 'shop') shopStock(o);
         const b = cardButton(o, { untrusted: true });
+        buttons.push(b);
         b.onclick = () => {
           if (!canAct()) return;
           if (state.G !== run) return;
@@ -718,8 +743,7 @@ export function createEncounterController({ state, ports }) {
             const m = o.fn();
             if (m) toast(m);
             if (desc.kind === 'shop') {
-              if (publishEncounter) publishEncounter(current());
-              refreshShopGold();
+              refreshShopCards(opts, buttons);
             } else {
               if (setPhase) setPhase(PHASE_ENCOUNTER_DONE);
               if (publishEncounter) publishEncounter(Object.assign({}, current(), { chosenId: o.id }));
