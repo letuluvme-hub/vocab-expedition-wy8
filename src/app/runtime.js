@@ -358,9 +358,13 @@ const campaignState = (bookId=curBook) => unlockProgress({bookId,units:bookUnits
  *            结算屏按钮上的文字和 nextUnit() 真正进入的单元都读它。
  *   循环里单元的历史完成记录早就齐了，所以「本单元学完没有」改看本次远征的词池。 */
 const crossLabel = t => bookById(t.bookId).short + ' Unit ' + t.unit;
+// 某一册第一个还没完成（默写全覆盖或远征整词完成都算）的单元；全完成返回 undefined。
+const firstUnfinishedUnit = bookId => { const c=campaignState(bookId);
+  return bookUnits(bookId).map(u=>u.n).filter(n=>n>0).sort((a,b)=>a-b).find(n=>!(c.byUnit[n]&&c.byUnit[n].passed)) };
+const crossFor = run => crossBookTarget(run,{unfinished:firstUnfinishedUnit});
 function runCampaign(){
   const base=campaignState(runBook());
-  const cross=G?crossBookTarget(G):null;
+  const cross=G?crossFor(G):null;
   if(!cross) return base;
   const view=Object.assign({},base,{cross:Object.assign({label:crossLabel(cross)},cross),next:()=>undefined});
   if(G.campaign&&G.campaign.loop===true){
@@ -826,7 +830,7 @@ function nextUnit(){
   // ★ 先问来源相位：普通地图上的一次误调用、探针、连点都在这里被拒。
   const src=campaignSourceRefusal('next');
   if(src) return campaignRefuse(src);
-  const cross=crossBookTarget(G);
+  const cross=crossFor(G);
   if(cross) return crossBookNext(cross);
   const facts=transitionNextUnit({run:G,progress:campaignState(runBook())});
   if(!facts.ok) return campaignRefuse(facts);

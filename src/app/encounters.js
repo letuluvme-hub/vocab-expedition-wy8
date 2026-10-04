@@ -58,10 +58,12 @@ export function createEncounterController({ state, ports }) {
   const whetDescription = G => '生命上限 +10，并回满生命（每图限 1 次，整次远征限 ' + WHET_MAX_PER_RUN + ' 次；本图还剩 ' + whetRemaining(G) + ' 次，远征还剩 ' + Math.max(0,WHET_MAX_PER_RUN - (G.whetBuys || 0)) + ' 次）';
   // 普通商品的现价：基础价 × 第几张地图的倍率（domain/shop-pricing.js）。
   const corePrice = key => scaledPrice(SHOP_BASE_PRICES[key], runSegments(state.G));
-  function buyWhetstone() {
+  /* 固定商品的卡片 id：原价时保持旧写法（shop:potion），涨过价才把价格写进 id
+     （shop:potion:90）。恢复时没写价格的 id 一律按原价收，旧存档卡面写多少就收多少。 */
+  const coreId = (key, price) => 'shop:' + key + (price === SHOP_BASE_PRICES[key] ? '' : ':' + price);
+  function buyWhetstone(price = SHOP_BASE_PRICES.whet) {
     const S = state.G;
     const used = S.whetBuys | 0;
-    const price = corePrice('whet');
     if (used >= WHET_MAX_PER_RUN) {
       return '磨砺石本轮已经买过 ' + WHET_MAX_PER_RUN + ' 次了 —— 一块石头磨不出第二把刀。';
     }
@@ -72,8 +74,8 @@ export function createEncounterController({ state, ports }) {
   }
 
   // 实时商店与恢复商店共用购买动作，防止刷新绕过限购或扣掉无效治疗的钱。
-  function buyPotion() {
-    const S = state.G, price = corePrice('potion');
+  function buyPotion(price = SHOP_BASE_PRICES.potion) {
+    const S = state.G;
     if (S.gold < price) return '金币不够。';
     if (S.hp >= S.maxhp) return '生命已满，无需购买疗伤药。';
     S.gold -= price;
@@ -81,10 +83,9 @@ export function createEncounterController({ state, ports }) {
     return '伤口愈合了。';
   }
 
-  function buyHintScroll() {
+  function buyHintScroll(price = SHOP_BASE_PRICES.scroll) {
     const S = state.G, held = S.shopHints || 0;
     if (held + 3 > SHOP_HINT_LIMIT) return '提示卷轴最多为下一场积累 ' + SHOP_HINT_LIMIT + ' 次提示，不能继续购买。';
-    const price = corePrice('scroll');
     if (S.gold < price) return '金币不够。';
     S.gold -= price;
     S.shopHints = held + 3;
@@ -125,14 +126,15 @@ export function createEncounterController({ state, ports }) {
   }
   /* 商店的固定货架（不随机）。实时商店与暂停恢复共用这一份，
      价格按当前地图现算：同一张图里两边一定一致。 */
+  function fixedShopOption(G, key, price) {
+    if (key === 'potion') return { id: coreId(key, price), cat: 'heal', ic: '💚', t: '疗伤药剂 · ' + price + ' 金币', d: '回复 35 点生命', fn: () => buyPotion(price) };
+    if (key === 'scroll') return { id: coreId(key, price), cat: 'boost', ic: '🔮', t: '提示卷轴 · ' + price + ' 金币',
+      d: '下一场战斗 +3 次提示（卷轴最多积累 ' + SHOP_HINT_LIMIT + ' 次）', fn: () => buyHintScroll(price) };
+    return { id: coreId(key, price), cat: 'boost', ic: '💪', t: '磨砺石 · ' + price + ' 金币',
+      d: whetDescription(G), fn: () => buyWhetstone(price) };
+  }
   function fixedShopOptions(G) {
-    return [
-      { id: 'shop:potion', cat: 'heal', ic: '💚', t: '疗伤药剂 · ' + corePrice('potion') + ' 金币', d: '回复 35 点生命', fn: buyPotion },
-      { id: 'shop:scroll', cat: 'boost', ic: '🔮', t: '提示卷轴 · ' + corePrice('scroll') + ' 金币',
-        d: '下一场战斗 +3 次提示（卷轴最多积累 ' + SHOP_HINT_LIMIT + ' 次）', fn: buyHintScroll },
-      { id: 'shop:whet', cat: 'boost', ic: '💪', t: '磨砺石 · ' + corePrice('whet') + ' 金币',
-        d: whetDescription(G), fn: buyWhetstone },
-    ];
+    return ['potion', 'scroll', 'whet'].map(key => fixedShopOption(G, key, corePrice(key)));
   }
   function premiumShopOptions() {
     const P = PREMIUM_SHOP;
@@ -444,9 +446,9 @@ export function createEncounterController({ state, ports }) {
   // 库存与额度来自实时远征；卡片 id 中的价格和上架组合保持原样。
   function shopStock(o) {
     const G = state.G;
-    if (o.id === 'shop:potion') o.d = G.hp >= G.maxhp ? '生命已满，无需购买（不会扣款）' : '回复 ' + Math.min(35, G.maxhp - G.hp) + ' 点生命';
-    if (o.id === 'shop:scroll') o.d = '下一场战斗 +3 次提示 · 已积累 ' + (G.shopHints || 0) + '/' + SHOP_HINT_LIMIT + ' 次（最多还能买 ' + Math.max(0, Math.floor((SHOP_HINT_LIMIT - (G.shopHints || 0)) / 3)) + ' 份）';
-    if (o.id === 'shop:whet') o.d = whetDescription(G);
+    if (/^shop:potion(:|$)/.test(o.id)) o.d = G.hp >= G.maxhp ? '生命已满，无需购买（不会扣款）' : '回复 ' + Math.min(35, G.maxhp - G.hp) + ' 点生命';
+    if (/^shop:scroll(:|$)/.test(o.id)) o.d = '下一场战斗 +3 次提示 · 已积累 ' + (G.shopHints || 0) + '/' + SHOP_HINT_LIMIT + ' 次（最多还能买 ' + Math.max(0, Math.floor((SHOP_HINT_LIMIT - (G.shopHints || 0)) / 3)) + ' 份）';
+    if (/^shop:whet(:|$)/.test(o.id)) o.d = whetDescription(G);
     if (o.id === 'shop:tome' || o.id === 'shop:codex') {
       const n = o.id === 'shop:tome' ? PREMIUM_SHOP.hintTome.hints : PREMIUM_SHOP.hintCodex.hints;
       o.d = '本次远征之后每场战斗提示 +' + n + ' 次 · 现在每场 ' + baseHints(G) + ' 次（最多 ' + PERMANENT_HINT_MAX + ' 次）';
@@ -677,7 +679,13 @@ export function createEncounterController({ state, ports }) {
         if (!entry) return null;
         return priced[1] === 'relic' ? shopRelicOption(entry, price) : shopItemOption(entry, price);
       }
-      table = fixedShopOptions(G).concat(premiumShopOptions());
+      // 固定商品：id 里有价格就按那个价，没有就是原价（含加价之前的旧存档）。
+      const fixed = /^shop:(potion|scroll|whet)(?::([^:]+))?$/.exec(id);
+      if (fixed) {
+        if (fixed[2] !== undefined && !positiveInteger(fixed[2])) return null;
+        return fixedShopOption(G, fixed[1], fixed[2] === undefined ? SHOP_BASE_PRICES[fixed[1]] : Number(fixed[2]));
+      }
+      table = premiumShopOptions();
       // 无价格 id 是旧快照，按历史表重建；带价格的新卡已在上方解析。
       for (const r of RELICS) table.push(legacyShopRelicOption(r));
       for (const it of ITEMS) {

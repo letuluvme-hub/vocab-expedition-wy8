@@ -328,8 +328,11 @@ function seedIndex(text, n) {
   return (h >>> 0) % n;
 }
 
-/* 当前单元学完后要去的「册 + 单元」。不该跨册时返回 null（交回普通的下一单元逻辑）。 */
-export function crossBookTarget(run, { books = BOOKS } = {}) {
+/* 当前单元学完后要去的「册 + 单元」。不该跨册时返回 null（交回普通的下一单元逻辑）。
+ * unfinished(bookId) 回答「这一册第一个还没完成的单元」（全完成返回 null / undefined）。
+ * 最后一册学完时先把别的册里没学完的单元补上，所有册都完成了才进入随机循环 ——
+ * 从八下开局的一次远征，学完八下不能直接说「全部单元都学过了」。 */
+export function crossBookTarget(run, { books = BOOKS, unfinished = () => null } = {}) {
   if (!run || !Number.isInteger(run.unit) || run.unit === CUSTOM_UNIT) return null;
   const bookId = run.bookId || DEFAULT_BOOK_ID;
   const loop = !!(run.campaign && run.campaign.loop === true);
@@ -341,6 +344,11 @@ export function crossBookTarget(run, { books = BOOKS } = {}) {
     if (nextBook) {
       const first = textbookUnits(nextBook.id)[0];
       if (first) return { bookId: nextBook.id, unit: first, loop: false };
+    }
+    for (const b of books) {
+      const u = unfinished(b.id);
+      if (Number.isInteger(u) && u > 0 && !(b.id === bookId && u === run.unit)
+        && textbookUnits(b.id).indexOf(u) >= 0) return { bookId: b.id, unit: u, loop: false };
     }
   }
   const all = [];
