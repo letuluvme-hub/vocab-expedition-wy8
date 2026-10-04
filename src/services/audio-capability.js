@@ -62,6 +62,7 @@ export function createAudioCapability(opts = {}) {
   const pendingResume = new Map();
   let last = null;                 // 上一次对外发布的快照（去重）
   let dismissed = false;           // 本次会话内玩家关掉了提示
+  const dismissedChannels = new Set();
   let wechat = false;
   try {
     const ua = String((environment && environment.navigator && environment.navigator.userAgent) || '');
@@ -84,8 +85,7 @@ export function createAudioCapability(opts = {}) {
     return worst;
   }
 
-  function snapshot() {
-    const m = merged();
+  function describe(m) {
     const s = {
       state: m.state,
       channel: m.channel,
@@ -101,11 +101,18 @@ export function createAudioCapability(opts = {}) {
     return s;
   }
 
+  function snapshot() { return describe(merged()); }
+  function channelSnapshot(key) { return ch[key] ? describe({ ...ch[key], channel: key }) : null; }
+
   function publish() {
     const s = snapshot();
     // 状态没变就不打扰 UI（音色异步到货、重复手势都会走到这里）
-    if (last && last.state === s.state && last.channel === s.channel && last.reason === s.reason) return s;
-    last = s;
+    // A failing sound-effect channel may keep winning the merged rank while
+    // speech changes from checking to blocked. Its own status must still paint.
+    const signature = [s.state, s.channel, s.reason,
+      ...[CHANNEL.SFX, CHANNEL.SPEECH].flatMap(key => [ch[key].state, ch[key].reason])].join('|');
+    if (last === signature) return s;
+    last = signature;
     if (onStatus) { try { onStatus(s); } catch (e) { /* 回调坏了不许连累探测 */ } }
     return s;
   }
@@ -245,10 +252,11 @@ export function createAudioCapability(opts = {}) {
     return setChannel(key, STATUS.AVAILABLE, null);
   }
 
-  /* 提示只在本会话内可关；不写存档、不改任何偏好。 */
-  function dismiss() { dismissed = true; return snapshot(); }
-  function isDismissed() { return dismissed; }
-  function resetDismiss() { dismissed = false; return snapshot(); }
+  /* Memory fallback only. The UI delegates optional persistent facts to its
+     owner. An explicit channel cannot dismiss the other channel's failure. */
+  function dismiss(key) { if (ch[key]) dismissedChannels.add(key); else dismissed = true; return snapshot(); }
+  function isDismissed(key) { return dismissed || (key ? dismissedChannels.has(key) : dismissedChannels.size > 0); }
+  function resetDismiss() { dismissed = false; dismissedChannels.clear(); return snapshot(); }
 
   /* 玩家下一次真实手势到来时可以重试；提示被关掉也不影响重试。 */
   function canRetry() { return ch[CHANNEL.SFX].observing || ch[CHANNEL.SPEECH].observing; }
@@ -262,7 +270,7 @@ export function createAudioCapability(opts = {}) {
     reportUtteranceFailure, observeOk,
     /* 父层偏好契约：把「玩家要不要这一路声音」告诉兼容层 */
     setEnabled, isEnabled, disableChannel, enableChannel,
-    snapshot, channelState, dismiss, isDismissed, resetDismiss, canRetry, dispose,
+    snapshot, channelState, channelSnapshot, dismiss, isDismissed, resetDismiss, canRetry, dispose,
     AVAILABLE_CLAIM,
   };
 }
