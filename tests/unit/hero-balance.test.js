@@ -17,7 +17,7 @@ const battle = (extra = {}) => ({ myHp: 30, shield: 0, heroHealed: 0,
 test('six hero starting costs and existing identities stay explicit', () => {
   assert.deepEqual(HEROES.map(h => [h.id, 70 + (h.mod.hp || 0)]), [
     ['scholar', 60], ['warrior', 85], ['scout', 65],
-    ['lucky', 65], ['healer', 65], ['ranger', 50], ['berserker',60], ['pyromancer',55], ['assassin',55],
+    ['lucky', 65], ['healer', 65], ['ranger', 50], ['berserker',60], ['pyromancer',58], ['assassin',55],
   ]);
   assert.equal(HEROES.find(h => h.id === 'scout').mod.noise, -2);
   assert.equal(HEROES.find(h => h.id === 'healer').mod.regen, 10);

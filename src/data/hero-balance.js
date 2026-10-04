@@ -5,13 +5,14 @@ export const HERO_BALANCE = {
   warriorShieldBonus: 0.2,
   luckyGoldStep: 50, luckyDamageStep: 0.05, luckyDamageCap: 0.2,
   berserkerBonus: 0.25, berserkerLowHpBonus: 0.45,
-  pyromancerLetters: 7, pyromancerBonus: 0.4,
+  pyromancerLetters: 6, pyromancerBonus: 0.4,
   assassinBonus: 0.35, assassinExecuteBonus: 0.6, assassinExecuteRatio: 0.35,
   warriorWordShield: 2,
   warriorBattleShieldCap: 6,
   scoutFirstFinisherMultiplier: 1.5,
   luckyGoldBonus: 0.2,
   healerOverflowShieldCap: 4,
+  healerWinMaxHp: 5, healerGrowthCap: 30,
   rangerBattleHealCap: 18,
 };
 
