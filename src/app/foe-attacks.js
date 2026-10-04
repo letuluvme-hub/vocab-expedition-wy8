@@ -54,6 +54,7 @@ export function createFoeAttackController({
   foeAttackHit, commit, renderFight, toast,
   frozen = false,          // 词汇完成 / 奖励 / 结算屏：怪不再主动攻击
   mutate,                  // 最外层事务边界（runtime 的 mutate）：伤害链上的重入由它收口
+  onTelegraph,            // Optional warning once on a new charge, never on UI ticks
   paintAttack,             // UI 节拍专用端口：只 paint 蓄力条，不整屏渲染
 }) {
   // runtime 的 state 是**取值函数**（createProgressController 用同一个形态）：
@@ -112,7 +113,9 @@ export function createFoeAttackController({
   function applyPhase(next, { publish = true } = {}) {
     const B = getB();
     if (!B) return false;
+    const entering = next.phase === FOE_PHASE.TELEGRAPH && (!B.foeAttack || B.foeAttack.phase !== FOE_PHASE.TELEGRAPH);
     B.foeAttack = next;
+    if (entering && live() && onTelegraph) { try { onTelegraph(); } catch (_) { /* Audio failure must not stop attacks. */ } }
     const ms = phaseMs(next.phase, cfg);
     dueAt = now() + ms;
     if (publish) publishPhase();
