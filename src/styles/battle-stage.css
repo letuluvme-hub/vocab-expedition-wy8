@@ -6,7 +6,20 @@
 #s-fight #fBattleStage .finfo { min-width:0; }
 #s-fight #fBattleStage .fname { margin-bottom:3px;font-size:13px; }
 #s-fight #fBattleStage .myname { margin-top:3px;font-size:12px; }
-#s-fight .fmid { flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scroll-padding-top:6px; }
+#s-fight .fmid { flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:rgba(206,196,226,.3) transparent;scroll-padding-top:6px; }
+/* Match the dark stage; older WebKit uses the same slim, transparent track. */
+#s-fight .fmid::-webkit-scrollbar { width:6px;height:6px; }
+#s-fight .fmid::-webkit-scrollbar-track { background:transparent; }
+#s-fight .fmid::-webkit-scrollbar-thumb { background:rgba(206,196,226,.3);border-radius:6px; }
+#s-fight .fmid::-webkit-scrollbar-thumb:hover { background:rgba(206,196,226,.5); }
+#s-fight .fmid::-webkit-scrollbar-button { display:none; }
+@media(max-width:640px),(pointer:coarse) {
+ #s-fight .fmid { scrollbar-width:none; }
+ #s-fight .fmid::-webkit-scrollbar { display:none; }
+}
+@media(forced-colors:active) {
+ #s-fight .fmid { scrollbar-color:auto; }
+}
 #s-fight .fmid .q { margin-top:8px; }
 #s-fight .q .tagsm { margin:3px 0;justify-content:center; }
 #s-fight .bankbar,#s-fight .bank,#s-fight .tools,#s-fight #fHintShared { flex:none; }
