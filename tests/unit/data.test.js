@@ -19,11 +19,14 @@ test('the extracted WORDS match the legacy book exactly and pass validation', as
   assert.deepEqual(validateWords(WORDS), expected);
 });
 
-test('the CLI validates the extracted book and prints its machine-readable summary', () => {
+test('the CLI validates every registered book while reporting the frozen WY8A distribution', () => {
   const result = spawnSync(process.execPath, [fileURLToPath(validatorURL)], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.deepEqual(JSON.parse(result.stdout), expected);
+  assert.deepEqual(JSON.parse(result.stdout), { total: 467, books: {
+    wy8a: expected,
+    wy8b: { total: 208, units: { 1: 29, 2: 32, 3: 44, 4: 24, 5: 46, 6: 33 } },
+  } });
 });
 
 test('validateWords accepts the real legacy book and reports all six unit counts', async () => {

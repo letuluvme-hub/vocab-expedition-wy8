@@ -1,5 +1,6 @@
-import { createDictationAttempt, applyDictationInput, markDictationAssistance, creditDictation, dictationWordKey } from '../domain/dictation.js';
+import { createDictationAttempt, applyDictationInput, markDictationAssistance, creditDictation } from '../domain/dictation.js';
 import { selectDailyWords, createDailySession, restoreDailySession, dailySummary, DAILY_TIME_BUDGET_MS } from '../domain/daily-session.js';
+import { learningKey, evidenceForWord, knownBookId, DEFAULT_BOOK_ID } from '../domain/learning-identity.js';
 import { drawLetters } from '../domain/letter-bank.js';
 import { parseCustomWords } from '../domain/custom-words.js';
 
@@ -33,7 +34,8 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     const a = session.attempt;
     if (a.phase !== 'formal') return;
     if (!Array.isArray(db().reviewQueue)) db().reviewQueue = [];
-    if (!db().reviewQueue.some(w => dictationWordKey(w) === a.target)) db().reviewQueue.push(a.target);
+    const word = session.words[session.index], key = learningKey(word);
+    if (!db().reviewQueue.some(w => learningKey(w) === key)) db().reviewQueue.push(evidenceForWord(word));
     onFailure({ session, attempt: a, word: session.words[session.index], db: db(), at: now() });
   }
   function setAttempt() {
@@ -46,12 +48,12 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
   }
   function completeWord() {
     const a = session.attempt; if (!a.completed || a.credited) return;
-    const word = session.words[session.index]; const key = dictationWordKey(word);
+    const word = session.words[session.index]; const key = learningKey(word);
     if (session.phase === 'warmup') {
       a.credited = true;
       if (!session.warmupDone.includes(key)) session.warmupDone.push(key);
       if (!Array.isArray(db().mastered)) db().mastered = [];
-      if (!db().mastered.some(w => dictationWordKey(w) === key)) db().mastered.push(word.w);
+      if (!db().mastered.some(w => learningKey(w) === key)) db().mastered.push(evidenceForWord(word));
       return;
     }
     const credit = creditDictation(db(), a);
@@ -74,19 +76,21 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     session.paused = true; session.activeSince = null; session.pauseReason = 'time-budget';
     publish(); return true;
   }
-  function start({ unit = 1, limit } = {}) {
+  function start({ unit = 1, limit, bookId = DEFAULT_BOOK_ID } = {}) {
     syncSource();
     if ((source && !session) || (session && session.phase !== 'completed')) return false;
-    const rawWords = unit === 0 ? db().custom || [] : getWords(unit);
-    const carry = session && session.unit === unit && session.reason !== 'pool-exhausted'
-      ? session.words.filter(w => !session.results.some(r => r.key === dictationWordKey(w))) : [];
+    const selectedBook = unit === 0 || !knownBookId(bookId) ? DEFAULT_BOOK_ID : bookId;
+    const cursorKey = selectedBook === DEFAULT_BOOK_ID ? String(unit) : `${selectedBook}:${unit}`;
+    const rawWords = unit === 0 ? db().custom || [] : getWords(unit, selectedBook);
+    const carry = session && (session.bookId || DEFAULT_BOOK_ID) === selectedBook && session.unit === unit && session.reason !== 'pool-exhausted'
+      ? session.words.filter(w => !session.results.some(r => r.key === learningKey(w))) : [];
     const cursors = db().dailyCursor && typeof db().dailyCursor === 'object' ? db().dailyCursor : {};
-    const selection = selectDailyWords({ words: rawWords, dueWords: getDueWords({ db: db(), at: now(), unit }),
-      mastered: db().dictationMastered, cursor: cursors[unit] || 0, carry, limit });
+    const selection = selectDailyWords({ words: rawWords, dueWords: getDueWords({ db: db(), at: now(), unit, bookId: selectedBook }),
+      mastered: db().dictationMastered, cursor: cursors[cursorKey] || 0, carry, limit });
     const stamp = now();
-    session = createDailySession(selection, { unit, now: stamp, id: `${stamp}-${Math.floor(random() * 0x100000000).toString(16)}` });
+    session = createDailySession(selection, { unit, bookId: selectedBook, now: stamp, id: `${stamp}-${Math.floor(random() * 0x100000000).toString(16)}` });
     if (!session) return false;
-    db().dailyCursor = { ...cursors, [unit]: selection.nextCursor };
+    db().dailyCursor = { ...cursors, [cursorKey]: selection.nextCursor };
     onStart({ session, db: db(), at: stamp });
     onWordStart({ session, attempt: session.attempt, word: session.words[0], db: db(), at: stamp });
     publish(); return true;
@@ -134,11 +138,11 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
   function defer() {
     if (blocked() || session.phase !== 'formal' || session.attempt.completed ||
       !(session.attempt.errors || session.attempt.hints || session.attempt.reveals) || checkTime()) return false;
-    const a = session.attempt, word = session.words[session.index], key = dictationWordKey(word);
+    const a = session.attempt, word = session.words[session.index], key = learningKey(word);
     // No complete-word credit. onAttempt resolves the failed assessment and
     // catches legacy unassessed evidence; dated failures do not replay today.
     if (!Array.isArray(db().reviewQueue)) db().reviewQueue = [];
-    if (!db().reviewQueue.some(w => dictationWordKey(w) === key)) db().reviewQueue.push(key);
+    if (!db().reviewQueue.some(w => learningKey(w) === key)) db().reviewQueue.push(evidenceForWord(word));
     const result = { key, word: { ...word }, eligible: false, completed: false, deferred: true,
       input: a.input, errors: a.errors, hints: a.hints, reveals: a.reveals,
       assistance: [...a.assistance], deferredAt: now() };

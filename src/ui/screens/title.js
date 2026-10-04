@@ -3,12 +3,13 @@
  * 变更（选角色 / 选单元）通过 onHero / onUnit 回调交回父层，本模块只负责画。
  */
 import { HEROES } from '../../data/heroes.js';
-import { UNITS } from '../../data/units.js';
+import {BOOKS,bookById,bookUnits,DEFAULT_BOOK_ID} from '../../data/books.js';
 import { HERO_DEFAULT, heroById, pcHTML, heroStatLines } from '../components/hero.js';
 import { renderRewardCard } from '../components/reward-card.js';
 import { canonicalMasteryKeys } from '../../domain/mastery-growth.js';
 
-export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHero, onUnit }) {
+export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHero, onUnit,
+  getBook=()=>DEFAULT_BOOK_ID, onBook }) {
   const $ = id => document.getElementById(id);
 
   /* 单元解锁（docs/feature-campaign.md）。getCampaign 不注入时**退回旧行为**：
@@ -40,9 +41,20 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
   function renderTitle() {
     renderHeroes();
     const DB = getDB();
+    const book=bookById(getBook()), units=bookUnits(book.id);
+    const host=$('textbookPicker');
+    if(host){
+      host.replaceChildren();
+      const label=document.createElement('label');label.htmlFor='textbookSelect';label.textContent='教材册';
+      const select=document.createElement('select');select.id='textbookSelect';select.setAttribute('aria-label','选择教材册');
+      for(const b of BOOKS){const option=document.createElement('option');option.value=b.id;option.textContent=b.label+' · '+b.words.length+' 词';select.appendChild(option)}
+      select.value=book.id;select.onchange=()=>{onBook?.(select.value);renderTitle()};host.appendChild(label);host.appendChild(select);
+    }
+    document.title=book.pageTitle||('词汇远征 · '+book.label);
+    const sub=$('s-title')?.querySelector?.('.sub');if(sub)sub.textContent=book.publisher+' · '+book.label+' · 收集单词卡，开启你的词汇远征';
     const box = $('units'); box.innerHTML = '';
     const curUnit = getUnit();
-    UNITS.forEach(u => {
+    units.forEach(u => {
       const ws = allWords(u.n);
       const b = document.createElement('button');
       const open = unlocked(u.n);
@@ -80,7 +92,7 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
     $('sWin').textContent = DB.wins;
     const expeditionStat = $('sExpedition');
     if (expeditionStat) {
-      const textbook = UNITS.filter(u => u.n > 0).flatMap(u => allWords(u.n));
+      const textbook = units.filter(u => u.n > 0).flatMap(u => allWords(u.n));
       expeditionStat.textContent = canonicalMasteryKeys(DB.mastered, textbook).length;
     }
     $('sMaster').textContent = (DB.dictationMastered || []).length;

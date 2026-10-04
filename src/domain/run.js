@@ -10,6 +10,8 @@ import { createWordStreakState } from './word-streak.js';
 import { roundCompletion } from './campaign.js';
 import { floorHealBonus } from './relic-rules.js';
 import { createQStats } from './word-quality.js';
+import { bookUnits } from '../data/books.js';
+import { DEFAULT_BOOK_ID, knownBookId, wordBookId } from './learning-identity.js';
 
 /* ★ 轮次身份（docs/feature-rounds.md）。
  * roundId 是**持久化**的轮次身份，必须和进程内自增的 run.id（'R1'、'R2'…）区分开：
@@ -54,7 +56,10 @@ export function isDuplicateRunStart(run) {
 function readGrowth(g) { return validGrowthFact(g) ? g : null; }
 
 // 开局：返回与旧 newRun() 等价的 run（含地图与首层可选节点）
-export function createRun(unit, hero, pool, random = Math.random, growth = null) {
+export function createRun(unit, hero, pool, random = Math.random, growth = null, { bookId = DEFAULT_BOOK_ID, units } = {}) {
+  if (!knownBookId(bookId)) return null;
+  if (bookId !== DEFAULT_BOOK_ID && unit !== 0 && (pool || []).some(word => wordBookId(word) !== bookId)) return null;
+  const scope = (units || bookUnits(bookId)).map(u => typeof u === 'number' ? u : u.n).filter(n => n > 0);
   const M = (hero && hero.mod) || {};
   const baseMaxhp = 70 + (M.hp || 0);       // 角色差异：生命上限（成长之前的 base）
   const g = readGrowth(growth);
@@ -63,6 +68,7 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
   const run = {
     unit, hp: hero?.id === 'healer' ? Math.ceil(maxhp / 2) : maxhp, maxhp,
     ...(hero?.id === 'healer' ? { healerGrowth: { version: 2, segment: 1, gained: 0, totalGained: 0 } } : {}),
+    ...(bookId !== DEFAULT_BOOK_ID ? { bookId, scopeUnits: [...new Set(scope)].sort((a, b) => a - b) } : {}),
     id: 'R' + (++RUN_SEQ).toString(36),     // 诊断标识：区分这一次和上一次远征
     countedStart: false,                    // 远征次数是否已记（同一 run 只能记一次）
     clearedRun: false,                      // 通关次数是否已记（同一 run 只能记一次）
@@ -97,7 +103,7 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     //     过渡的幂等现在由 applyUnitTransition 入口的 run.unit === facts.from 保证。
     //   segments    = 这一轮已经走过几段学习地图（开局 1，之后每次过渡 +1）。
     // 它**不是**次数：DB.runs 只在真正新开一轮时 +1，跨单元不加。
-    campaign: { startedUnit: unit, segments: 1 },
+    campaign: { startedUnit: unit, segments: 1, ...(bookId !== DEFAULT_BOOK_ID ? { bookId } : {}) },
     hcombo: M.combo || 1, hregen: M.regen || 0, hleech: M.leech || 0,
     // ★ 本轮「战意·连击里程碑」已达成的阶（docs/feature-combo-milestones.md）。
     //   id → true 的普通对象，**不是 Set**：AGENTS.md 明确不许把 Set 直接 JSON 保存。
@@ -136,7 +142,8 @@ export function createRun(unit, hero, pool, random = Math.random, growth = null)
     //   它是**诊断留档**，不是重算入口 —— 恢复路径绝不拿它或当前 DB 重算 maxhp。
     growth: g ? { version: g.version, masteredAtStart: g.masteredAtStart,
                   bonusHp: g.bonusHp, baseMaxhp,
-                  ...(g.version === 2 ? {bonusAttackPct:g.bonusAttackPct} : {}) } : undefined,
+                  ...(g.version >= 2 ? {bonusAttackPct:g.bonusAttackPct} : {}),
+                  ...(g.version === 3 ? {catalogTotalAtStart:g.catalogTotalAtStart} : {}) } : undefined,
   };
   const rows = generateMap(random);
   run.rows = rows; run.cur = null; run.floor = 1; run.maxFloor = 1;
@@ -294,6 +301,7 @@ export function endRunProgress(run, db, win, now = Date.now(), earnedAt = new Da
       const reward = {
         id: knownId || ('WR-' + now.toString(36) + '-' + db.runs + '-' + db.rewards.length),
         unit: run.unit, heroId: run.heroId, accuracy: acc,
+        ...(run.bookId ? {bookId:run.bookId} : {}),
         kills: run.kills, floor: run.maxFloor, earnedAt,
       };
       run.reward = reward;

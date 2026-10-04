@@ -183,7 +183,7 @@ export function createEquipmentPanel({ getRun, getBattle }) {
     line(body, 'eq-hero', m.hero.n + ' · ' + m.hero.tag,
       '新局能力：' + m.hero.d + hs + (m.heroStatus ? ' · ' + m.heroStatus : ''));
 
-    if (getRun()?.growth?.version === 2) line(body,'eq-growth','本轮知识成长','攻击 +' + growthAttackPct(getRun()) + '% · 生命上限 +' + getRun().growth.bonusHp + '（沿用开局记录）');
+    if (getRun()?.growth?.version >= 2) line(body,'eq-growth','本轮知识成长','攻击 +' + growthAttackPct(getRun()) + '% · 生命上限 +' + getRun().growth.bonusHp + '（沿用开局记录）');
 
     /* 护盾：战斗中与地图上是两个来源，文案要写清楚现在看的是哪一个 */
     line(body, 'eq-shield', '当前护盾', m.shield.value + ' 点' + (m.shield.inFight ? '（本场实时剩余）' : '（未进入战斗）'));

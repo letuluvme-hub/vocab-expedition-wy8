@@ -44,6 +44,7 @@ import { createGameShortcuts, isTextEntry } from '../ui/keyboard-shortcuts.js';
 import { createLifecycle } from './lifecycle.js';
 import { createFoeAttackController } from './foe-attacks.js';
 import { WORDS } from '../data/words.js';
+import {BOOKS,DEFAULT_BOOK_ID,bookById,bookWords,bookUnits,wordsFor,allCatalogWords} from '../data/books.js';
 import { createStorage, initializeDB } from '../services/storage.js';
 import { norm, wordGapBefore } from '../domain/text.js';
 import { comboRate as calculateComboRate, hitDmg as calculateHitDmg, wordDmg as calculateWordDmg,
@@ -83,7 +84,8 @@ const growthFact=(mastered,words,hero)=>{
   const s=growthSummary(mastered,words);
   const m=(hero&&hero.mod)||{};
   return {version:GROWTH_VERSION,masteredAtStart:s.masteredCount,
-    bonusHp:s.bonusHp,bonusAttackPct:s.bonusAttackPct,baseMaxhp:70+(m.hp||0)};
+    bonusHp:s.bonusHp,bonusAttackPct:s.bonusAttackPct,baseMaxhp:70+(m.hp||0),
+    ...(GROWTH_VERSION===3?{catalogTotalAtStart:words.length}:{})};
 };
 
 // Transitional coordinator: preserve original event ordering during extraction.
@@ -340,12 +342,12 @@ const {burst,ring,floatTxt,flash,centerOf,heroPoint,animHero,wordFinisher}=creat
 
 /* ================= 词库 ================= */
 
-const allWords = u => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : WORDS.filter(x=>x.u===u);
+const allWords = (u,bookId=curBook) => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,z:x.z,th:'custom'})) : wordsFor(bookId,u);
 
 /* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.dictationMastered，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
    所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
-const campaignState = () => unlockProgress({ units: UNITS.map(u=>u.n), wordsFor: allWords,
-  dictationMastered: DB.dictationMastered, unitProgress: DB.unitProgress });
+const campaignState = (bookId=curBook) => unlockProgress({bookId,units:bookUnits(bookId).map(u=>u.n),wordsFor:u=>allWords(u,bookId),
+  dictationMastered:DB.dictationMastered,unitProgress:DB.unitProgress,bookUnitProgress:DB.bookUnitProgress});
 
 /* ================= 主动道具（战斗中可点，按 1/2/3 快捷键）=================
    设计原则：每个道具都有明确代价，不能无脑全带。
@@ -461,6 +463,8 @@ function foeLineCfg(foe){
 let G=null;          // 当前远征
 let B=null;          // 当前战斗
 let curUnit=1;
+let curBook=bookById(DB.bookId).id;
+const runBook=()=>G?.bookId || DEFAULT_BOOK_ID;
 let selIdx=0;
 // ★ 当前相位：暂停快照靠它决定「存什么、恢复成什么样」。
 //   它是**恢复检查点**的描述，不是闭包：跨刷新后靠它重建待办，
@@ -487,7 +491,7 @@ function newRun(){
   //   把成长事实交给 createRun 加进 maxhp。读一次就够 —— 本局内达到 20 词、
   //   跨单元、续段都不再重算（所以「中途退出重进」不会白赚一次上限）。
   //   恢复存档的路径根本不经过 newRun，所以也绝不会被当前 DB 重算。
-  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.dictationMastered,WORDS,curHero()));
+  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.dictationMastered,allCatalogWords(),curHero()),{bookId:curUnit===0?DEFAULT_BOOK_ID:curBook});
   // ★ 轮次身份（docs/feature-rounds.md）：这里注入一个持久 roundId。
   //   它必须不同于进程内自增的 run.id（R1/R2…，刷新后会重复）。
   //   轮次**编号**不在这儿取：registerRunStart 在真正 +1 之后从 DB.runs 取，
@@ -703,7 +707,7 @@ function showLearningComplete(){
   if(!G) return false;
   // 词池抽干 = 本单元目标词全部完整拼对：这是**真实**的完成事实，值得记一次。
   // 幂等（domain 内部挡重复），且不改任何次数。
-  if(recordUnitComplete(DB,G.unit)) saveDB();
+  if(recordUnitComplete(DB,G.unit,{bookId:runBook()})) saveDB();
   // ★ 本轮完成范围（docs/feature-rounds.md）：词池抽干是「本轮把这个单元的
   //   目标词全部整词拼对」的真实证据，记一次。到过某个单元不算。
   if(noteRoundUnitComplete(G)) saveDB();
@@ -796,7 +800,7 @@ function nextUnit(){
   // ★ 先问来源相位：普通地图上的一次误调用、探针、连点都在这里被拒。
   const src=campaignSourceRefusal('next');
   if(src) return campaignRefuse(src);
-  const facts=transitionNextUnit({run:G,progress:campaignState()});
+  const facts=transitionNextUnit({run:G,progress:campaignState(runBook())});
   if(!facts.ok) return campaignRefuse(facts);
   // ★ facts.from 必须就是**当前**这一局的单元。领域层 applyUnitTransition 也会查这一条，
   //   但它返回 null 时已经太晚：carryLiveHp / recordUnitComplete 都写过状态了。
@@ -808,11 +812,11 @@ function nextUnit(){
   //   解锁口径（DB.mastered 历史覆盖）保持不变：历史全掌握的存档点一下继续下一单元
   //   仍然合法，只是本轮 completedUnits 不许因此被记上。
   const fromPool=G.pool.slice();
-  const applied=applyUnitTransition(G,facts,{words:allWords(facts.to)});
+  const applied=applyUnitTransition(G,facts,{words:allWords(facts.to,runBook())});
   if(!applied) return campaignRefuse({reason:'phase'});
   // 过渡成功之后才结转真实血量、才记完成凭据（顺序反了就是拿 stale hp 覆盖战况）。
   carryLiveHp();
-  if(recordUnitComplete(DB,facts.from)) saveDB();
+  if(recordUnitComplete(DB,facts.from,{bookId:runBook()})) saveDB();
   // 用过渡前抓的真实词池判定「本轮整词完成」，而不是已经换过池的 G。
   if(recordRoundUnitComplete(G,facts.from,{pool:fromPool})) saveDB();
   // 合法过渡记下了新的完成范围：已有卡立刻同步（不 mint、不结算）。
@@ -835,10 +839,10 @@ function continueUnit(){
   // 一次连点的第二次调用会看到 result 已经变回 undefined，在这里被拒。
   const src=campaignSourceRefusal('continue');
   if(src) return campaignRefuse(src);
-  const uc=campaignState().counts(G.unit);
+  const uc=campaignState(runBook()).counts(G.unit);
   if(uc && uc.complete){ toast('本单元词汇已经全部完成'); return false; }
-  if(!allWords(G.unit).length) return false;
-  const applied=applyUnitSegment(G,{words:allWords(G.unit)});
+  if(!allWords(G.unit,runBook()).length) return false;
+  const applied=applyUnitSegment(G,{words:allWords(G.unit,runBook())});
   if(!applied) return campaignRefuse({reason:'phase'});
   carryLiveHp();
   reopenRun();
@@ -1036,7 +1040,7 @@ audioCompatibility.mount($('audioCompatibility'));
 //   导入自定义词表、切换单元之后回到主页，数字都是当下的事实（不缓存第二套状态）。
 //   mount 幂等：renderTitle 被反复调用（继续远征 / 回主页 / 切后台）都复用同一个盒子。
 const masteryGrowthView=createMasteryGrowth({
-  getSummary:()=>growthSummary(DB.dictationMastered,WORDS),
+  getSummary:()=>growthSummary(DB.dictationMastered,allCatalogWords()),
 });
 // ★ mount() 的返回值是**挂好的 DOM 盒子**，不是组件本身（与 audioSettings 同口径）：
 //   把组件另存一份，renderTitle 里要调的是它的 paint()。
@@ -1268,14 +1272,14 @@ function settleRun(win){
   endRunProgress(G,DB,win);
   // 最后一个词正好打死首领：这一局不会再经过 advance()/showLearningComplete()，
   // 本单元词池抽干这件事必须在这里记下（与结算同一次落盘），否则下一单元永远解不开。
-  if(win && isPoolComplete(G)) recordUnitComplete(DB,G.unit);
+  if(win && isPoolComplete(G)) recordUnitComplete(DB,G.unit,{bookId:runBook()});
   DB.playLog=appendPlayLog(DB.playLog,{endedAt:new Date().toISOString(),hero:G.heroId,
-    unit:G.unit,qStats:G.qStats,win:!!win});
+    unit:G.unit,...(G.bookId?{bookId:G.bookId}:{}),qStats:G.qStats,win:!!win});
   ENCOUNTER=null; OUTCOME=null; setPhase(PHASE.MAP);
   // 成功结算只提供同轮续练与返回主页；战败才保留新开一轮的「再来一次」。
   // oNext 的可见性与文案由 over.js 按「本单元词汇是否完成」决定。
-  renderOver({run:G,db:DB,win,campaign:campaignState(),onTitle:renderTitle,show,
-    onAgain:()=>{ if(!G||typeof G.result!=='boolean')return; curUnit=G.unit; startRunFromUi() },
+  renderOver({run:G,db:DB,win,campaign:campaignState(runBook()),onTitle:renderTitle,show,
+    onAgain:()=>{ if(!G||typeof G.result!=='boolean')return; curUnit=G.unit;curBook=runBook(); startRunFromUi() },
     onNextUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.nextUnit() },
     onContinueUnit:()=>{ if(!G||typeof G.result!=='boolean')return; progress.continueUnit() },
     onHome:()=>{ progress.abandonRun(); renderTitle(); show('s-title') }});
@@ -1348,7 +1352,8 @@ const state={get DB(){return DB},get G(){return G},get B(){return B}};
 // 暂停/恢复接线：encounters 把「当前展开的界面描述」交给 runtime 存进快照。
 // 描述里只有 id 与展示字段，没有闭包，也没有 DOM。
 const publishEncounter=d=>{ ENCOUNTER=d };
-const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,getCampaign:campaignState,
+const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,getCampaign:()=>campaignState(curBook),getBook:()=>curBook,
+  onBook:id=>{curBook=bookById(id).id;curUnit=1;DB.bookId=curBook;saveDB();commit(false);masteryGrowthView?.paint();dailyCollectionView?.paint();},
   onHero:id=>{DB.hero=id;saveDB();commit(false)},
   // 选中的单元必须真的解锁：锁住的按钮根本不会回调，这里是第二道。
   onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit }});
@@ -1373,7 +1378,7 @@ const pauseScreen=createPauseScreen({getRun:()=>G,
     renderTitle(); show('s-title');
   }});
 const learningCompleteScreen=createLearningCompleteScreen({getRun:()=>G,getBattle:()=>B,
-  db:DB,getCampaign:campaignState,
+  db:DB,getCampaign:()=>campaignState(runBook()),
   // 「继续下一单元」= 同一轮学习跨单元：走 progress 的闸门与事务，不新建 run、不加次数。
   onNext:()=>{ progress.nextUnit() },
   // 「保存并返回主页」= 暂停式返回：不放弃这一局，进度留档，随时能继续。
@@ -1587,8 +1592,8 @@ const progress=createProgressController({state,api:{
 progressCtl=progress;
 
 // Daily sessions own a separate checkpoint, never a replacement for G/B/activeRun.
-const dailyLearning=createDailyLearning({getDB:()=>DB,getWords:()=>WORDS});
-const dailyCollection=createDailyCollection({getDB:()=>DB,getWords:()=>WORDS,
+const dailyLearning=createDailyLearning({getDB:()=>DB,getWords:()=>allCatalogWords()});
+const dailyCollection=createDailyCollection({getDB:()=>DB,getWords:(unit,bookId)=>bookWords(bookId || curBook),
   persist:()=>{saveDB();return commit(false)},
   onChange:()=>{dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
 });
@@ -1597,12 +1602,12 @@ for(const [name,port] of Object.entries(dailyCollection.ports)){
   const learningPort=dailyPorts[name];dailyPorts[name]=payload=>{learningPort?.(payload);port(payload)};
 }
 dailyController=createDailyDictationController({
-  getDB:()=>DB, getWords:unit=>allWords(unit),
+  getDB:()=>DB, getWords:(unit,bookId)=>allWords(unit,bookId || curBook),
   persist:()=>{saveDB();return commit(false)},
   ...dailyPorts,
   onChange:()=>{dailyView?.render();dailyReportView?.paint();dailyCollectionView?.paint();dailyCollectionView?.paintCompletion($('dailyCompletionExtra'),dailyController?.state())},
 });
-dailyView=createDailyDictationScreen({controller:dailyController,show,
+dailyView=createDailyDictationScreen({controller:dailyController,show,getBook:()=>curBook,
   onEnter:()=>{if(G&&!progress.isFinished())progress.returnToTitle();TTS.stop()},
   onHome:()=>{renderTitle();show('s-title')},
 });
@@ -1612,14 +1617,14 @@ dailyReportView=createDailyReportView({host:$('dailyHomeReport'),getReport:()=>d
 });
 dailyReportView.paint();
 dailyCollectionView=createDailyCollectionView({host:$('dailyCollectionHost'),atlasHost:$('dailyAtlasHost'),getView:()=>dailyCollection.view(),
-  getCards:unit=>dailyCollection.cards(unit),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
+  getBook:()=>curBook,getCards:(unit,bookId)=>dailyCollection.cards(unit,bookId),getSaved:()=>dailyCollection.saved(),onEquip:(id,type)=>dailyCollection.equip(id,type),onMakeup:date=>dailyCollection.makeup(date),
 });
 dailyCollectionView.paint();
 $('startRun').textContent='开始远征';
 // 主操作常驻视口底部（styles/home-cta.css）：给它所在那一行一个宿主 id，不改 index.html 骨架。
 if($('startRun').parentElement) $('startRun').parentElement.id='startRow';
 const titleSub=$('s-title').querySelector('.sub');
-if(titleSub)titleSub.textContent='外研版（新标准）· 八年级上册 · 收集单词卡，开启你的词汇远征';
+if(titleSub)titleSub.textContent=bookById(curBook).publisher+' · '+bookById(curBook).label+' · 收集单词卡，开启你的词汇远征';
 // Refresh the clock and accumulate active time through the timing port.
 // Persist at action completion or the single time-budget checkpoint, not each tick.
 setInterval(()=>{dailyView.updateTime();dailyReportView.updateDate();dailyCollectionView.updateDate()},1000);
@@ -1710,6 +1715,7 @@ $('toReset').onclick=()=>{
   const keepKb={kbMode:DB.kbMode,kbUpper:DB.kbUpper};
   DB={runs:0,wins:0,mastered:[],dictationMastered:[],reviewQueue:[],best:0,custom:[],rewards:[],unitProgress:{},
       hero:keepHero,kbMode:keepKb.kbMode,kbUpper:keepKb.kbUpper};
+  curBook=DEFAULT_BOOK_ID;curUnit=1;
   // 清档必须连未结束的远征快照一起删，否则刷新会把「已清空」的存档复活成一局死局。
   // 走 progress.resetProgress：删快照与写新的 DB 在**同一次** storage.save 里完成。
   lifecycle.resetRun(); TTS.stop(); progress.resetProgress();

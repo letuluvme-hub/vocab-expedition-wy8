@@ -31,6 +31,8 @@ import { comboMilestoneLadder } from './combo-milestones.js';
 // 数据层改上限之后，旧存档里那些合法计数突然变成「损坏」。
 import { WHET_MAX_PER_RUN } from '../data/balance.js';
 import { HERO_BALANCE } from '../data/hero-balance.js';
+import { bookUnits } from '../data/books.js';
+import { learningKey, knownBookId, DEFAULT_BOOK_ID, wordBookId } from './learning-identity.js';
 
 export const SNAPSHOT_SCHEMA_VERSION = 1;
 
@@ -132,7 +134,24 @@ function encodeRows(rows) {
 /* 教材词都有 th（音标/主题），自定义词可能没有 —— undefined 是合法值，
    不许在编解码时凭空补一个，也不许把它变成字符串以外的形状。 */
 function encodeWord(w) {
-  return { w: w.w, u: w.u, d: w.d, z: w.z, th: w.th };
+  return { w: w.w, u: w.u, d: w.d, z: w.z, th: w.th,
+    ...(w.bookId !== undefined ? {bookId:w.bookId} : {}) };
+}
+
+// Book facts are additive: absent facts keep the exact legacy upper-book shape.
+// An unknown present id must never silently fall back to the default textbook.
+function validBookFacts(run) {
+  if (run.bookId !== undefined && !knownBookId(run.bookId)) return false;
+  const bookId = run.bookId || DEFAULT_BOOK_ID;
+  if (run.campaign?.bookId !== undefined && run.campaign.bookId !== bookId) return false;
+  const units = bookUnits(bookId).map(unit => unit.n);
+  if (run.bookId !== undefined && !units.includes(run.unit)) return false;
+  if (run.scopeUnits !== undefined && (!Array.isArray(run.scopeUnits)
+    || run.scopeUnits.some(unit => !Number.isInteger(unit) || unit <= 0 || !units.includes(unit))
+    || new Set(run.scopeUnits).size !== run.scopeUnits.length)) return false;
+  return !Array.isArray(run.pool) || run.pool.every(word => word &&
+    (word.bookId === undefined || knownBookId(word.bookId)) &&
+    (run.unit === 0 || wordBookId(word) === bookId));
 }
 /* campaign：单元解锁主线（docs/feature-campaign.md）。startedUnit = 这一轮从哪个
  * 单元开始（跨单元过渡时不变），segments = 这一轮走过几段学习地图（不是次数）。
@@ -141,11 +160,11 @@ function encodeWord(w) {
  *   编码侧去重 + 排序（跨刷新后顺序不该漂移）；脏项直接丢掉而不是原样发布 ——
  *   快照是外部输入，run 上的字段可能已经被改坏。
  *   缺失 / 空数组都是合法形状（这一轮还没有任何整词完成的证据）。 */
-function encodeCompletedUnits(list) {
+function encodeCompletedUnits(list, bookId) {
   if (!Array.isArray(list)) return [];
   const seen = new Set();
   for (const u of list) {
-    if (isInt(u) && u >= 0 && u <= 6) seen.add(u);
+    if (isInt(u) && bookUnits(bookId).some(unit => unit.n === u)) seen.add(u);
   }
   return Array.from(seen).sort((a, b) => a - b);
 }
@@ -159,6 +178,7 @@ function encodeCampaign(c, unit) {
   return {
     startedUnit: isInt(c.startedUnit) && c.startedUnit > 0 ? c.startedUnit : unit,
     segments: isInt(c.segments) && c.segments > 0 ? c.segments : 1,
+    ...(c.bookId !== undefined ? {bookId:c.bookId} : {}),
   };
 }
 /* growth（docs/feature-mastery-growth.md）：**可选**的开局成长事实。
@@ -171,11 +191,13 @@ function encodeCampaign(c, unit) {
 const GROWTH_MAX = 12, GROWTH_INTERVAL = 20;
 function encodeGrowth(g) {
   if (!isObj(g) || !validGrowthFact(g)) return undefined;
-  if (!isInt(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > 259) return undefined;
+  if (!isInt(g.masteredAtStart) || g.masteredAtStart < 0 || g.masteredAtStart > (g.version === 3 ? g.catalogTotalAtStart : 259)) return undefined;
   if (!isInt(g.bonusHp) || g.bonusHp < 0 || g.bonusHp > GROWTH_MAX) return undefined;
   if (Math.min(GROWTH_MAX, Math.floor(g.masteredAtStart / GROWTH_INTERVAL)) !== g.bonusHp) return undefined;
   if (!isNum(g.baseMaxhp) || g.baseMaxhp < 1 || g.baseMaxhp > 9999) return undefined;
-  return { version: g.version, masteredAtStart: g.masteredAtStart, bonusHp: g.bonusHp, baseMaxhp: g.baseMaxhp, ...(g.version === 2 ? {bonusAttackPct:g.bonusAttackPct} : {}) };
+  return { version: g.version, masteredAtStart: g.masteredAtStart, bonusHp: g.bonusHp, baseMaxhp: g.baseMaxhp,
+    ...(g.version >= 2 ? {bonusAttackPct:g.bonusAttackPct} : {}),
+    ...(g.version === 3 ? {catalogTotalAtStart:g.catalogTotalAtStart} : {}) };
 }
 function validGrowth(g) {
   return encodeGrowth(g) !== undefined;
@@ -246,13 +268,15 @@ function encodeRun(run) {
     || (run.reward && typeof run.reward.id === 'string' ? run.reward.id : '');
   const out = {
     unit: run.unit, id: run.id,
+    ...(run.bookId !== undefined ? {bookId:run.bookId} : {}),
+    ...(run.scopeUnits !== undefined ? {scopeUnits:run.scopeUnits.slice()} : {}),
     // roundId / roundNumber / completedUnits 是**可选**的一组新字段（docs/feature-rounds.md）：
     //   roundId      —— 持久轮次身份（crypto.randomUUID，由 runtime 注入）。空串 = 没有。
     //   roundNumber  —— 真正开局之后从 DB.runs 取的轮次编号。0 = 没有（旧 run / 旧快照）。
     //   completedUnits —— 本轮**整词完成**的单元。到过某个单元、打过 BOSS 都不算。
     roundId: (typeof run.roundId === 'string' && run.roundId) ? run.roundId : '',
     roundNumber: (isInt(run.roundNumber) && run.roundNumber > 0) ? run.roundNumber : 0,
-    completedUnits: encodeCompletedUnits(run.completedUnits),
+    completedUnits: encodeCompletedUnits(run.completedUnits, run.bookId),
     // ★ 完整词连胜（可选新字段，docs/feature-word-streak.md）：
     //   wordStreak  = {count,lastEventId}，只序列化**事实**，绝不带上
     //                 UI 状态 / utterance 句柄 / 定时器句柄（那些跨刷新全是死的）。
@@ -395,6 +419,12 @@ export function encodeSnapshot(env, { now = Date.now() } = {}) {
   if (!run || typeof run.result === 'boolean') return null;
   if (run.whetMapBuys !== undefined && (!num(run.whetMapBuys,0,WHET_MAX_PER_MAP) || !isInt(run.whetMapBuys) || run.whetMapBuys > (run.whetBuys || 0))) return null;
   if (run.healerGrowth !== undefined && !healerGrowthFact(run)) return null;
+  if (!validBookFacts(run)) return null;
+  if (env.battle) {
+    const words = [env.battle.word, ...(Array.isArray(env.battle.offer) ? env.battle.offer : [])];
+    if (words.some(word => word && (word.bookId !== undefined && !knownBookId(word.bookId)
+      || run.bookId && run.unit !== 0 && wordBookId(word) !== run.bookId))) return null;
+  }
   if (run.growth !== undefined && run.growth !== null && !validGrowth(run.growth)) return null;
   // difficulty（清单 10）同理：内存态有一份解不开的难度事实时**不写整份快照**，
   //   而不是写一份缺了难度的 —— 那会让玩家刷新回来发现怪物忽然变回基线档，
@@ -468,6 +498,7 @@ function validRows(rows) {
 }
 function validRun(r) {
   if (!isObj(r)) return false;
+  if (!validBookFacts(r)) return false;
   if (!isInt(r.unit) || !isStr(r.heroId)) return false;
   // id 只是诊断标识，decode 侧会在缺失时补一个；脏类型不许进存档。
   if (r.id !== undefined && r.id !== null && typeof r.id !== 'string') return false;
@@ -494,7 +525,7 @@ function validRun(r) {
     && !(isInt(r.roundNumber) && r.roundNumber >= 0)) return false;
   if (r.completedUnits !== undefined && r.completedUnits !== null) {
     if (!Array.isArray(r.completedUnits)) return false;
-    if (r.completedUnits.some(u => !isInt(u) || u < 0 || u > 6)) return false;
+    if (r.completedUnits.some(u => !isInt(u) || !bookUnits(r.bookId).some(unit => unit.n === u))) return false;
   }
   // growth 同样可选：缺失合法（旧快照），出现就必须合法形状 —— 脏值整份 fail closed，
   // 绝不静默改成 +0（那会让玩家凭空/莫名丢掉一次上限，且看不出存档被人动过）。
@@ -554,6 +585,8 @@ function decodeRun(r, byId) {
   const ref = id => (id === null || id === undefined ? null : byId.get(id) || undefined);
   const run = {
     unit: r.unit, id: isStr(r.id) ? r.id : 'R-restored',
+    ...(r.bookId !== undefined ? {bookId:r.bookId} : {}),
+    ...(r.scopeUnits !== undefined ? {scopeUnits:r.scopeUnits.slice()} : {}),
     // 轮次身份/编号：0 与空串都是「没有」→ undefined，绝不从 DB.runs 之类的别处补。
     roundId: isStr(r.roundId) ? r.roundId : undefined,
     roundNumber: (isInt(r.roundNumber) && r.roundNumber > 0) ? r.roundNumber : undefined,
@@ -594,7 +627,7 @@ function decodeRun(r, byId) {
     hregen: r.hregen, hleech: r.hleech,
     kills: r.kills, att: r.att, attOk: r.attOk, deckHint: r.deckHint,
     shieldGiven: r.shieldGiven, nextHint: r.nextHint, shopHints: r.shopHints,
-    pool: r.pool.map(w => ({ w: w.w, u: w.u, d: w.d, z: w.z, th: w.th })),
+    pool: r.pool.map(encodeWord),
     done: new Set(r.done),                      // 数组 → Set
     wrong: r.wrong.slice(), history: r.history.slice(),   // 形状已在 validRun 里定死
     bag: Object.assign({}, r.bag),
@@ -638,7 +671,7 @@ function validBattle(b, run, byId) {
   //   抽词侧对重复条目只出第一条（见 word-selection 的 uniquePool），所以这里
   //   也只认第一条 —— 引用校验仍然 fail closed：不在词池里的词、字段对不上的词
   //   一律拒绝，不接受任何字段的「近似匹配」。
-  const entry = run.pool.filter(w => w.w === b.word.w)[0];
+  const entry = run.pool.filter(w => w.w === b.word.w && learningKey(w) === learningKey(b.word))[0];
   if (!entry) return false;
   if (b.word.u !== entry.u || b.word.d !== entry.d) return false;
   if (b.word.z !== entry.z) return false;
@@ -667,11 +700,11 @@ function validBattle(b, run, byId) {
     if (!Array.isArray(b.offer) || !b.offer.length || b.offer.length > 5) return false;
     for (const o of b.offer) {
       if (!isObj(o) || !isStr(o.w) || !isStr(o.z) || !isInt(o.u) || !isInt(o.d)) return false;
-      const hit = run.pool.filter(w => w.w === o.w)[0];
+      const hit = run.pool.filter(w => w.w === o.w && learningKey(w) === learningKey(o))[0];
       if (!hit || hit.u !== o.u || hit.d !== o.d || hit.z !== o.z) return false;
       if ((o.th || null) !== (hit.th || null)) return false;
     }
-    if (!b.offer.some(o => o.w === b.word.w)) return false;
+    if (!b.offer.some(o => o.w === b.word.w && learningKey(o) === learningKey(b.word))) return false;
   }
   if (b.autoHint !== undefined && b.autoHint !== null && !(isInt(b.autoHint) && b.autoHint >= 0)) return false;
   if (b.wordLocked !== undefined && b.wordLocked !== null && !isBool(b.wordLocked)) return false;
@@ -681,7 +714,7 @@ function validBattle(b, run, byId) {
 }
 function decodeBattle(b, run, byId) {
   const out = {
-    word: { w: b.word.w, u: b.word.u, d: b.word.d, z: b.word.z, th: b.word.th },
+    word: encodeWord(b.word),
     letters: b.letters.slice(), used: b.used.slice(), bad: b.bad.slice(),
     myHp: b.myHp, enHp: b.enHp, enMax: b.enMax, shield: b.shield,
     input: b.input.slice(), sel: b.sel,
@@ -704,7 +737,7 @@ function decodeBattle(b, run, byId) {
   if (foeAttack) out.foeAttack = foeAttack;
   // 候选解回**词池里的同一批对象**（与 run.pool 同引用），当前词也指向其中那一条。
   if (Array.isArray(b.offer) && b.offer.length) {
-    out.offer = b.offer.map(o => run.pool.filter(w => w.w === o.w)[0]);
+    out.offer = b.offer.map(o => run.pool.filter(w => w.w === o.w && learningKey(w) === learningKey(o))[0]);
   }
   if (isInt(b.autoHint) && b.autoHint > 0) out.autoHint = b.autoHint;
   if (b.wordLocked === true) out.wordLocked = true;

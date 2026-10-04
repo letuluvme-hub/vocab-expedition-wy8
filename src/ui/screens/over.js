@@ -3,7 +3,7 @@
  * 纯绘制函数绝不替父层落库，避免「画一次就存一次」的双写。
  * show(id) 与 onTitle() 是回调：切屏与标题页重绘都归父层编排。
  */
-import { UNITS } from '../../data/units.js';
+import { bookById, DEFAULT_BOOK_ID } from '../../data/books.js';
 import { RELICS } from '../../data/relics.js';
 import { clamp } from '../../domain/math.js';
 import { rewardScope, rewardRoundLine, renderRewardCard } from '../components/reward-card.js';
@@ -16,6 +16,8 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   onNextUnit, onContinueUnit, onAgain, onHome }) {
   const $ = id => document.getElementById(id);
   const G = run;
+  const unitName = unit => bookById(G.bookId).id === DEFAULT_BOOK_ID
+    ? 'Unit ' + unit : rewardScope(unit, G.bookId);
   const acc = clamp(Math.round(G.attOk / Math.max(1, G.att) * 100), 0, 100);
 
   const rewardBox = $('oReward'); rewardBox.innerHTML = ''; rewardBox.hidden = !win;
@@ -55,8 +57,8 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
   const next = $('oNext');
   if (nextOpen) {
     next.hidden = false;
-    next.textContent = '继续 Unit ' + nextUnit;
-    next.title = '带着当前的金币、道具和遗物进入 Unit ' + nextUnit + '（同一轮学习，不算新开一次远征）';
+    next.textContent = '继续 ' + unitName(nextUnit);
+    next.title = '带着当前的金币、道具和遗物进入 ' + unitName(nextUnit) + '（同一轮学习，不算新开一次远征）';
     next.onclick = onNextUnit ? () => { onNextUnit(); } : null;
   } else if (continueOpen) {
     const left = uc && uc.remaining ? uc.remaining : 0;
@@ -69,16 +71,16 @@ export function renderOver({ run, db, win, campaign, onTitle, show,
     // 隐藏时仍保留旧标签，保证与旧版逐元素比对（legacy parity）逐字一致；
     // 它永远不会可见，也没有任何回调。
     next.hidden = true;
-    next.textContent = nextUnit ? ('继续 Unit ' + nextUnit) : '继续下一 Unit';
+    next.textContent = nextUnit ? ('继续 ' + unitName(nextUnit)) : '继续下一 Unit';
     next.onclick = null;
   }
 
   $('oIcon').textContent = win ? '🏆' : '💀';
   $('oTitle').textContent = win ? '远征成功！' : '远征结束';
   $('oText').textContent = win
-    ? '你击败了词汇之王，完成了' + rewardScope(G.unit) + '的本次远征（' + rewardRoundLine(G.reward || {}) + '）！'
+    ? '你击败了词汇之王，完成了' + rewardScope(G.unit, G.bookId) + '的本次远征（' + rewardRoundLine(G.reward || {}) + '）！'
       + (bookLast ? '本册词汇已完成，可以返回主页选择单元。'
-        : nextOpen ? ('Unit ' + nextUnit + ' 的词汇已解锁，可以带着现有物资继续。')
+        : nextOpen ? (unitName(nextUnit) + ' 的词汇已解锁，可以带着现有物资继续。')
           : continueOpen ? ('本单元还有 ' + uc.remaining + ' 个词没完成，完成后才能进入下一个单元。')
             : (!uc && lastByCatalog ? '已到本册最后一个单元，可以返回主页选择单元。' : ''))
     : '你倒在了第 ' + G.floor + ' 层。那些还没记住的词，还在等着你。';

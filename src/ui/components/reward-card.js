@@ -1,12 +1,13 @@
 /* 通关纪念卡：只记录本次远征表现，不代表掌握所选范围的全部词汇。
  * 标题页的收藏列表和结算页共用这一份渲染，保证文案与层级只有一处来源。
  */
-import { UNITS } from '../../data/units.js';
+import { bookById, DEFAULT_BOOK_ID } from '../../data/books.js';
 import { heroById } from './hero.js';
 
-export function rewardScope(unit) {
-  const u = UNITS.find(x => x.n === unit);
-  return u ? u.t : (unit === -1 ? '全册' : '所选范围');
+export function rewardScope(unit, bookId) {
+  const book = bookById(bookId), u = book.units.find(x => x.n === unit);
+  const scope = u ? u.t : (unit === -1 ? '全册' : '所选范围');
+  return book.id !== DEFAULT_BOOK_ID && unit !== 0 ? book.short + ' · ' + scope : scope;
 }
 
 /* 轮次行。旧卡没有 roundNumber 时老实说「旧版记录」——
@@ -19,10 +20,11 @@ export function rewardRoundLine(r) {
 }
 
 /* 单元号 → 显示名。自定义词表（0）不自称任何教材单元。 */
-function unitLabel(u) {
+function unitLabel(u, bookId) {
   if (u === 0) return '我的词表';
-  const t = UNITS.find(x => x.n === u);
-  return t ? t.t : ('Unit ' + u);
+  const book = bookById(bookId), t = book.units.find(x => x.n === u);
+  const label = t ? t.t : ('Unit ' + u);
+  return book.id !== DEFAULT_BOOK_ID ? book.short + ' · ' + label : label;
 }
 
 /* 本轮完成单元行。只列 completedUnits —— 那是「本轮整词完成」的证据；
@@ -32,7 +34,7 @@ function unitLabel(u) {
 function completedUnitsLine(r) {
   if (!Array.isArray(r.completedUnits)) return '本轮完成单元：未记录完成范围';
   if (!r.completedUnits.length) return '本轮完成单元：尚无整词完成的单元';
-  return '本轮完成单元：' + r.completedUnits.map(unitLabel).join('、');
+  return '本轮完成单元：' + r.completedUnits.map(unit => unitLabel(unit, r.bookId)).join('、');
 }
 
 /* 整轮范围完成行。名义口径是「本轮学习范围已完成」，不是「全册已掌握」——
@@ -50,7 +52,7 @@ export function renderRewardCard(box, r) {
   const title = document.createElement('h3'); title.textContent = '词王征服者 · 通关纪念卡'; card.appendChild(title);
   const round = document.createElement('p'); round.className = 'reward-round';
   round.textContent = rewardRoundLine(r); card.appendChild(round);
-  const scope = document.createElement('p'); scope.textContent = rewardScope(r.unit) + ' · ' + heroById(r.heroId).n; card.appendChild(scope);
+  const scope = document.createElement('p'); scope.textContent = rewardScope(r.unit, r.bookId) + ' · ' + heroById(r.heroId).n; card.appendChild(scope);
   const stats = document.createElement('p'); stats.textContent = '拼写正确率 ' + r.accuracy + '% · 击败词灵 ' + r.kills + ' · 到达 ' + r.floor + ' 层'; card.appendChild(stats);
   const done = document.createElement('p'); done.className = 'reward-done';
   done.textContent = completedUnitsLine(r); card.appendChild(done);

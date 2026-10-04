@@ -1,5 +1,6 @@
 // Formal dictation evidence. Explicit serializable state; no DOM, storage or clock.
 // Spaces/hyphens/apostrophes remain part of a word's identity and spelling.
+import { learningKey, evidenceForWord } from './learning-identity.js';
 export const dictationWordKey = word => String(word && typeof word === 'object' ? word.w ?? '' : word ?? '').trim().toLowerCase();
 
 export function createDictationAttempt(word, { phase = 'formal' } = {}) {
@@ -19,7 +20,7 @@ export function applyDictationInput(attempt, key) {
     return attempt;
   }
   let ch = String(key ?? '').toLowerCase();
-  if (!/^[a-z '’-]$/.test(ch) || !attempt.target) return attempt;
+  if (!(/^[a-z '’-]$/.test(ch) || ch === '.' && attempt.target?.includes('.')) || !attempt.target) return attempt;
   const expected = attempt.target[attempt.input.length];
   // The ordinary apostrophe key also types typographic apostrophes supported by
   // custom lists; preserve the target's punctuation and its original identity.
@@ -65,13 +66,15 @@ export function creditDictation(db, attempt) {
   if (attempt.phase !== 'formal') return result;
   if (!Array.isArray(db.dictationMastered)) db.dictationMastered = [];
   if (!Array.isArray(db.reviewQueue)) db.reviewQueue = [];
+  const key = learningKey(attempt.word);
+  if (!key) return result;
   if (eligible) {
-    if (!db.dictationMastered.some(w => dictationWordKey(w) === attempt.target)) {
-      db.dictationMastered.push(attempt.target);
+    if (!db.dictationMastered.some(w => learningKey(w) === key)) {
+      db.dictationMastered.push(typeof evidenceForWord(attempt.word) === 'string' ? attempt.target : evidenceForWord(attempt.word));
       result.added = true;
     }
   } else {
-    if (!db.reviewQueue.some(w => dictationWordKey(w) === attempt.target)) db.reviewQueue.push(attempt.target);
+    if (!db.reviewQueue.some(w => learningKey(w) === key)) db.reviewQueue.push(evidenceForWord(attempt.word));
     result.reviewed = true;
   }
   return result;

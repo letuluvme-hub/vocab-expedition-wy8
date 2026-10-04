@@ -1,5 +1,7 @@
 // P0 observations only. No damage, rewards, hint allowance or learning decisions.
 import { norm } from './text.js';
+import { bookUnits } from '../data/books.js';
+import { knownBookId, DEFAULT_BOOK_ID } from './learning-identity.js';
 
 const WORD_FIELDS = ['wrong', 'hint', 'listen', 'revealed'];
 const STAT_FIELDS = ['words', 'perfect', 'good', 'rescue', 'hintsUsed', 'wrongLetters', 'listenUsed'];
@@ -51,12 +53,14 @@ export function completeWordStats(stats, word, quality) {
 function playRecord(value) {
   if (!plain(value) || typeof value.endedAt !== 'string' || !value.endedAt
     || typeof value.hero !== 'string' || !value.hero
-    || !Number.isSafeInteger(value.unit) || value.unit < 0 || value.unit > 6
+    || !Number.isSafeInteger(value.unit) || !bookUnits(value.bookId).some(u => u.n === value.unit)
+    || value.bookId !== undefined && !knownBookId(value.bookId)
     || typeof value.win !== 'boolean') return null;
   const qStats = decodeQStats(value.qStats);
   if (!qStats) return null;
   // Copy only plain facts, including old records: no live references or Sets escape.
-  return { endedAt: value.endedAt, hero: value.hero, unit: value.unit, qStats, win: value.win };
+  return { endedAt: value.endedAt, hero: value.hero, unit: value.unit, qStats, win: value.win,
+    ...(value.bookId !== undefined && value.bookId !== DEFAULT_BOOK_ID ? {bookId:value.bookId} : {}) };
 }
 export function appendPlayLog(log, record) {
   const history = Array.isArray(log) ? log.slice(-20).map(playRecord).filter(Boolean) : [];

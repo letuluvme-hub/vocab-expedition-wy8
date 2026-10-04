@@ -14,7 +14,7 @@ export function createDailyCollection({getDB,getWords,now=Date.now,random=Math.r
     try{const result=persist(getDB());saved=result===true||result?.ok===true;}catch{saved=false;}
     onChange();
   }
-  return {view:()=>collectionView(getDB(),now()),cards:unit=>atlasCards(getDB(),getWords(),unit),saved:()=>saved,
+  return {view:()=>collectionView(getDB(),now()),cards:(unit,bookId)=>atlasCards(getDB(),getWords(undefined,bookId),unit),saved:()=>saved,
     equip:(id,type)=>{if(!equipCosmetic(getDB(),id,type))return false;commit();return true;},
     makeup:date=>{const result=applyMakeup(getDB(),date,now());if(result.ok)commit();return result;},
     ports:{onPractice:practiced,onFailure:practiced,onAttempt:({db})=>syncPartner(db),

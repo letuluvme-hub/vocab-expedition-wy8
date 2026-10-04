@@ -2,8 +2,9 @@ import { createDictationKeyboard } from '../components/dictation-keyboard.js';
 import { pixelMonsterSVG } from '../components/pixel-art.js';
 import { ENEMIES, BOSS } from '../../data/enemies.js';
 import '../../styles/home-atlas.css';
+import {DEFAULT_BOOK_ID,bookById,bookUnits} from '../../data/books.js';
 
-export function createDailyDictationScreen({ controller, show, onHome, onEnter = () => {}, document: doc = globalThis.document, confirm = globalThis.confirm } = {}) {
+export function createDailyDictationScreen({ controller, show, onHome, onEnter = () => {}, getBook=()=>DEFAULT_BOOK_ID, document: doc = globalThis.document, confirm = globalThis.confirm } = {}) {
   const el = (tag, cls, text, id) => { const n = doc.createElement(tag); if(cls)n.className=cls; if(text !== undefined)n.textContent=text; if(id)n.id=id; return n; };
   const button = (text, id, action, secondary = false) => { const b=el('button','daily-button'+(secondary?' secondary':''),text,id); b.type='button'; b.onclick=action; return b; };
   const screen = el('section','screen daily-dictation daily-screen',undefined,'s-daily');
@@ -11,6 +12,8 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   const entry = el('details','daily-dictation daily-entry home-practice',undefined,'dailyEntry');
   const entrySummary = el('summary','home-practice-summary','练习与收藏');
   const title = doc.getElementById('s-title'); title.append(entry);
+  const footer=doc.getElementById('mainSiteLink')?.parentElement;
+  if(footer)title.append(footer);
   const atlasHost = el('div','',undefined,'dailyAtlasHost');
   // 远征是主玩法：图鉴放在「开始远征 / 遗物图鉴」那两行之后，而不是压在主操作上面
   // （手机上旧排法把「开始远征」挤到第二屏以下）。找不到锚点时退回旧位置。
@@ -49,9 +52,9 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
   function renderSelection() {
     header('选择今日词表');
     screen.append(el('p','daily-note','选学校今天要默写的单元，也可以粘贴词表。每次最多 16 词；余下词会留到后续练习。'));
-    const label=el('label','daily-label','教材单元');label.htmlFor='dailyUnit';
+    const label=el('label','daily-label',bookById(getBook()).label+' · 教材单元');label.htmlFor='dailyUnit';
     const select=el('select','daily-select',undefined,'dailyUnit');
-    for(const n of [1,2,3,4,5,6,0]) { const o=el('option','',n?`Unit ${n}`:'我粘贴的词表');o.value=String(n);select.append(o); }
+    for(const {n} of bookUnits(getBook())) { const o=el('option','',n?`Unit ${n}`:'我粘贴的词表');o.value=String(n);select.append(o); }
     select.value=selectionUnit;select.onchange=()=>{selectionUnit=select.value;};screen.append(label,select);
     const customLabel=el('label','daily-label','当日默写词表（每行：英文 中文）');customLabel.htmlFor='dailyCustomText';
     const text=el('textarea','daily-text',undefined,'dailyCustomText');text.rows=4;text.placeholder='cat 猫\nlook after 照顾';
@@ -65,7 +68,7 @@ export function createDailyDictationScreen({ controller, show, onHome, onEnter =
       if(controller.saved()===false)message.textContent+='；本机保存失败，刷新会丢失';
     },true),message);
     if(controller.invalid())screen.append(el('p','daily-warning','旧每日进度无法恢复，原存档仍然保留。'),button('丢弃无法恢复的每日进度','dailyDiscard',()=>{if(confirm('只丢弃无法恢复的每日进度？已学词、自由远征与收藏都会保留。')){controller.discard();renderSelection();}},true));
-    else screen.append(button('开始热身','dailyStart',()=>{if(controller.start({unit:Number(select.value)}))render();else message.textContent='没有可练习的词，请先保存词表';}));
+    else screen.append(button('开始热身','dailyStart',()=>{if(controller.start({unit:Number(select.value),bookId:getBook()}))render();else message.textContent='没有可练习的词，请先保存词表';}));
   }
   function render() {
     if(!active()){paintEntry();return;}
