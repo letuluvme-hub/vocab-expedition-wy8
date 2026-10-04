@@ -249,3 +249,42 @@ test('先知卡仍遵循原掉落概率和点金术保底，只调整解释文�
   assert.equal(combo.G.nextHint, true);
   assert.equal(combo.calls.finish, 1);
 });
+
+for (const restored of [false, true]) {
+  test(`商店购买后数量、限购与实际治疗即时同步（恢复=${restored}）`, () => {
+    const h = harness({hp:65}); h.ctrl.showShop();
+    if (restored) h.ctrl.reopenEncounter(serialized(h.desc()));
+    assert.match(h.button('shop:potion').innerHTML, /回复 5 点生命/);
+    h.click('shop:whet');
+    assert.match(h.button('shop:whet').innerHTML, /还剩 1 次/);
+    h.click('shop:whet');
+    assert.match(h.button('shop:whet').innerHTML, /还剩 0 次/);
+    const gold=h.G.gold; h.click('shop:whet'); assert.equal(h.G.gold,gold);
+    h.click('shop:scroll');
+    assert.match(h.button('shop:scroll').innerHTML, /已积累 3\/6 次/);
+    h.click('shop:scroll');
+    assert.match(h.button('shop:scroll').innerHTML, /已积累 6\/6 次/);
+    for (const o of h.desc().options) assert.ok(h.button(o.id).innerHTML.includes(o.d));
+    h.ctrl.reopenEncounter(serialized(h.desc()));
+    assert.match(h.button('shop:whet').innerHTML, /还剩 0 次/);
+    assert.match(h.button('shop:scroll').innerHTML, /已积累 6\/6 次/);
+  });
+}
+
+for (const item of ITEMS) {
+  test(`商店 ${item.id} 的三件包装、连续购买与恢复库存一致`, () => {
+    const h=harness({bag:{[item.id]:item.max}});
+    const id='shop:item:'+item.id+':'+item.price;
+    h.ctrl.reopenEncounter(oneCard(h,'shop',id,{t:item.n+' ×3 · '+item.price+' 金币'}));
+    assert.match(h.button(id).innerHTML, /每次购买 3 件/);
+    assert.ok(h.button(id).innerHTML.includes('当前库存 '+item.max+' 件'));
+    h.click(id); h.click(id);
+    assert.equal(h.G.bag[item.id],item.max+6);
+    assert.equal(h.G.gold,1000-2*item.price);
+    assert.ok(h.button(id).innerHTML.includes('当前库存 '+(item.max+6)+' 件'));
+    h.ctrl.reopenEncounter(serialized(h.desc()));
+    assert.ok(h.button(id).innerHTML.includes('当前库存 '+(item.max+6)+' 件'));
+    h.G.gold=0; h.click(id);
+    assert.equal(h.G.bag[item.id],item.max+6); assert.equal(h.G.gold,0);
+  });
+}
