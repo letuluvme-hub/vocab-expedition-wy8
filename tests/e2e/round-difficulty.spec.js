@@ -277,9 +277,9 @@ test('刷新恢复：难度事实原样带回，不重排、不改 runs/wins', a
   expect(after.wins, '恢复绝不记通关').toBe(winsBefore);
 
   // 按保存的剩余继续，只挨一下，且伤害是缩放后的 5。
+  const hpBefore = (await game.state()).B.myHp;
   await game.page.waitForFunction(() => window.__gameTest.B.foeAttack.cycle >= 1, null, { timeout: 20_000 });
-  const hpBefore = 70;
-  expect((await game.state()).B.myHp).toBeLessThan(hpBefore);
+  expect((await game.state()).B.myHp).toBe(hpBefore - 5);
 });
 
 test('旧存档没有 difficulty：完全基线，绝不按当前 DB.runs 补出高档', async ({ game }) => {
