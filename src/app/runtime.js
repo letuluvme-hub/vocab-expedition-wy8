@@ -1798,7 +1798,7 @@ let storyScreen=null;
 function mountStory(){
   if($('s-story')) return;
   const screen=document.createElement('div');screen.className='screen';screen.id='s-story';
-  screen.innerHTML='<div class="hdr"><button class="back" data-back>‹</button><div class="hdrtitle">远征故事</div></div><div id="storyBox"></div>';
+  screen.innerHTML='<div class="hdr" id="storyHdr"><button class="back" data-back aria-label="返回主页">‹ 返回</button><div class="hdrtitle">远征故事</div></div><div id="storyBox"></div>';
   screen.querySelector('[data-back]').onclick=()=>{ renderTitle(); show('s-title') };
   const relics=$('s-relics');relics.parentElement.insertBefore(screen,relics);
   const row=document.createElement('div');row.className='row';
