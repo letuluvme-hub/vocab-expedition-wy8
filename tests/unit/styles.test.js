@@ -59,7 +59,7 @@ const ADDED = [
   ['./desktop-battle.css', /^#s-fight\b|^#app\b/, '电脑战斗分区'],
   ['./hero-unlocks.css', /^#heroes\b/, '角色解锁进度'],
   // 远征故事屏：漫画、档案、图鉴（类名 .st-* 只由 ui/screens/story.js 产出）。
-  ['./story.css', /^#storyBox\b|^\.st-|^#heroStory\b/, '远征故事与角色档案'],
+  ['./story.css', /^#storyBox\b|^\.st-|^#heroStory\b|^#storyTop/, '远征故事与角色档案'],
 ];
 
 test('split styles retain every original rule and exact cascade order',async()=>{

@@ -26,3 +26,23 @@ for (const width of [320, 390]) {
     expect(game.errors).toEqual([]);
   });
 }
+
+for (const width of [320, 1280]) {
+  test(`title row carries a small story entry beside the heading at ${width}px`, async ({ game, page }, info) => {
+    only(info);
+    await page.setViewportSize({ width, height: 800 });
+    await game.open();
+    const top = page.locator('#storyTop');
+    await expect(top).toBeVisible();
+    await expect(top).toHaveText('📖 远征故事');
+    const m = await page.evaluate(() => {
+      const b = document.getElementById('storyTop').getBoundingClientRect(), h = document.querySelector('#storyTopRow h1').getBoundingClientRect();
+      return { sameRow: Math.abs((b.top + b.bottom) / 2 - (h.top + h.bottom) / 2) < 12, right: b.right > h.right, sw: document.documentElement.scrollWidth };
+    });
+    expect(m).toEqual({ sameRow: true, right: true, sw: width });
+    await top.click();
+    await expect(page.locator('#s-story')).toBeVisible();
+    expect(game.errors).toEqual([]);
+  });
+}
+
