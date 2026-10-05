@@ -75,8 +75,10 @@ test('map shortcut hints preserve node type labels on desktop and phone',async({
   await expect(node.locator('.keyShortcutHint')).toHaveAttribute('data-label',/[1-9]/);
   for(const width of [1024,390]){
     await page.setViewportSize({width,height:844});
-    const label=await node.evaluate(n=>({display:getComputedStyle(n,'::after').display,content:getComputedStyle(n,'::after').content}));
-    expect(label.display).not.toBe('none');expect(label.content).toContain('战斗');
+    // 改视口会触发地图重绘、整批换掉节点；只读一次可能拿到正被移除的旧节点（脱离页面后样式读出来是空串）。
+    // 轮询让定位器每次重新找当前页面上的节点，断言本身不放宽。
+    await expect.poll(()=>node.evaluate(n=>n.isConnected?getComputedStyle(n,'::after').content:'')).toContain('战斗');
+    expect(await node.evaluate(n=>getComputedStyle(n,'::after').display)).not.toBe('none');
     if(width===390)await expect(node.locator('.keyShortcutHint')).toBeHidden();
     else await expect(node.locator('.keyShortcutHint')).toBeVisible();
   }
