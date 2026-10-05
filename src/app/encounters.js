@@ -447,6 +447,10 @@ export function createEncounterController({ state, ports }) {
   function shopStock(o) {
     const G = state.G;
     if (/^shop:potion(:|$)/.test(o.id)) o.d = G.hp >= G.maxhp ? '生命已满，无需购买（不会扣款）' : '回复 ' + Math.min(35, G.maxhp - G.hp) + ' 点生命';
+    // na：现在买不了或用不上，卡片显示为灰（仍可点，点了只给说明、不扣款）。
+    o.na = (/^shop:potion(:|$)/.test(o.id) && G.hp >= G.maxhp)
+      || (/^shop:scroll(:|$)/.test(o.id) && (G.shopHints || 0) >= SHOP_HINT_LIMIT)
+      || (o.id === 'shop:chest' && !ownedRelics(G).length);
     if (/^shop:scroll(:|$)/.test(o.id)) o.d = '下一场战斗 +3 次提示 · 已积累 ' + (G.shopHints || 0) + '/' + SHOP_HINT_LIMIT + ' 次（最多还能买 ' + Math.max(0, Math.floor((SHOP_HINT_LIMIT - (G.shopHints || 0)) / 3)) + ' 份）';
     if (/^shop:whet(:|$)/.test(o.id)) o.d = whetDescription(G);
     if (o.id === 'shop:tome' || o.id === 'shop:codex') {
@@ -459,11 +463,16 @@ export function createEncounterController({ state, ports }) {
     if (it) o.d = '每次购买 3 件 · 当前库存 ' + (G.bag[it.id] | 0) + ' 件 · 每场最多使用 ' + it.max + ' 次。' + it.d;
     return o;
   }
+  // 只是外观；没有 classList 的环境（单测桩、旧壳）直接跳过。
+  function markNa(b, on) {
+    if (b && b.classList && typeof b.classList.toggle === 'function') b.classList.toggle('na', !!on);
+  }
   function refreshShopCards(opts, buttons) {
     opts.forEach((o, i) => {
       shopStock(o);
       // 仅换按钮内容，保留原按钮、价格闭包及 260ms 冷却。
       buttons[i].innerHTML = pickCardHTML({ ...o, ic: esc(o.ic), t: esc(o.t), d: esc(o.d), tip: o.tip ? esc(o.tip) : o.tip });
+      markNa(buttons[i], o.na);
     });
     publish(Object.assign({}, current(), describe('shop', opts, { gold: state.G.gold })));
     refreshShopGold();
@@ -495,6 +504,7 @@ export function createEncounterController({ state, ports }) {
       shopStock(o);
       const b = cardButton(o);
       buttons.push(b);
+      markNa(b, o.na);
       b.onclick = () => {
         if (!canAct()) return;
         if (state.G !== run) return;                   // 旧商店界面不得操作新远征

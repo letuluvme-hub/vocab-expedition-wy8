@@ -3,6 +3,7 @@ import { applyDevicePresentation } from '../services/device.js';
 import { createDisplayMode } from '../services/display-mode.js';
 import { createDisplaySettings } from '../ui/components/display-settings.js';
 import '../styles/display-settings.css';
+import '../styles/ui-polish.css';
 import { createDailyCollection } from './daily-collection.js';
 import { createDailyCollectionView } from '../ui/components/daily-collection.js';
 import '../styles/daily-collection.css';
