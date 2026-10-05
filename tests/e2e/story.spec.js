@@ -46,3 +46,28 @@ for (const width of [320, 1280]) {
   });
 }
 
+for (const width of [320, 1280]) {
+  test(`story back button stays pinned at the top while reading at ${width}px`, async ({ game, page }, info) => {
+    only(info);
+    await page.setViewportSize({ width, height: 700 });
+    await game.open();
+    await page.locator('#storyTop').click();
+    await expect(page.locator('#s-story')).toBeVisible();
+    for (const where of ['#comic-team', '.st-disclaimer']) {
+      await page.locator(where).scrollIntoViewIfNeeded();
+      const m = await page.evaluate(() => ({ y: window.scrollY, top: document.getElementById('storyHdr').getBoundingClientRect().top,
+        back: document.querySelector('#storyHdr .back').getBoundingClientRect().toJSON() }));
+      expect(m.y, where).toBeGreaterThan(200);
+      expect(Math.abs(m.top), where).toBeLessThan(2);
+      expect(m.back.top).toBeGreaterThanOrEqual(0);
+      expect(m.back.height).toBeGreaterThanOrEqual(40);
+    }
+    // 顶栏不能盖住正文：最后一段免责声明完整露在顶栏下方
+    const cover = await page.evaluate(() => document.querySelector('.st-disclaimer').getBoundingClientRect().top - document.getElementById('storyHdr').getBoundingClientRect().bottom);
+    expect(cover).toBeGreaterThanOrEqual(0);
+    await page.locator('#storyHdr .back').click();
+    await expect(page.locator('#s-title')).toBeVisible();
+    expect(game.errors).toEqual([]);
+  });
+}
+
