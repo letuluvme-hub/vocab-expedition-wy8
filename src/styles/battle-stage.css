@@ -126,3 +126,11 @@
 @media(min-width:641px) and (max-width:899px) and (min-height:481px) and (max-height:600px) {
  #s-fight #fBank {height:auto;min-height:0;max-height:100%;align-self:stretch;}
 }
+/* The word card takes the room between the stage and the item dock, so the
+   dock sits right above the keyboard and the spare height becomes padding
+   inside the card. The keyboard stays anchored to the bottom as before:
+   everything below the card has a fixed height. */
+@media(max-width:899px) and (min-height:481px) {
+ #s-fight .fmid {flex:1 1 auto;display:flex;flex-direction:column;}
+ #s-fight .fmid .q {flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;}
+}
