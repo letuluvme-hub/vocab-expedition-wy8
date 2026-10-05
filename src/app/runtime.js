@@ -1804,6 +1804,15 @@ function mountStory(){
   const btn=document.createElement('button');btn.className='btn g';btn.id='toStory';btn.type='button';btn.textContent='📖 远征故事 · 角色档案';
   btn.onclick=()=>openStory();row.append(btn);
   const anchor=$('toRelics').parentElement;anchor.parentElement.insertBefore(row,anchor.nextSibling);
+  // 标题右侧的小入口：一进主页就能看到。把 h1 包进一行，右边放胶囊按钮。
+  const h1=document.querySelector('#s-title > h1');
+  if(h1&&!$('storyTop')){
+    const top=document.createElement('div');top.id='storyTopRow';
+    h1.parentElement.insertBefore(top,h1);top.append(h1);
+    const pill=document.createElement('button');pill.type='button';pill.id='storyTop';
+    pill.textContent='📖 远征故事';pill.title='看看词汇远征的背景故事和九位远征者的档案';
+    pill.onclick=()=>openStory();top.append(pill);
+  }
 }
 mountStory();
 function openStory(heroId){

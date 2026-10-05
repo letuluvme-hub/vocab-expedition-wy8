@@ -59,3 +59,13 @@
 .st-disclaimer{font-size:11.5px;color:var(--dim);text-align:center;margin:0}
 
 #heroStory{margin-top:8px}
+
+/* 主页标题右侧的故事入口（runtime 的 mountStory 把 h1 包进 #storyTopRow） */
+#storyTopRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#storyTopRow h1{min-width:0}
+#storyTop{flex:none;min-height:40px;padding:6px 12px;border:1px solid #a78bfa80;border-radius:999px;
+  background:linear-gradient(135deg,#2a1f4d,#16233f);color:#e9e3ff;font:inherit;font-size:13px;font-weight:700;
+  letter-spacing:.5px;cursor:pointer;box-shadow:0 0 0 0 #a78bfa55;animation:storyTopGlow 2.8s ease-in-out 3}
+#storyTop:hover{border-color:#c4b5fd;background:linear-gradient(135deg,#352763,#1b2b4b)}
+@keyframes storyTopGlow{50%{box-shadow:0 0 0 6px #a78bfa22}}
+@media (prefers-reduced-motion:reduce){#storyTop{animation:none}}
