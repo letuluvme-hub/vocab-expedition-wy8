@@ -1,0 +1,28 @@
+/* UI 检查后的统一修整（docs/ui-polish-2026-10-05.md）。由 runtime 引入，排在所有样式之后。
+   只做尺寸、对齐与状态外观，不改结构和行为。 */
+
+/* 主页：单元卡在手机上三列会把「Unit 3 成长与发现」折行，改两列。 */
+@media (max-width:480px){
+ #s-title .units{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+}
+/* 角色卡说明不低于 11px，手机上看得清。 */
+#heroes .hs{font-size:11px;line-height:1.45}
+#heroes .heroUnlock{font-size:11px}
+/* 知识成长：两行攻击说明原来没设字号，掉回 16px，比标题还大。收回到同一套字号。 */
+#masteryGrowth > .mgrowth-attack{margin:6px 0 0;font-size:13px}
+#masteryGrowth > .mgrowth-attack-next{margin:2px 0 0;font-size:12px;color:#cfd8e3}
+/* 统计五项排成一行，不再四加一。 */
+#s-title .stats{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+#s-title .stats>div i{white-space:nowrap}
+
+/* 奖励卡（商店、营火、战斗奖励）：像素图标原来被 .pick span 的 display:block
+   挤到标题上方单独一行，改为和标题同行，与 emoji 图标对齐。 */
+.picks > .pick b > .ic{display:inline-block;vertical-align:-3px;margin-right:6px;line-height:0}
+.picks > .pick b > .ic .pxicon{width:18px;height:18px}
+/* 暂时买不了或用不上的商品（满血时的药、集齐后的宝箱、买满的卷轴）显示为灰。
+   仍可点击，点击只给出说明、不扣款。 */
+.picks > .pick.na{opacity:.5;filter:saturate(.4)}
+.picks > .pick.na:hover{transform:none}
+
+/* 地图：「暂停并保存 / 放弃远征」钉在视口底部，地图长时也不用滚到底才找到。 */
+#s-map > .row:last-child{position:sticky;bottom:calc(8px + var(--sab,0px));z-index:5;margin-bottom:0;padding:6px 0;background:var(--bg)}
