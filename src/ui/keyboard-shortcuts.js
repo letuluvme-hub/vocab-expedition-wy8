@@ -57,6 +57,7 @@ export function createGameShortcuts({ document: doc = globalThis.document, Obser
       if (!add('Enter', '#lcBtnNext')) add('Enter', '#lcBtnHome');
       add('Escape', '#lcBtnHome');
     } else if (screen === 's-relics') add('Escape', '#s-relics [data-back]');
+    else if (screen === 's-story') add('Escape', '#s-story [data-back]');
     else if (screen === 's-import') add('Escape', '#s-import [data-back]');
     return out;
   }

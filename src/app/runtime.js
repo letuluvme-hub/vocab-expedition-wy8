@@ -26,6 +26,7 @@ import { generateMap } from '../domain/map.js';
 import { drawWord as selectWord, isPoolComplete, learningCounts } from '../domain/word-selection.js';
 import { offerWords, canSwitchWord, preferredOfferWord } from '../domain/word-choice.js';
 import { drawLetters as generateLetters, bankCols, bankRows as layoutBankRows, bankPosOf as layoutBankPosOf } from '../domain/letter-bank.js';
+import { createStoryScreen } from '../ui/screens/story.js';
 import { createTitleScreen } from '../ui/screens/title.js';
 import { createMapScreen } from '../ui/screens/map.js';
 import { createFightScreen } from '../ui/screens/fight.js';
@@ -1439,7 +1440,8 @@ const titleScreen=createTitleScreen({getDB:()=>DB,getUnit:()=>curUnit,allWords,g
   getHeroUnlock:id=>heroUnlockState(DB,id),
   onHero:id=>{if(!heroUnlockState(DB,id).unlocked)return;DB.hero=id;saveDB();commit(false);homeStartView.paint()},
   // 选中的单元必须真的解锁：锁住的按钮根本不会回调，这里是第二道。
-  onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit;homeStartView.paint() }});
+  onUnit:unit=>{ if(canSelectUnit(campaignState(),unit)) curUnit=unit;homeStartView.paint() },
+  onStory:id=>openStory(id)});
 const mapScreen=createMapScreen({getRun:()=>G,onEnter:n=>progress.enterNode(n),onToast:toast,onNodeSound:()=>sfx.node()});
 const fightScreen=createFightScreen({getRun:()=>G,getBattle:()=>B,getDB:()=>DB,
   getFoeAttackWindow:()=>foeAttackCtl.window(),
@@ -1786,6 +1788,28 @@ $('toRelics').onclick=()=>{
   });
   show('s-relics');
 };
+/* 远征故事屏：只读展示，不碰远征状态；每次打开重画（档案默认收起）。 */
+let storyScreen=null;
+// 屏幕和入口按钮都在运行时插入：index.html 骨架与归档版逐字比对，不在那里加东西。
+function mountStory(){
+  if($('s-story')) return;
+  const screen=document.createElement('div');screen.className='screen';screen.id='s-story';
+  screen.innerHTML='<div class="hdr"><button class="back" data-back>‹</button><div class="hdrtitle">远征故事</div></div><div id="storyBox"></div>';
+  screen.querySelector('[data-back]').onclick=()=>{ renderTitle(); show('s-title') };
+  const relics=$('s-relics');relics.parentElement.insertBefore(screen,relics);
+  const row=document.createElement('div');row.className='row';
+  const btn=document.createElement('button');btn.className='btn g';btn.id='toStory';btn.type='button';btn.textContent='📖 远征故事 · 角色档案';
+  btn.onclick=()=>openStory();row.append(btn);
+  const anchor=$('toRelics').parentElement;anchor.parentElement.insertBefore(row,anchor.nextSibling);
+}
+mountStory();
+function openStory(heroId){
+  mountStory();
+  if(!storyScreen) storyScreen=createStoryScreen({host:$('storyBox')});
+  storyScreen.render();
+  show('s-story');
+  if(heroId) storyScreen.focusHero(heroId);
+}
 $('toImport').onclick=()=>{
   $('ta').value=DB.custom.map(x=>x.w+' '+x.z).join('\n');
   $('impMsg').textContent=''; show('s-import');

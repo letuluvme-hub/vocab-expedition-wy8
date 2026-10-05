@@ -7,9 +7,10 @@ import {BOOKS,bookById,bookUnits,DEFAULT_BOOK_ID} from '../../data/books.js';
 import { HERO_DEFAULT, heroById, pcHTML, heroStatLines } from '../components/hero.js';
 import { renderRewardCard } from '../components/reward-card.js';
 import { canonicalMasteryKeys } from '../../domain/mastery-growth.js';
+import { HERO_LORE } from '../../data/story.js';
 
 export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHero, onUnit,
-  getBook=()=>DEFAULT_BOOK_ID, onBook, getHeroUnlock }) {
+  getBook=()=>DEFAULT_BOOK_ID, onBook, getHeroUnlock, onStory }) {
   const $ = id => document.getElementById(id);
 
   /* 单元解锁（docs/feature-campaign.md）。getCampaign 不注入时**退回旧行为**：
@@ -44,6 +45,15 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
     const cur = heroById(sel);
     const d = $('heroDesc');
     if (d) d.innerHTML = '<b>' + cur.n + '</b> · <i>' + cur.tag + '</i><br>' + cur.d;
+    // 「查看档案」跳到远征故事屏里这位角色的档案（没接线的旧测试台不画这个按钮）。
+    if (d && onStory && HERO_LORE[cur.id]) {
+      const open = document.createElement('button');
+      open.type = 'button'; open.className = 'btn g'; open.id = 'heroStory';
+      open.textContent = '📖 ' + HERO_LORE[cur.id].name + ' 的档案';
+      open.onclick = () => onStory(cur.id);
+      d.appendChild(document.createElement('br'));
+      d.appendChild(open);
+    }
   }
 
   function renderTitle() {
