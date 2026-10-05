@@ -38,8 +38,9 @@ for(const [hero,word,hp] of [['warrior','factory',85],['berserker','presentation
  });
 }
 
-test('practice-only history does not grant permanent attack growth',async({game,page},info)=>{
+// 2026-10 预习模式起统一「学会」口径：远征整词拼对的 150 词同样带来攻击成长（每 10 词 +4%，封顶 60%）。
+test('expedition-learned history grants permanent attack growth under the unified count',async({game,page},info)=>{
  only(info);await game.open({saved:{mastered:WORDS.slice(0,150).map(w=>w.w),hero:'healer'}});
- await expect(page.locator('#masteryGrowth .mgrowth-attack')).toContainText('+0%');
- await game.start();expect(await page.evaluate(()=>window.__gameTest.G.growth.bonusAttackPct)).toBe(0);
+ await expect(page.locator('#masteryGrowth .mgrowth-attack')).toContainText('+60%');
+ await game.start();expect(await page.evaluate(()=>window.__gameTest.G.growth.bonusAttackPct)).toBe(60);
 });

@@ -75,13 +75,14 @@ test('lower-book ellipsis phrases keep spaces and permit repeated punctuation on
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test('a legacy all-practiced save with completion stamps gains no formal growth or unlock', async ({ game, page }, info) => {
+// 2026-10 预习模式起统一「学会」口径：远征里整词拼对过的词也算学会，解锁和成长都认。
+test('a legacy all-practiced save counts as learned: units unlock and new runs get growth', async ({ game, page }, info) => {
   newOnly(info); const original = WORDS.map(w => w.w);
   await game.open({ saved: { mastered: original, unitProgress: { 1: { complete: true } }, future: { keep: 1 } } });
-  await expect(page.locator('#units [data-unit="2"]')).toBeDisabled();
-  await expect(page.locator('#sMaster')).toHaveText('0');
-  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText('0/467');
-  await game.start(); expect((await game.state()).G.maxhp).toBe(80);
+  await expect(page.locator('#units [data-unit="6"]')).toBeEnabled();
+  await expect(page.locator('#sMaster')).toHaveText(String(WORDS.length));
+  await expect(page.locator('#masteryGrowth .mgrowth-count')).toContainText(`${WORDS.length}/467`);
+  await game.start(); const g = await page.evaluate(() => ({ bonus: window.__gameTest.G.growth.bonusHp, maxhp: window.__gameTest.G.maxhp })); expect(g.bonus).toBe(12); expect(g.maxhp).toBe(80 + 12);
   const saved = await game.saved(); expect(saved.mastered).toEqual(original);
   expect(saved.dictationMastered).toEqual([]); expect(saved.future).toEqual({ keep: 1 });
 });

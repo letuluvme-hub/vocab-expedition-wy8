@@ -35,7 +35,7 @@ test('Shanghai midnight report splits active practice and excludes paused waitin
 });
 
 test('homepage today record advances at Shanghai midnight without starting a session',async({game,page},info)=>{
- newOnly(info);await clockAt(page,'2026-10-02T15:59:58Z');await game.open();await openPracticePanel(page);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-02');await page.clock.fastForward(3000);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-03');await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：0');await expect(page.locator('#dailyReportRate')).toContainText('暂无正式尝试');
+ newOnly(info);await clockAt(page,'2026-10-02T15:59:58Z');await game.open();await openPracticePanel(page);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-02');await page.clock.fastForward(3000);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-03');await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：0');await expect(page.locator('#dailyReportRate')).toHaveCount(0);
 });
 for(const width of [320,390])test(`parent report mobile ${width}px readable card, no horizontal overflow`,async({game,page},info)=>{
  newOnly(info);await page.setViewportSize({width,height:720});await game.open();await openPracticePanel(page);await page.locator('#dailyHomeReport').scrollIntoViewIfNeeded();await page.screenshot({path:`/tmp/pr3-home-${width}.png`});
