@@ -14,15 +14,25 @@
  #s-fight #fBattleStage .myname {margin-top:0;font-size:11px;}
  #s-fight .fmid {grid-column:1;grid-row:2 / 5;}
  #s-fight .fmid .q {margin:0;padding:14px 12px;}
- #s-fight .q .zh {font-size:28px;letter-spacing:.5px;line-height:1.25;}
- #s-fight .q .zh[data-dense="true"] {font-size:19px;letter-spacing:0;}
+ #s-fight .fmid {display:flex;flex-direction:column;}
+ #s-fight .fmid .q {flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;}
+ #s-fight .q .zh {font-size:34px;letter-spacing:.5px;line-height:1.25;}
+ #s-fight .q .zh[data-dense="true"] {font-size:22px;letter-spacing:0;}
  #s-fight #fActionDock {grid-column:1;grid-row:5;margin:0;align-self:center;}
  #s-fight .bankbar {grid-column:2;grid-row:2;margin:0;flex-wrap:nowrap;gap:5px;}
  #s-fight .bankbar .bkbtn {padding:5px 8px;font-size:11px;white-space:nowrap;}
  #s-fight #fHintShared {grid-column:2;grid-row:3;margin:0;align-self:center;}
  #s-fight #fBank {grid-column:2;grid-row:4 / 6;align-self:start;margin:0 auto;height:100%;min-height:0;max-height:100%;align-content:start;padding-top:8px;}
- #s-fight #fBank.kb {--kbw:clamp(30px,4vw,44px)!important;}
- #s-fight #fBank.grid .key,#s-fight #fBank.kb .key {height:48px;min-height:48px;}
+ #s-fight #fBank.kb {--kbw:clamp(30px,4vw,46px)!important;}
+ #s-fight #fBank.grid .key,#s-fight #fBank.kb .key {height:52px;min-height:52px;font-size:22px;}
  #s-fight .tools {grid-column:1 / -1;grid-row:6;margin:0;padding:0;align-self:stretch;}
  #s-fight .tools .tool {padding:6px;}
+}
+/* Tall desktop windows have room for a larger meaning and letter slots inside
+   the card; short ones keep the smaller sizes so long words still fit. */
+@media(min-width:900px) and (min-height:700px) {
+ #s-fight .q .zh {font-size:44px;}
+ #s-fight .q .zh[data-dense="true"] {font-size:26px;}
+ #s-fight .slots {min-height:48px;gap:5px;}
+ #s-fight .slot {width:32px;height:48px;font-size:22px;}
 }
