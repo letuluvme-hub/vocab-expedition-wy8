@@ -1,5 +1,5 @@
 import { createDictationAttempt, applyDictationInput, markDictationAssistance, creditDictation } from '../domain/dictation.js';
-import { selectDailyWords, createDailySession, restoreDailySession, dailySummary, DAILY_TIME_BUDGET_MS } from '../domain/daily-session.js';
+import { selectDailyWords, createDailySession, restoreDailySession, dailySummary, DAILY_TIME_BUDGET_MS, PREVIEW_WORD_LIMIT } from '../domain/daily-session.js';
 import { learningKey, evidenceForWord, knownBookId, DEFAULT_BOOK_ID } from '../domain/learning-identity.js';
 import { drawLetters } from '../domain/letter-bank.js';
 import { parseCustomWords } from '../domain/custom-words.js';
@@ -9,7 +9,7 @@ import { parseCustomWords } from '../domain/custom-words.js';
 export function createDailyDictationController({ getDB, getWords, getDueWords = () => [],
   persist = () => false, now = Date.now, random = Math.random, onChange = () => {},
   onAttempt = () => {}, onComplete = () => {}, onStart = () => {}, onTiming = () => {},
-  onFailure = () => {}, onWordStart = () => {}, onPractice = () => {} } = {}) {
+  onFailure = () => {}, onWordStart = () => {}, onPractice = () => {}, onPreview = () => {} } = {}) {
   let source = getDB().dailySession;
   let session = source ? restoreDailySession(source) : null;
   let saved = null, bank = null;
@@ -52,8 +52,17 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     if (session.phase === 'warmup') {
       a.credited = true;
       if (!session.warmupDone.includes(key)) session.warmupDone.push(key);
-      if (!Array.isArray(db().mastered)) db().mastered = [];
-      if (!db().mastered.some(w => learningKey(w) === key)) db().mastered.push(evidenceForWord(word));
+      // 预习：不看提示拼完才算「学会」；用了提示只记练过，下次再来。
+      const clean = !(a.hints || a.reveals);
+      if (clean) {
+        if (session.mode === 'preview') {
+          if (!Array.isArray(session.cleanDone)) session.cleanDone = [];
+          if (!session.cleanDone.includes(key)) session.cleanDone.push(key);
+        }
+        if (!Array.isArray(db().mastered)) db().mastered = [];
+        if (!db().mastered.some(w => learningKey(w) === key)) db().mastered.push(evidenceForWord(word));
+      }
+      onPreview({ session, word, clean, db: db(), at: now() });
       return;
     }
     const credit = creditDictation(db(), a);
@@ -76,7 +85,10 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     session.paused = true; session.activeSince = null; session.pauseReason = 'time-budget';
     publish(); return true;
   }
-  function start({ unit = 1, limit, bookId = DEFAULT_BOOK_ID } = {}) {
+  /* mode：界面新开的一律是 'preview'（预习）；'dictation' 是旧版每日默写，
+     只为旧存档恢复和那套严格掌握规则的回归测试保留。 */
+  function start({ unit = 1, limit, bookId = DEFAULT_BOOK_ID, mode = 'preview' } = {}) {
+    const preview = mode === 'preview';
     syncSource();
     if ((source && !session) || (session && session.phase !== 'completed')) return false;
     const selectedBook = unit === 0 || !knownBookId(bookId) ? DEFAULT_BOOK_ID : bookId;
@@ -85,10 +97,13 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     const carry = session && (session.bookId || DEFAULT_BOOK_ID) === selectedBook && session.unit === unit && session.reason !== 'pool-exhausted'
       ? session.words.filter(w => !session.results.some(r => r.key === learningKey(w))) : [];
     const cursors = db().dailyCursor && typeof db().dailyCursor === 'object' ? db().dailyCursor : {};
-    const selection = selectDailyWords({ words: rawWords, dueWords: getDueWords({ db: db(), at: now(), unit, bookId: selectedBook }),
-      mastered: db().dictationMastered, cursor: cursors[cursorKey] || 0, carry, limit });
+    // 预习按课本顺序过整个单元：不插复习词，也不把已学会的词往后挪。
+    const selection = preview
+      ? selectDailyWords({ words: rawWords, dueWords: [], mastered: [], cursor: cursors[cursorKey] || 0, carry, limit: limit || PREVIEW_WORD_LIMIT })
+      : selectDailyWords({ words: rawWords, dueWords: getDueWords({ db: db(), at: now(), unit, bookId: selectedBook }),
+        mastered: db().dictationMastered, cursor: cursors[cursorKey] || 0, carry, limit });
     const stamp = now();
-    session = createDailySession(selection, { unit, bookId: selectedBook, now: stamp, id: `${stamp}-${Math.floor(random() * 0x100000000).toString(16)}` });
+    session = createDailySession(selection, { unit, bookId: selectedBook, now: stamp, mode, id: `${stamp}-${Math.floor(random() * 0x100000000).toString(16)}` });
     if (!session) return false;
     db().dailyCursor = { ...cursors, [cursorKey]: selection.nextCursor };
     onStart({ session, db: db(), at: stamp });
@@ -119,13 +134,37 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     markDictationAssistance(session.attempt, kind); review(); publish(); return true;
   }
   function hint() {
+    if (session && session.phase === 'warmup') return previewHint();
     if (!assist('hint')) return false;
     // Evidence has already been marked and persisted before any answer is shown.
     return session.attempt.target[session.attempt.input.length] || '';
   }
+  /* 预习的提示：不限次数，直接替你填上下一个字母（字母盘上对应那块跟着用掉）。
+     用过提示的词照样能拼完，只是不算「学会」。 */
+  function previewHint() {
+    if (blocked() || session.attempt.completed) return false;
+    const a = session.attempt, ch = a.target[a.input.length];
+    if (!ch) return false;
+    markDictationAssistance(a, 'hint');
+    const b = letters(), index = b.letters.findIndex((x, i) => x === ch && !b.used[i]);
+    applyDictationInput(a, ch);
+    if (index >= 0) b.used[index] = true;
+    onPractice({ session, attempt: a, word: session.words[session.index], key: ch, db: db(), at: now() });
+    completeWord(); publish(); return ch;
+  }
+  /* 预习里随时可以跳过当前词：不记学会，也不记错，直接下一个。 */
+  function skip() {
+    if (blocked() || session.phase !== 'warmup' || session.attempt.completed) return false;
+    const key = learningKey(session.words[session.index]);
+    if (!Array.isArray(session.skipped)) session.skipped = [];
+    if (!session.skipped.includes(key)) session.skipped.push(key);
+    return advanceWord();
+  }
   function advanceWord() {
     session.index++;
     if (session.index >= session.words.length) {
+      // 预习过完最后一个词就结束；旧版会话还走「热身 → 正式默写」。
+      if (session.phase === 'warmup' && session.mode === 'preview') return close('pool-exhausted');
       if (session.phase === 'warmup') { session.phase = 'formal-ready'; session.index = 0; session.attempt = null; }
       else return close('pool-exhausted');
     } else setAttempt();
@@ -179,7 +218,7 @@ export function createDailyDictationController({ getDB, getWords, getDueWords = 
     return result;
   }
   function discard() { db().dailySession = null; source = null; session = null; bank = null; try { const r = persist(db()); saved = r === true || r?.ok === true; } catch { saved = false; } onChange(null,{ saved }); }
-  return { start, input, assist, hint, next, defer, beginFormal, pause, resume, checkTime, letters, importWords, discard,
+  return { start, input, assist, hint, skip, next, defer, beginFormal, pause, resume, checkTime, letters, importWords, discard,
     customWords: () => Array.isArray(db().custom) ? db().custom : [],
     finish: () => close(session?.pauseReason === 'time-budget' ? 'time-budget' : 'stopped'),
     state: () => { syncSource(); return session; }, summary: () => dailySummary(session, now()), saved: () => saved,

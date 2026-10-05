@@ -40,7 +40,8 @@ test('home expedition count intersects all 259 textbook entries, deduplicates id
   const saved = Object.freeze([first, ' ' + first.toUpperCase() + ' ', last, 'custom-only-token']);
   const view = render({ mastered: saved, futureField: { keep: true } });
   assert.equal(view.stat('sExpedition'), '2');
-  assert.equal(view.stat('sMaster'), '0', 'expedition completion never becomes formal mastery');
+  // 2026-10 预习模式起「学会单词」统一口径：远征整词拼对也算学会。
+  assert.equal(view.stat('sMaster'), '2', 'learned count uses the same textbook intersection');
 });
 
 test('home expedition intersection preserves phrase spaces and punctuation', () => {
@@ -51,20 +52,20 @@ test('home expedition intersection preserves phrase spaces and punctuation', () 
   assert.equal(view.stat('sExpedition'), genuinelyMatching ? '1' : '0');
 });
 
-test('partial expedition progress replaces not-started while dictation and unit locks stay unchanged', () => {
+test('partial learned progress replaces not-started while unit locks stay unchanged', () => {
   const one = WORDS.find(word => word.u === 1).w;
   const view = render({ mastered: [one, one.toUpperCase()] });
-  assert.match(view.unit(1).textContent, /远征 1\/45 · 默写 0\/45/);
+  assert.match(view.unit(1).textContent, /学会 1\/45/);
   assert.doesNotMatch(view.unit(1).textContent, /未开始|已掌握|已通关/);
   assert.equal(view.unit(2).disabled, true);
   assert.equal(view.unit(2).onclick, null);
 });
 
-test('unit cards display both independent counts without changing formal-only progress', () => {
+test('unit cards count learned words across expedition and old dictation records once', () => {
   const first = WORDS.find(word => word.u === 1).w;
   const second = WORDS.find(word => word.u === 1 && word.w !== first).w;
   const view = render({ mastered: [first], dictationMastered: [first, second] });
-  assert.match(view.unit(1).textContent, /远征 1\/45 · 默写 2\/45/);
+  assert.match(view.unit(1).textContent, /学会 2\/45/);
   assert.equal(view.stat('sExpedition'), '1');
   assert.equal(view.stat('sMaster'), '2');
 });
@@ -72,7 +73,7 @@ test('unit cards display both independent counts without changing formal-only pr
 test('custom-only expedition records stay visible on their own card but never inflate the textbook stat', () => {
   const view = render({ custom: [{ w: 'outside-book-word', z: '自定义' }], mastered: ['outside-book-word'] });
   assert.equal(view.stat('sExpedition'), '0');
-  assert.match(view.unit(0).textContent, /远征 1\/1 · 默写 0\/1/);
+  assert.match(view.unit(0).textContent, /学会 1\/1/);
   assert.equal(view.unit(2).disabled, true);
 });
 

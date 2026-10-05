@@ -27,3 +27,7 @@
   .daily-dictation .daily-prompt { font-size: 20px; }
   .daily-dictation .daily-monster, .daily-dictation .daily-monster svg { width: 44px; height: 44px; flex-basis: 44px; }
 }
+.daily-dictation .daily-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.daily-dictation .daily-tools .daily-button { margin-top: 10px; }
+.daily-dictation .daily-custom { margin-top: 14px; color: #c7d3f0; }
+.daily-dictation .daily-custom summary { cursor: pointer; font-size: 14px; }

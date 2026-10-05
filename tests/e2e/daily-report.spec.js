@@ -1,8 +1,9 @@
+// 2026-10 起界面新开的是预习；这里显式开旧版默写会话，守住旧存档恢复后的默写界面与掌握规则。
 import { test, expect, openPracticePanel } from './game-harness.js';
 const newOnly = info => test.skip(info.project.metadata.target === 'legacy','Dated daily reports are new');
 async function clockAt(page, iso) { const time=new Date(iso);await page.clock.install({time:new Date(time.getTime()-60000)});await page.clock.pauseAt(time); }
 async function start(page,text='cat 猫\ndog 狗'){
- await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill(text);await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
+ await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill(text);await page.locator('#dailyImport').click();await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
 }
 async function warm(page,words=['cat','dog']){for(const word of words){await page.keyboard.type(word);await page.locator('#dailyNext').click();}await page.locator('#dailyFormal').click();}
 
@@ -34,7 +35,7 @@ test('Shanghai midnight report splits active practice and excludes paused waitin
 });
 
 test('homepage today record advances at Shanghai midnight without starting a session',async({game,page},info)=>{
- newOnly(info);await clockAt(page,'2026-10-02T15:59:58Z');await game.open();await openPracticePanel(page);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-02');await page.clock.fastForward(3000);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-03');await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：0');await expect(page.locator('#dailyReportRate')).toContainText('暂无正式尝试');
+ newOnly(info);await clockAt(page,'2026-10-02T15:59:58Z');await game.open();await openPracticePanel(page);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-02');await page.clock.fastForward(3000);await expect(page.locator('#dailyReportDate')).toHaveText('2026-10-03');await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：0');await expect(page.locator('#dailyReportRate')).toHaveCount(0);
 });
 for(const width of [320,390])test(`parent report mobile ${width}px readable card, no horizontal overflow`,async({game,page},info)=>{
  newOnly(info);await page.setViewportSize({width,height:720});await game.open();await openPracticePanel(page);await page.locator('#dailyHomeReport').scrollIntoViewIfNeeded();await page.screenshot({path:`/tmp/pr3-home-${width}.png`});

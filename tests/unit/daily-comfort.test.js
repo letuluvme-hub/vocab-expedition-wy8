@@ -22,10 +22,10 @@ function setup(words=[cat,dog,pig], initial={}) {
   return {c,db,learning,saves:()=>saves,attempts:()=>attempts,finishes:()=>finishes,now:()=>at,advance:n=>at+=n};
 }
 const spell=(c,w)=>{for(const ch of w)c.input(ch)};
-function formal(c,words) {c.start({unit:1});for(const w of words){spell(c,w.w);c.next()}c.beginFormal()}
+function formal(c,words) {c.start({mode:'dictation',unit:1});for(const w of words){spell(c,w.w);c.next()}c.beginFormal()}
 
 test('defer is unavailable in warmup, formal-ready, clean halfword or fullword',()=>{
-  const {c}=setup([cat]);c.start({unit:1});assert.equal(c.defer(),false);
+  const {c}=setup([cat]);c.start({mode:'dictation',unit:1});assert.equal(c.defer(),false);
   spell(c,'cat');c.next();assert.equal(c.defer(),false);c.beginFormal();c.input('c');assert.equal(c.defer(),false);
   spell(c,'at');assert.equal(c.defer(),false);assert.equal(c.summary().completed,1);
 });
@@ -101,7 +101,7 @@ test('undated legacy failed halfword defer records failure now and does not repl
 });
 test('deferred resolved words are excluded from immediate unfinished carry priority',()=>{
   const x=setup();formal(x.c,[cat,dog,pig]);x.c.input('x');x.c.defer();spell(x.c,'dog');x.c.next();x.c.finish();
-  x.c.start({unit:1,limit:1});assert.equal(x.c.state().words[0].w,'pig');
+  x.c.start({mode:'dictation',unit:1,limit:1});assert.equal(x.c.state().words[0].w,'pig');
 });
 test('deferring yesterday\'s already assessed error does not invent practice, reward or re-assessment today',()=>{
   const x=setup([cat]);formal(x.c,[cat]);x.c.input('x');x.c.pause();

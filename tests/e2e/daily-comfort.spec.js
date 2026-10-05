@@ -1,7 +1,8 @@
+// 2026-10 起界面新开的是预习；这里显式开旧版默写会话，守住旧存档恢复后的默写界面与掌握规则。
 import { test, expect, openPracticePanel } from './game-harness.js';
 const newOnly=info=>test.skip(info.project.metadata.target==='legacy','Daily comfort is new');
 async function begin(page,text,words){
-  await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill(text);await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
+  await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill(text);await page.locator('#dailyImport').click();await page.evaluate(()=>window.__gameTest.dailyController.start({unit:Number(document.getElementById('dailyUnit').value),bookId:document.getElementById('dailyBook').value,mode:'dictation'}));
   for(const w of words){await page.keyboard.type(w);await page.locator('#dailyNext').click()}
   await page.locator('#dailyFormal').click();
 }

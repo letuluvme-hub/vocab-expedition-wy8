@@ -82,12 +82,12 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
       //   原因 —— 靠躲测试而不是靠结构，迟早又会被别的文本命中）。
       //   单元名与编号照常可见，脚本改用 data-unit / <b> 定位。
       b.setAttribute('data-unit', String(u.n));
-      // 两份记录只在展示时并列：远征读 mastered，正式默写沿用 campaign。
-      // 复用教材交集的 trim+lower 身份；不把任何展示计数写回存档或解锁规则。
+      // 「学会」按统一口径现算：正式默写掌握 + 远征整词拼对 + 预习不看提示拼对，
+      // trim+lower 身份去重；不把任何展示计数写回存档或解锁规则。
       const c = counts(u.n);
-      const m = c ? c.done : canonicalMasteryKeys(DB.dictationMastered, ws).length;
+      const m = canonicalMasteryKeys([...(Array.isArray(DB.dictationMastered) ? DB.dictationMastered : []), ...(Array.isArray(DB.mastered) ? DB.mastered : [])], ws).length;
       const expedition = canonicalMasteryKeys(DB.mastered, ws).length;
-      const total = c ? c.total : ws.length;
+      const total = ws.length;
       const head = '<b>' + u.t + '</b><span>' + ws.length + ' 词' + (ws.length ? '' : '（空）') + '</span>';
       const progress = ws.length ? '<em>' + unitProgressLine({ c, done: m, total, expedition }) + '</em>' : '';
       if (!open) {
@@ -113,7 +113,10 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
       const textbook = units.filter(u => u.n > 0).flatMap(u => allWords(u.n));
       expeditionStat.textContent = canonicalMasteryKeys(DB.mastered, textbook).length;
     }
-    $('sMaster').textContent = (DB.dictationMastered || []).length;
+    // 「学会」统计：正式默写掌握 + 远征整词拼对 + 预习不看提示拼对，只数教材词、去重。
+    const allTextbook = BOOKS.flatMap(b => b.words);
+    $('sMaster').textContent = canonicalMasteryKeys([...(Array.isArray(DB.dictationMastered) ? DB.dictationMastered : []), ...(Array.isArray(DB.mastered) ? DB.mastered : [])], allTextbook).length;
+    const masterLabel = $('sMaster').nextElementSibling; if (masterLabel) masterLabel.textContent = '学会单词';
     $('sFloor').textContent = DB.best;
     $('rewardSummary').textContent = '通关纪念卡 · ' + DB.rewards.length + ' 张（点击查看）';
     const cards = $('rewardCards'); cards.innerHTML = '';
@@ -129,9 +132,8 @@ export function createTitleScreen({ getDB, getUnit, allWords, getCampaign, onHer
 }
 
 /* 部分远征进度也有明确读数；只有旧凭据而无逐词记录时保留已有完成说明。 */
-function unitProgressLine({ c, done, total, expedition }) {
-  if (expedition > 0) return '远征 ' + expedition + '/' + total + ' · 默写 ' + done + '/' + total;
-  if (c && c.passed && !c.complete) return '远征已通关 · 默写 ' + done + '/' + total;
+function unitProgressLine({ c, done, total }) {
+  if (c && c.passed && done < total) return '远征已通关 · 学会 ' + done + '/' + total;
   if (!done) return '未开始';
-  return '默写 ' + done + '/' + total;
+  return '学会 ' + done + '/' + total;
 }

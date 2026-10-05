@@ -61,7 +61,7 @@ async function fixture(at=stamp('2026-10-02')) {
  const {createDailyLearning}=await app();const db=fresh();let time=at,commits=[];
  const learning=createDailyLearning({getDB:()=>db,getWords:()=>[cat,dog],now:()=>time});
  const ctl=createDailyDictationController({getDB:()=>db,getWords:()=>[cat,dog],now:()=>time,random:()=>0.1,persist:()=>{commits.push(structuredClone(db));return true},...learning.ports});
- const start=()=>ctl.start({unit:0});
+ const start=()=>ctl.start({mode:'dictation',unit:0});
  const warm=()=>{for(const w of ctl.state().words){for(const k of w.w)ctl.input(k);ctl.next();}ctl.beginFormal();};
  return {db,ctl,learning,start,warm,commits,clock:ms=>time+=ms,setTime:n=>time=n};
 }

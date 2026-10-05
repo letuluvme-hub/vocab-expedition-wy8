@@ -14,7 +14,7 @@ export const COSMETICS = Object.freeze([
   {id:'mint-frame',type:'frame',name:'薄荷卡框'},
   {id:'night-frame',type:'frame',name:'夜星卡框'},
 ].map(Object.freeze));
-export const CARD_LABELS = Object.freeze(['未收集','见过','练过','默写对','复习稳固']);
+export const CARD_LABELS = Object.freeze(['未收集','见过','练过','学会了','复习稳固']);
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const own = (map,key) => object(map) && Object.hasOwn(map,key) ? map[key] : undefined;
 const put = (map,key,value) => Object.defineProperty(map,key,{value,enumerable:true,configurable:true,writable:true});
@@ -26,6 +26,10 @@ const signed = (collection,date) => ['practice','makeup'].includes(own(collectio
 const cosmetic = id => COSMETICS.find(c=>c.id===id);
 const currentStage = count => PARTNER_STAGES.reduce((stage,item,index)=>count>=item.required?index:stage,0);
 
+// 墨芽长大、词卡「学会了」都按统一的学会口径：正式默写掌握 + 远征整词拼对 + 预习不看提示拼对。
+function learnedIdentities(db) {
+  return identities([...(Array.isArray(db.dictationMastered)?db.dictationMastered:[]),...(Array.isArray(db.mastered)?db.mastered:[])]);
+}
 export function initializeCollection(db) {
   if (!object(db.dailyCollection)) db.dailyCollection = {};
   const c=db.dailyCollection;
@@ -38,7 +42,7 @@ export function initializeCollection(db) {
 export function syncPartner(db) {
   if(!object(db.dailyCollection))return initializeCollection(db);
   const c=db.dailyCollection;if(!Array.isArray(c.unlockedStages))c.unlockedStages=[0];
-  const stage=currentStage(identities(db.dictationMastered).size);
+  const stage=currentStage(learnedIdentities(db).size);
   for(let i=0;i<=stage;i++)if(!c.unlockedStages.includes(i))c.unlockedStages.push(i);
   return c;
 }
@@ -59,7 +63,7 @@ function checkinView(c,date) {
   return {date,checkedToday:signed(c,date),streak,week,makeupUsed:used,candidates,firstCheckinDate:first||null};
 }
 export function collectionView(db,at) {
-  const c=object(db.dailyCollection)?db.dailyCollection:{},count=identities(db.dictationMastered).size;
+  const c=object(db.dailyCollection)?db.dailyCollection:{},count=learnedIdentities(db).size;
   const stages=Array.isArray(c.unlockedStages)?c.unlockedStages:[];
   const stage=Math.max(currentStage(count),...stages.filter(n=>Number.isInteger(n)&&n>=0&&n<PARTNER_STAGES.length),0);
   const next=PARTNER_STAGES[stage+1],owned=Array.isArray(c.cosmetics)?c.cosmetics:[],equipped={};
@@ -97,11 +101,11 @@ export function equipCosmetic(db,id,type) {
 }
 export function cardLevel(db,word) {
   const key=learningKey(word);if(!key)return 0;
-  if(identities(db.dictationMastered).has(key)){
+  if(learnedIdentities(db).has(key)){
     const review=own(db.reviewSchedule,key);return review?.stable===true&&review.pendingFailure!==true?4:3;
   }
   const exposure=own(db.wordExposure,key);
-  if(exposure?.practiced===true||identities(db.mastered).has(key))return 2;
+  if(exposure?.practiced===true)return 2;
   return exposure?.seen===true?1:0;
 }
 export function atlasCards(db,words,unit) {

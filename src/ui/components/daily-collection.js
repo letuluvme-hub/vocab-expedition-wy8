@@ -36,7 +36,7 @@ export function createDailyCollectionView({host,atlasHost=host,getView,getCards,
     const view=getView();date=view.checkin.date;root.replaceChildren();paintAtlas(view);
     const partner=el('div',undefined,undefined,'daily-partner');
     const art=el('div',undefined,'dailyPartner','daily-partner-art');art.append(partnerArt(doc,view.partner.stage,view.equipped.partner));
-    const facts=el('div',undefined,undefined,'daily-partner-facts');facts.append(el('h3',`我的伙伴 · ${view.partner.name}`),el('p',`${view.partner.stageName} · 当前默写掌握 ${view.partner.count} 词`),
+    const facts=el('div',undefined,undefined,'daily-partner-facts');facts.append(el('h3',`我的伙伴 · ${view.partner.name}`),el('p',`${view.partner.stageName} · 已学会 ${view.partner.count} 词`),
       el('p',view.partner.nextName?`到「${view.partner.nextName}」还差 ${view.partner.remaining} 词`:'所有成长形态已收集','dailyPartnerProgress'));
     partner.append(art,facts);root.append(partner,el('p',`已收集形态：${view.partner.unlockedStages.map(i=>PARTNER_STAGES[i].name).join('、')}`,undefined,'daily-collection-note'));
     if(getSaved()===false)root.append(el('p','外观／补签未保存；当前效果保留，刷新会丢失。','dailyCollectionSaveWarning','daily-collection-warning'));
@@ -78,7 +78,7 @@ export function createDailyCollectionView({host,atlasHost=host,getView,getCards,
       const label=el('label','按单元浏览');const select=el('select',undefined,'dailyAtlasUnit');label.htmlFor=select.id;
       for(const item of bookUnits(bookId)){const option=el('option',item.n?(item.t||`Unit ${item.n}`):'自定义收藏');option.value=String(item.n);select.append(option);}
       select.value=String(unit);select.onchange=()=>{unit=Number(select.value);paintAtlas(getView());};atlas.append(label,select);
-      const cards=getCards(unit,bookId);atlas.append(el('p',`已收集 ${cards.filter(c=>c.level>0).length} / ${cards.length} · 默写对 ${cards.filter(c=>c.level>=3).length} · 复习稳固 ${cards.filter(c=>c.level===4).length}`,'dailyAtlasProgress','daily-collection-note'));
+      const cards=getCards(unit,bookId);atlas.append(el('p',`已收集 ${cards.filter(c=>c.level>0).length} / ${cards.length} · 学会了 ${cards.filter(c=>c.level>=3).length} · 复习稳固 ${cards.filter(c=>c.level===4).length}`,'dailyAtlasProgress','daily-collection-note'));
       const grid=el('div',undefined,'dailyAtlasCards','daily-atlas-grid');
       for(const card of cards){const item=el('article',undefined,undefined,`daily-card level-${card.level}`);item.dataset.word=card.key;if(view.equipped.frame)item.dataset.frame=view.equipped.frame;
         item.append(el('strong',card.word.w),el('p',card.word.z),el('span',card.label,undefined,'daily-card-level'));grid.append(item);}

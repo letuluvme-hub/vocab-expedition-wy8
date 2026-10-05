@@ -358,8 +358,11 @@ const allWords = (u,bookId=curBook) => u===0 ? DB.custom.map(x=>({u:0,d:2,w:x.w,
 
 /* ★ 单元解锁的唯一口径（docs/feature-campaign.md）：纯派生自 DB.dictationMastered，不缓存、不维护第二套状态。UI 与运行时入口读的是同一份，
    所以「主页显示已解锁」与「真的能开跑」不可能分叉。 */
+/* 「学会」的统一口径（2026-10 预习模式起）：旧的正式默写掌握 + 远征整词拼对 + 预习不看提示拼对。
+   每日默写改成预习以后，正式默写不再产生新证据；解锁、开局成长、墨芽和主页统计都读这一份。 */
+const learnedWords = () => [...(Array.isArray(DB.dictationMastered)?DB.dictationMastered:[]),...(Array.isArray(DB.mastered)?DB.mastered:[])];
 const campaignState = (bookId=curBook) => unlockProgress({bookId,units:bookUnits(bookId).map(u=>u.n),wordsFor:u=>allWords(u,bookId),
-  dictationMastered:DB.dictationMastered,unitProgress:DB.unitProgress,bookUnitProgress:DB.bookUnitProgress});
+  dictationMastered:learnedWords(),unitProgress:DB.unitProgress,bookUnitProgress:DB.bookUnitProgress});
 /* 正在进行的远征看到的主线视图：在 campaignState 之上加跨册顺延 / 全册循环。
  *   cross —— 本单元学完后要去的「册 + 单元」（八上 Unit 6 → 八下 Unit 1，或循环里随机抽到的单元），
  *            结算屏按钮上的文字和 nextUnit() 真正进入的单元都读它。
@@ -527,7 +530,7 @@ function newRun(){
   //   把成长事实交给 createRun 加进 maxhp。读一次就够 —— 本局内达到 20 词、
   //   跨单元、续段都不再重算（所以「中途退出重进」不会白赚一次上限）。
   //   恢复存档的路径根本不经过 newRun，所以也绝不会被当前 DB 重算。
-  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(DB.dictationMastered,allCatalogWords(),curHero()),{bookId:curUnit===0?DEFAULT_BOOK_ID:curBook});
+  G=createRun(curUnit,curHero(),pool,Math.random,growthFact(learnedWords(),allCatalogWords(),curHero()),{bookId:curUnit===0?DEFAULT_BOOK_ID:curBook});
   // ★ 轮次身份（docs/feature-rounds.md）：这里注入一个持久 roundId。
   //   它必须不同于进程内自增的 run.id（R1/R2…，刷新后会重复）。
   //   轮次**编号**不在这儿取：registerRunStart 在真正 +1 之后从 DB.runs 取，
@@ -1115,7 +1118,7 @@ audioCompatibility.mount($('audioCompatibility'));
 //   导入自定义词表、切换单元之后回到主页，数字都是当下的事实（不缓存第二套状态）。
 //   mount 幂等：renderTitle 被反复调用（继续远征 / 回主页 / 切后台）都复用同一个盒子。
 const masteryGrowthView=createMasteryGrowth({
-  getSummary:()=>growthSummary(DB.dictationMastered,allCatalogWords()),
+  getSummary:()=>growthSummary(learnedWords(),allCatalogWords()),
 });
 // ★ mount() 的返回值是**挂好的 DOM 盒子**，不是组件本身（与 audioSettings 同口径）：
 //   把组件另存一份，renderTitle 里要调的是它的 paint()。

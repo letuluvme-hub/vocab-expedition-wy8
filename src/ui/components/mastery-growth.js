@@ -30,7 +30,7 @@ function num(v) {
   return Math.floor(n);
 }
 
-const NOTE = '只算每日默写里零错误的教材词，且未用提示、未揭示答案。只在新开一轮远征时生效：正在远征中或从存档恢复时不会补回生命，也不会提高本轮生命上限；跨单元不再额外增加。';
+const NOTE = '算的是你学会的教材词：远征里整词拼对、预习里不看提示拼对，以前默写掌握的也算。只在新开一轮远征时生效：正在远征中或从存档恢复时不会补回生命，也不会提高本轮生命上限；跨单元不再额外增加。';
 
 export function createMasteryGrowth({ getSummary, document: doc } = {}) {
   const D = doc || (typeof document !== 'undefined' ? document : null);
@@ -89,7 +89,7 @@ export function createMasteryGrowth({ getSummary, document: doc } = {}) {
     }
     const attack = Math.min(ATTACK_GROWTH_MAX,num(s.bonusAttackPct));
     byClass(host,'mgrowth-attack').textContent = '下轮攻击 +' + attack + '%（最多+' + ATTACK_GROWTH_MAX + '%）';
-    byClass(host,'mgrowth-attack-next').textContent = attack >= ATTACK_GROWTH_MAX ? '攻击成长已封顶，继续学习仍会积累掌握记录' : '每默写掌握 10 个教材词，攻击 +4%；再掌握 ' + num(s.attackToNext) + ' 词升级';
+    byClass(host,'mgrowth-attack-next').textContent = attack >= ATTACK_GROWTH_MAX ? '攻击成长已封顶，继续学习仍会积累掌握记录' : '每学会 10 个教材词，攻击 +4%；再学会 ' + num(s.attackToNext) + ' 词升级';
     return host;
   }
 

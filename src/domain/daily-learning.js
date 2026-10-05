@@ -174,8 +174,10 @@ export function durationText(ms) {
   const seconds = Math.floor(number(ms) / 1000); return `${Math.floor(seconds / 60)}分${String(seconds % 60).padStart(2, '0')}秒`;
 }
 export function reportText(report) {
-  const rate = report.formalAttempts ? `${report.firstTryRate}%（${report.firstTry}/${report.formalAttempts}）` : '暂无正式尝试';
-  return [`词汇远征 · 今日记录 ${report.date}`, `练习时长：${durationText(report.activeMs)}`, `练习词数：${report.practicedWords}（当天去重，含热身）`,
-    `一次拼对率：${rate}`, '统计口径：正式完整尝试或已出错/使用帮助的中断尝试；热身不计正确率。',
+  // 预习模式没有正式默写，一次拼对率只在旧默写记录里还有数时才显示。
+  const rate = report.formalAttempts ? [`一次拼对率：${report.firstTryRate}%（${report.firstTry}/${report.formalAttempts}）`,
+    '统计口径：正式完整尝试或已出错/使用帮助的中断尝试；预习不计正确率。'] : [];
+  return [`词汇远征 · 今日记录 ${report.date}`, `练习时长：${durationText(report.activeMs)}`, `练习词数：${report.practicedWords}（当天去重，含预习）`,
+    ...rate,
     '今日错词／辅助词：', ...(report.wrongWords.length ? report.wrongWords.map(w => `${w.w} · ${w.z}`) : ['无'])].join('\n');
 }

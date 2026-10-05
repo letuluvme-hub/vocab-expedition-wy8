@@ -17,7 +17,7 @@ export function createDailyCollection({getDB,getWords,now=Date.now,random=Math.r
   return {view:()=>collectionView(getDB(),now()),cards:(unit,bookId)=>atlasCards(getDB(),getWords(undefined,bookId),unit),saved:()=>saved,
     equip:(id,type)=>{if(!equipCosmetic(getDB(),id,type))return false;commit();return true;},
     makeup:date=>{const result=applyMakeup(getDB(),date,now());if(result.ok)commit();return result;},
-    ports:{onPractice:practiced,onFailure:practiced,onAttempt:({db})=>syncPartner(db),
+    ports:{onPractice:practiced,onFailure:practiced,onAttempt:({db})=>syncPartner(db),onPreview:({db})=>syncPartner(db),
       onComplete:({session,db,at})=>completeCollection(db,{at,practiced:session.collection?.practicedDates?.includes(shanghaiDate(at))===true,random})},
   };
 }

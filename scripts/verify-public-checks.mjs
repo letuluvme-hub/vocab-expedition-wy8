@@ -27,8 +27,8 @@ export async function verifyPublishedFiles({request,url,directory,expectedVersio
 export async function verifyLegacyPlay(page) {
   await expect(page.locator('#heroes .hcard')).toHaveCount(9);
   await expect(page.locator('#sRun')).toHaveText('7');
-  // Legacy mastered remains practice history; it cannot grant formal mastery.
-  await expect(page.locator('#sMaster')).toHaveText('0');
+  // 2026-10 预习模式起统一「学会」口径：旧存档里远征拼对的教材词 factory 也算学会单词。
+  await expect(page.locator('#sMaster')).toHaveText('1');
   await page.locator('#units .unit').filter({hasText:'我的词表'}).click();
   await page.locator('#startRun').click();await expect(page.locator('#s-map')).toBeVisible();
   for(let step=0;step<9 && !(await page.locator('#s-fight').isVisible());step++){
@@ -40,7 +40,7 @@ export async function verifyLegacyPlay(page) {
   await expect(page.locator('#s-fight')).toBeVisible();await expect(page.locator('#fAv svg')).toBeVisible();
   await expect(page.locator('#fZh')).toHaveText('猫');await page.keyboard.type('cat');
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')).mastered.includes('cat'))).toBe(true);
-  await page.reload({waitUntil:'networkidle'});await expect(page.locator('#sMaster')).toHaveText('0');
+  await page.reload({waitUntil:'networkidle'});await expect(page.locator('#sMaster')).toHaveText('1');
   const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')));
   expect(save.mastered).toEqual(expect.arrayContaining(['factory','cat']));expect(save.dictationMastered).toEqual([]);
   expect(save.hero).toBe('ranger');expect(save.custom).toEqual([{w:'cat',z:'猫'}]);expect(save.kbMode).toBe(true);expect(save.kbUpper).toBe(true);expect(save.future).toEqual({keep:true});
@@ -58,30 +58,31 @@ export async function verifyDailyPlay(page) {
   await expect(page.locator('#dailyAtlasCards .daily-card')).toHaveCount(45);
   const home=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,boxes:[document.querySelector('#dailyPartner'),...document.querySelectorAll('#dailyAtlasCards .daily-card')].map(n=>n.getBoundingClientRect().toJSON())}));
   expect(home.scroll).toBeLessThanOrEqual(width);for(const box of home.boxes){expect(box.left).toBeGreaterThanOrEqual(0);expect(box.right).toBeLessThanOrEqual(width);}
+  // 2026-10 起是单词预习：cat 用一次提示后拼完（不算学会、记为辅助词），dog 不看提示拼对（学会）。
   await page.locator('#dailyOpen').click();await page.locator('#dailyCustomText').fill('cat 猫\ndog 狗');await page.locator('#dailyImport').click();await page.locator('#dailyStart').click();
-  for(const word of ['cat','dog']){await page.keyboard.type(word);await page.locator('#dailyNext').click();}
-  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')).dictationMastered)).toEqual([]);
-  await page.locator('#dailyFormal').click();await expect(page.locator('#dailyKeys .dictation-key')).toHaveCount(27);
+  await expect(page.locator('#dailyStage')).toHaveText('单词预习');
+  await page.locator('#dailyHint').click();await expect(page.locator('#dailyInput')).toHaveText('c');
   await expect(page.locator('#dailyPartner')).not.toBeVisible();await expect(page.locator('#dailyAtlasCards')).not.toBeVisible();
-  const keyboard=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,input:document.querySelector('#dailyInput').getBoundingClientRect().bottom,top:document.querySelector('#dailyKeys').getBoundingClientRect().top,keys:[...document.querySelectorAll('#dailyKeys button')].map(n=>n.getBoundingClientRect().toJSON())}));
-  expect(keyboard.scroll).toBeLessThanOrEqual(width);expect(keyboard.top).toBeGreaterThanOrEqual(keyboard.input);
-  for(const key of keyboard.keys){expect(key.left).toBeGreaterThanOrEqual(0);expect(key.right).toBeLessThanOrEqual(width);expect(key.height).toBeGreaterThanOrEqual(44);}
-  await page.locator('#dailyHint').click();await page.keyboard.type('cat');await page.locator('#dailyNext').click();
-  await page.keyboard.type('dog');await page.locator('#dailyNext').click();await expect(page.locator('#dailyStage')).toHaveText('今日完成');
-  await expect(page.locator('#dailySummary')).toContainText('一次拼对 1 / 2（50%）');await expect(page.locator('#dailyGift')).toContainText('今日外观');
+  const bank=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,keys:[...document.querySelectorAll('#dailyWarmupKeys button, #dailyHint, #dailySkip')].map(n=>n.getBoundingClientRect().toJSON())}));
+  expect(bank.scroll).toBeLessThanOrEqual(width);
+  for(const key of bank.keys){expect(key.left).toBeGreaterThanOrEqual(0);expect(key.right).toBeLessThanOrEqual(width);expect(key.height).toBeGreaterThanOrEqual(44);}
+  await page.keyboard.type('at');await page.locator('#dailyNext').click();
+  await page.keyboard.type('dog');await page.locator('#dailyNext').click();await expect(page.locator('#dailyStage')).toHaveText('预习完成');
+  await expect(page.locator('#dailySummary')).toContainText('拼完 2 / 2 词');await expect(page.locator('#dailySummary')).toContainText('不看提示拼对 1 词');
+  await expect(page.locator('#dailyGift')).toContainText('今日外观');
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')));
-  expect(saved.dictationMastered).toEqual(['dog']);expect(saved.reviewQueue).toContain('cat');expect(saved.dailySession.results[0]).toMatchObject({completed:true,eligible:false});
+  expect(saved.dictationMastered).toEqual([]);expect(saved.mastered).toContain('dog');expect(saved.dailySession.cleanDone).toEqual(['dog']);
   await page.locator('#dailyDoneHome').click();await expect(page.locator('#dailyStart')).toHaveCount(0);
   const date=await page.evaluate(()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(Date.now()));
   await expect(page.locator('#dailyReportDate')).toHaveText(date);await expect(page.locator('#dailyReportDuration')).toHaveText(/练习时长：\d+分\d+秒/);
-  await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：2');await expect(page.locator('#dailyReportRate')).toHaveText('一次拼对率：50%（1/2）');
+  await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：2');await expect(page.locator('#dailyReportRate')).toHaveCount(0);
   await expect(page.locator('#dailyReportWrong')).toContainText('cat · 猫');await expect(page.locator('#dailyReportWrong')).not.toContainText('dog');
   await page.locator('#dailyReportCopy').click();await expect(page.locator('#dailyReportCopyStatus')).toHaveText('已复制');
   const copied=await page.evaluate(()=>navigator.clipboard.readText());
-  for(const id of ['dailyReportDate','dailyReportDuration','dailyReportWords','dailyReportRate'])expect(copied).toContain(await page.locator('#'+id).innerText());
+  for(const id of ['dailyReportDate','dailyReportDuration','dailyReportWords'])expect(copied).toContain(await page.locator('#'+id).innerText());
   expect(copied).toContain('cat · 猫');
-  await page.reload({waitUntil:'networkidle'});await page.locator('#dailyEntry > summary').click();await expect(page.locator('#sMaster')).toHaveText('1');await expect(page.locator('#dailyReportRate')).toHaveText('一次拼对率：50%（1/2）');
-  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')).dictationMastered)).toEqual(['dog']);
+  await page.reload({waitUntil:'networkidle'});await page.locator('#dailyEntry > summary').click();await expect(page.locator('#dailyReportWords')).toHaveText('练习词数：2');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('wy8a_rogue_v1')).mastered)).toContain('dog');
   expect(await page.evaluate(()=>({probe:typeof window.__gameTest,flag:typeof window.__VOCAB_TEST__}))).toEqual({probe:'undefined',flag:'undefined'});
-  return {date,warmupMastered:0,formalMastered:['dog'],firstTryRate:'一次拼对率：50%（1/2）',clipboardCopied:true,width};
+  return {date,previewLearned:['dog'],hintedWord:'cat',clipboardCopied:true,width};
 }

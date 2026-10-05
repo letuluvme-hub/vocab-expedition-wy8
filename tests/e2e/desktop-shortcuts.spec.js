@@ -36,11 +36,13 @@ test('daily Enter advances while textarea keys and native focused controls keep 
   await page.keyboard.press('Escape');await expect(page.locator('#dailyStart')).toBeVisible();
   await page.locator('#dailyImport').click();await page.locator('#dailyStage').click();
   await page.keyboard.press('Enter');await expect(page.locator('#dailyWarmupKeys')).toBeVisible();
-  await page.keyboard.type('cat');await page.keyboard.press('Enter');await expect(page.locator('#dailyFormal')).toBeVisible();
-  await page.keyboard.press('Enter');await expect(page.locator('#dailyKeys')).toBeVisible();
+  // 2026-10 起 Enter 开的是预习：F2 替你填一个字母，Esc 暂停/继续，拼完 Enter 结束预习。
   await page.keyboard.press('F2');expect((await game.saved()).dailySession.attempt.hints).toBe(1);
+  expect((await game.saved()).dailySession.attempt.input).toBe('c');
   await page.keyboard.press('Escape');await expect(page.locator('#dailyResume')).toBeVisible();
-  await page.keyboard.press('Escape');await expect(page.locator('#dailyKeys')).toBeVisible();
+  await page.keyboard.press('Escape');await expect(page.locator('#dailyWarmupKeys')).toBeVisible();
+  await page.keyboard.type('at');await page.keyboard.press('Enter');await expect(page.locator('#dailySummary')).toBeVisible();
+  await expect(page.locator('#dailySummary')).toContainText('拼完 1 / 1 词');
 });
 
 test('phone screens hide keyboard badges and retain the same touch controls',async({game,page},info)=>{

@@ -10,10 +10,11 @@ const at = date => Date.parse(`${date}T04:00:00Z`);
 const cat = {w:'cat',z:'猫'}, dog = {w:'dog',z:'狗'};
 const fresh = () => ({mastered:[],dictationMastered:[],reviewQueue:[],custom:[cat,dog]});
 
-test('practice mastery never grows partner; formal identities deduplicate trim and case',async()=>{
+// 2026-10 预习模式起，远征整词拼对与预习不看提示拼对（都写 mastered）也算学会，墨芽一起长。
+test('learned words from expedition or preview grow partner; identities deduplicate trim and case across both lists',async()=>{
  const m=await api(),db=fresh();db.mastered=WORDS.map(w=>w.w);m.initializeCollection(db);let v=m.collectionView(db,at('2026-10-03'));
- assert.equal(v.partner.count,0);assert.equal(v.partner.stage,0);assert.equal(v.partner.remaining,5);
- db.dictationMastered=['cat',' CAT ','Cat','dog'];m.syncPartner(db);v=m.collectionView(db,at('2026-10-03'));assert.equal(v.partner.count,2);assert.equal(v.partner.remaining,3);
+ assert.equal(v.partner.count,WORDS.length);assert.equal(v.partner.stage,m.PARTNER_STAGES.length-1);
+ const d=fresh();d.dictationMastered=['cat',' CAT ','Cat'];d.mastered=['dog',' Cat '];m.syncPartner(d);v=m.collectionView(d,at('2026-10-03'));assert.equal(v.partner.count,2);assert.equal(v.partner.remaining,3);
 });
 test('every formal threshold advances original partner and next gap is exact',async()=>{
  const m=await api(),db=fresh();for(const [i,threshold] of m.PARTNER_STAGES.entries()){
@@ -32,9 +33,9 @@ test('atlas preserves all259 original cards and order with five honest states',a
  const cards=m.atlasCards(db,WORDS,1);assert.equal(m.atlasCards(db,WORDS).length,259);assert.deepEqual(cards.map(x=>x.word),words);
  assert.deepEqual(cards.slice(0,5).map(x=>x.level),[0,1,2,3,4]);assert.deepEqual([a,b,c,d,e].map(w=>m.cardLevel(db,w)),[0,1,2,3,4]);
 });
-test('old mastery means practiced; seen and half input do not mean formal mastery',async()=>{
- const m=await api(),db=fresh();recordExposure(db,cat);assert.equal(m.cardLevel(db,cat),1);recordExposure(db,cat,true);assert.equal(m.cardLevel(db,cat),2);db.mastered=[' DOG '];assert.equal(m.cardLevel(db,dog),2);
- assert.equal(m.collectionView(db,at('2026-10-03')).partner.count,0);
+test('a learned word is learned; seen and half input only mean seen or practiced',async()=>{
+ const m=await api(),db=fresh();recordExposure(db,cat);assert.equal(m.cardLevel(db,cat),1);recordExposure(db,cat,true);assert.equal(m.cardLevel(db,cat),2);db.mastered=[' DOG '];assert.equal(m.cardLevel(db,dog),3);
+ assert.equal(m.CARD_LABELS[3],'学会了');assert.equal(m.collectionView(db,at('2026-10-03')).partner.count,1);
 });
 test('stable requires formal mastery and completion of entire due review ladder',async()=>{
  const m=await api(),db=fresh();db.dictationMastered=['cat'];let time=at('2026-10-03');recordReviewSuccess(db,{word:cat,at:time,token:'first'});assert.equal(m.cardLevel(db,cat),3);
@@ -105,16 +106,17 @@ async function fixture(date='2026-10-03') {
  const ctl=createDailyDictationController({getDB:()=>db,getWords:()=>WORDS,now:()=>time,random:()=>0.2,persist:()=>{commits.push(structuredClone(db));return true},...ports});
  return {db,ctl,collection,commits,clock:date=>time=at(date),warm:()=>{for(const word of ctl.state().words){for(const k of word.w)ctl.input(k);ctl.next();}ctl.beginFormal();}};
 }
-test('real controller warmup and half formal remain practiced; assisted full word never formal card',async()=>{
- const f=await fixture();f.ctl.start({unit:0});f.ctl.input('c');assert.equal(f.collection.cards(0).find(c=>c.word.w==='cat').level,2);assert.equal(f.collection.view().partner.count,0);f.ctl.input('a');f.ctl.input('t');f.ctl.next();for(const k of 'dog')f.ctl.input(k);f.ctl.next();f.ctl.beginFormal();f.ctl.hint();for(const k of 'cat')f.ctl.input(k);f.ctl.next();assert.equal(f.collection.cards(0).find(c=>c.word.w==='cat').level,2);for(const k of 'dog')f.ctl.input(k);f.ctl.next();assert.equal(f.collection.cards(0).find(c=>c.word.w==='dog').level,3);
+// 旧版默写会话里，热身干净拼完（写 mastered）按统一口径记为学会；半个词只算练过。
+test('real controller half warmup stays practiced; clean warmup word counts as learned',async()=>{
+ const f=await fixture();f.ctl.start({mode:'dictation',unit:0});f.ctl.input('c');assert.equal(f.collection.cards(0).find(c=>c.word.w==='cat').level,2);assert.equal(f.collection.view().partner.count,0);f.ctl.input('a');f.ctl.input('t');f.ctl.next();for(const k of 'dog')f.ctl.input(k);f.ctl.next();f.ctl.beginFormal();f.ctl.hint();for(const k of 'cat')f.ctl.input(k);f.ctl.next();assert.equal(f.collection.cards(0).find(c=>c.word.w==='cat').level,3);for(const k of 'dog')f.ctl.input(k);f.ctl.next();assert.equal(f.collection.cards(0).find(c=>c.word.w==='dog').level,3);
  assert.equal(f.commits.at(-1).dailyCollection.checkins['2026-10-03'],'practice');assert.equal(f.commits.at(-1).dailyCollection.cosmetics.length,1);assert.equal(f.commits.at(-1).dailyReports.days['2026-10-03'].sessionsCompleted,1);
 });
 test('blank daily finish gets no reward; finish old practice after midnight gets no new date',async()=>{
- const f=await fixture();f.ctl.start({unit:0});f.ctl.pause();f.ctl.finish();assert.equal(f.collection.view().checkin.checkedToday,false);assert.equal(f.db.dailyCollection.cosmetics.length,0);
- f.ctl.start({unit:0});f.ctl.input(f.ctl.state().attempt.target[0]);f.ctl.pause();f.clock('2026-10-04');f.ctl.finish();assert.equal(f.collection.view().checkin.checkedToday,false);assert.equal(f.db.dailyCollection.cosmetics.length,0);
+ const f=await fixture();f.ctl.start({mode:'dictation',unit:0});f.ctl.pause();f.ctl.finish();assert.equal(f.collection.view().checkin.checkedToday,false);assert.equal(f.db.dailyCollection.cosmetics.length,0);
+ f.ctl.start({mode:'dictation',unit:0});f.ctl.input(f.ctl.state().attempt.target[0]);f.ctl.pause();f.clock('2026-10-04');f.ctl.finish();assert.equal(f.collection.view().checkin.checkedToday,false);assert.equal(f.db.dailyCollection.cosmetics.length,0);
 });
 test('app equipment and makeup persist exactly once and publish fresh view',async()=>{
- const f=await fixture();f.ctl.start({unit:0});f.ctl.input('c');f.ctl.pause();f.ctl.finish();const id=f.db.dailyCollection.cosmetics[0],n=f.commits.length;assert.equal(f.collection.equip(id),true);assert.equal(f.commits.length,n+1);f.clock('2026-10-05');const result=f.collection.makeup('2026-10-04');assert.equal(result.ok,true);assert.equal(f.commits.length,n+2);assert.equal(f.collection.saved(),true);
+ const f=await fixture();f.ctl.start({mode:'dictation',unit:0});f.ctl.input('c');f.ctl.pause();f.ctl.finish();const id=f.db.dailyCollection.cosmetics[0],n=f.commits.length;assert.equal(f.collection.equip(id),true);assert.equal(f.commits.length,n+1);f.clock('2026-10-05');const result=f.collection.makeup('2026-10-04');assert.equal(result.ok,true);assert.equal(f.commits.length,n+2);assert.equal(f.collection.saved(),true);
 });
 test('replacing getDB with incomplete old collection can equip safely and preserve unknown once',async()=>{
  const {createDailyCollection}=await app();let db=fresh(),saves=0;const collection=createDailyCollection({getDB:()=>db,getWords:()=>WORDS,now:()=>at('2026-10-03'),persist:()=>{saves++;return true}});

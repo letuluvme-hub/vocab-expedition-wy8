@@ -45,6 +45,8 @@ export function createDailyLearning({ getDB, getWords, now = Date.now } = {}) {
         recordAssessment(db, { word: result.word, eligible: true, at }); state.assessmentToken = id; state.assessedTokens.push(id);
       },
       onTiming: ({ db, at, deltaMs }) => recordActiveTime(db, at, deltaMs),
+      // 预习里靠提示才拼完的词，记进当天的「错词／辅助词」，家长日报里看得到。
+      onPreview: ({ word, clean, db, at }) => { if (!clean) recordWrongWord(db, word, at); },
       onComplete: ({ session, db, at }) => {
         const state = ledger(session); if (state.completed) return;
         const attempt = session.attempt, word = session.words[session.index];

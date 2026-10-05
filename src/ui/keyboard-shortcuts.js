@@ -52,7 +52,7 @@ export function createGameShortcuts({ document: doc = globalThis.document, Obser
     } else if (screen === 's-daily') {
       add('Enter', '#dailyResume, #dailyNext, #dailyFormal, #dailyStart, #dailyDoneHome');
       if (!add('Escape', '#dailyResume')) if (!add('Escape', '#dailyPause')) add('Escape', '#dailyHome');
-      add('F2', '#dailyHint'); add('F8', '#dailyDefer'); add('Backspace', '#dailyUndo');
+      add('F2', '#dailyHint'); add('F8', '#dailyDefer, #dailySkip'); add('Backspace', '#dailyUndo');
     } else if (screen === 's-learning-complete') {
       if (!add('Enter', '#lcBtnNext')) add('Enter', '#lcBtnHome');
       add('Escape', '#lcBtnHome');
